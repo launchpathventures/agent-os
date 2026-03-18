@@ -1,0 +1,137 @@
+# Agent OS — Process Definition
+# Process: Codebase Self-Improvement
+# Agents scan for improvements and propose changes.
+
+name: Codebase Self-Improvement
+id: self-improvement
+version: 1
+status: active
+
+description: >
+  Weekly scan for improvements to tooling, dependencies, patterns,
+  and approaches. Analyses correction patterns from feedback to
+  identify systematic issues. Proposes improvements with evidence.
+  Human always decides.
+
+trigger:
+  type: schedule
+  cron: "0 6 * * 1" # Every Monday at 6am
+  also:
+    type: manual
+    description: Can be triggered on-demand
+
+inputs:
+  - name: performance-metrics
+    type: data
+    source: learning-layer
+    required: true
+    description: Process performance trends, correction patterns, error rates
+
+  - name: codebase
+    type: repository
+    source: git
+    required: true
+
+  - name: ecosystem
+    type: external
+    source: web # npm registry, GitHub trending, release notes
+    required: false
+    description: New packages, tools, patterns in the ecosystem
+
+  - name: correction-patterns
+    type: data
+    source: learning-layer
+    required: true
+    description: What the human keeps fixing — systematic correction patterns
+
+steps:
+  - id: scan-performance
+    name: Review performance trends
+    executor: ai-agent
+    agent_role: scout
+    description: >
+      Analyse feedback data across all processes. What's degrading?
+      What corrections repeat? Where is time being wasted?
+    inputs: [performance-metrics, correction-patterns]
+    outputs: [performance-analysis]
+    parallel_group: scan
+
+  - id: scan-ecosystem
+    name: Scan for better approaches
+    executor: ai-agent
+    agent_role: scout
+    description: >
+      Check for new packages, tools, patterns that could improve
+      the codebase. Check dependency updates. Review what's trending
+      in relevant ecosystems.
+    inputs: [codebase, ecosystem]
+    outputs: [ecosystem-analysis]
+    parallel_group: scan
+
+  - id: evaluate
+    name: Evaluate and prioritise
+    executor: ai-agent
+    agent_role: evaluator
+    description: >
+      Combine performance and ecosystem analysis. Score each
+      opportunity by: impact, effort, risk. Prioritise top 3.
+    inputs: [performance-analysis, ecosystem-analysis, codebase]
+    outputs: [prioritised-proposals]
+    depends_on: [scan-performance, scan-ecosystem]
+
+  - id: propose
+    name: Propose improvements
+    executor: ai-agent
+    agent_role: proposer
+    description: >
+      For each top-priority improvement, produce a structured
+      proposal: what, why, evidence, estimated effort, risk,
+      predicted impact.
+    inputs: [prioritised-proposals]
+    outputs: [improvement-proposals]
+
+  - id: human-decides
+    name: Human reviews proposals
+    executor: human
+    description: >
+      Human reviews improvement proposals. Approves (sends to
+      Feature Implementation), modifies, or dismisses.
+    inputs: [improvement-proposals]
+    outputs: [decisions]
+
+outputs:
+  - name: improvement-proposals
+    type: document
+    destination: human-review-queue
+    description: Proposals waiting for human decision
+
+  - name: approved-improvements
+    type: document
+    destination: process:feature-implementation
+    description: Approved proposals become feature briefs
+
+quality_criteria:
+  - Proposals are justified with evidence (not speculative)
+  - Estimated effort is realistic
+  - Risk assessment is honest (not everything is "low risk")
+  - Top 3 only — don't overwhelm with 20 suggestions
+
+feedback:
+  metrics:
+    - name: approval_rate
+      description: Percentage of proposals the human approves
+      target: "> 50%"
+    - name: impact_accuracy
+      description: Did approved improvements actually improve metrics?
+      target: "> 70%"
+    - name: proposal_quality
+      description: Human rating of proposal usefulness (implicit from approve/dismiss)
+      target: "increasing trend"
+  capture:
+    - Which proposals approved vs dismissed (and why if human comments)
+    - Actual impact of approved changes vs predicted impact
+
+trust:
+  initial_tier: supervised
+  upgrade_path: [] # Always supervised — never auto-apply improvements
+  downgrade_triggers: []

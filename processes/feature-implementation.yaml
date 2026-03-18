@@ -1,0 +1,177 @@
+# Agent OS — Process Definition
+# Process: Feature Implementation
+# The core coding process — from brief to shipped code.
+
+name: Feature Implementation
+id: feature-implementation
+version: 1
+status: active
+
+description: >
+  Takes a feature brief or PRD and produces working, reviewed,
+  tested code. The planner architects the approach, the builder
+  implements, reviewers check quality, and the human approves
+  before shipping.
+
+# What triggers this process
+trigger:
+  type: manual # manual | schedule | event
+  description: Human creates or assigns a feature brief
+
+# Where inputs come from
+inputs:
+  - name: brief
+    type: document
+    source: manual # Could be a brief file, conversation capture, or ticket
+    required: true
+    description: Feature description — what to build and why
+
+  - name: codebase
+    type: repository
+    source: git
+    required: true
+    description: The target repository and branch
+
+  - name: conventions
+    type: document
+    source: file # AGENTS.md, CLAUDE.md, or equivalent
+    required: false
+    description: Coding conventions, patterns, and constraints
+
+# The steps — each has an executor type
+steps:
+  - id: plan
+    name: Plan approach
+    executor: ai-agent
+    agent_role: planner
+    description: >
+      Analyse the brief against the codebase. Propose architecture,
+      file changes, approach, and risks. Produce a structured plan.
+    inputs: [brief, codebase, conventions]
+    outputs: [plan]
+    verification:
+      - Plan addresses all requirements in brief
+      - Identifies files to create/modify
+      - Considers edge cases and risks
+
+  - id: review-plan
+    name: Review plan
+    executor: human
+    description: >
+      Human reviews the proposed plan. Approves, requests changes,
+      or redirects the approach entirely.
+    inputs: [plan]
+    outputs: [approved-plan]
+
+  - id: implement
+    name: Implement code
+    executor: ai-agent
+    agent_role: builder
+    description: >
+      Implement the approved plan. Write code, create files, modify
+      existing code. Follow conventions. Use fresh context per iteration
+      (ralph pattern).
+    inputs: [approved-plan, codebase, conventions]
+    outputs: [code-changes]
+    config:
+      pattern: ralph-loop # Fresh context per iteration
+      max_iterations: 10
+      progress_tracking: true # Track what's done between iterations
+
+  - id: test
+    name: Run tests and type-check
+    executor: script
+    description: >
+      Run the project's test suite and type checker. Deterministic —
+      no AI judgment needed.
+    inputs: [code-changes]
+    outputs: [test-results]
+    commands:
+      - pnpm type-check
+      - pnpm test
+    on_failure: return-to-implement
+
+  - id: self-review
+    name: Convention and quality review
+    executor: ai-agent
+    agent_role: reviewer
+    description: >
+      Review the implementation against conventions, check for common
+      mistakes, pattern compliance, security issues. Produces annotated
+      review.
+    inputs: [code-changes, conventions, test-results]
+    outputs: [review-annotations]
+    harness: maker-checker # This agent checks the builder's work
+
+  - id: human-review
+    name: Human reviews code
+    executor: human
+    description: >
+      Human reviews the implementation with agent annotations.
+      Approves, requests changes, or rejects.
+    inputs: [code-changes, review-annotations]
+    outputs: [approved-code]
+
+  - id: ship
+    name: Commit and ship
+    executor: script
+    description: >
+      Commit approved changes. Create PR or push to branch.
+    inputs: [approved-code]
+    outputs: [commit]
+    commands:
+      - git add -A
+      - git commit
+      - git push
+
+# What this process produces
+outputs:
+  - name: commit
+    type: code
+    destination: git-repository
+    description: Working, tested, reviewed code committed to the repo
+
+  - name: plan
+    type: document
+    destination: process-memory
+    description: Architecture decisions preserved for future reference
+
+# How we know it's working
+quality_criteria:
+  - Tests pass on first run (no test-fix cycles)
+  - Type-check clean
+  - Convention compliance (no reviewer flags)
+  - Human approves without edits (target over time)
+
+# What we track for learning
+feedback:
+  metrics:
+    - name: review_cycles
+      description: How many times human requested changes before approving
+      target: "≤ 1"
+    - name: test_pass_rate
+      description: Percentage of implementations that pass tests on first run
+      target: "> 90%"
+    - name: convention_compliance
+      description: Percentage of reviews with zero convention flags
+      target: "> 85%"
+    - name: human_edit_rate
+      description: How often the human edits agent output before approving
+      target: "decreasing trend"
+  capture:
+    - Human edits tracked as diff (implicit feedback)
+    - Review comments captured as correction patterns
+    - Time from brief to shipped code tracked
+
+# Trust configuration
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: 10 approved runs with ≤ 1 review cycle
+      upgrade_to: spot-checked
+    - after: 25 approved runs with zero human edits
+      upgrade_to: autonomous
+  downgrade_triggers:
+    - test failure rate > 20%
+    - human edit rate increases 2x
+    - reviewer flags critical issue

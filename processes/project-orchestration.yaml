@@ -1,0 +1,144 @@
+# Agent OS — Process Definition
+# Process: Project Orchestration (the meta-process)
+# Daily intelligence — what's happening, what needs attention, what's next.
+
+name: Project Orchestration
+id: project-orchestration
+version: 1
+status: active
+
+description: >
+  The meta-process that monitors all other processes and projects.
+  Produces a daily brief with priorities, risks, and recommendations.
+  Synthesises state from git, briefs, captured context, and process
+  health into actionable intelligence.
+
+trigger:
+  type: schedule
+  cron: "0 6 * * *" # Every day at 6am
+  also:
+    type: event
+    event: capture.new # Also runs when new context is captured
+    description: Re-evaluates priorities when new information arrives
+
+inputs:
+  - name: process-states
+    type: data
+    source: engine
+    required: true
+    description: Current state of all running processes — status, health, blockers
+
+  - name: git-activity
+    type: data
+    source: git
+    required: true
+    description: Recent commits, open PRs, branch status across all projects
+
+  - name: briefs
+    type: document
+    source: file
+    required: false
+    description: Active briefs, backlog items, blocked work
+
+  - name: captures
+    type: data
+    source: capture-store
+    required: false
+    description: Recently captured tasks, notes, and context
+
+  - name: deadlines
+    type: data
+    source: manual
+    required: false
+    description: Known deadlines and commitments
+
+  - name: feedback-trends
+    type: data
+    source: learning-layer
+    required: false
+    description: Process performance trends — what's improving, what's degrading
+
+steps:
+  - id: gather-state
+    name: Gather current state
+    executor: ai-agent
+    agent_role: pm
+    description: >
+      Pull current state from all sources. What's active, what's
+      waiting, what's blocked, what completed since last run.
+    inputs: [process-states, git-activity, briefs, captures]
+    outputs: [current-state]
+
+  - id: analyse
+    name: Analyse and prioritise
+    executor: ai-agent
+    agent_role: pm
+    description: >
+      Assess urgency and importance. Consider: deadlines, blocking
+      dependencies, stale items, process health degradation,
+      cross-project impacts. Rank top 3 priorities with reasoning.
+    inputs: [current-state, deadlines, feedback-trends]
+    outputs: [analysis]
+
+  - id: produce-brief
+    name: Produce daily brief
+    executor: ai-agent
+    agent_role: pm
+    description: >
+      Synthesise into a concise daily brief. Lead with priorities
+      and reasoning. Surface risks. Include review queue summary.
+      Keep it scannable — not a wall of text.
+    inputs: [analysis]
+    outputs: [daily-brief]
+
+  - id: deliver
+    name: Deliver to dashboard
+    executor: script
+    description: >
+      Push the daily brief to the dashboard and optionally send
+      a notification (email/push).
+    inputs: [daily-brief]
+    outputs: [delivered-brief]
+
+outputs:
+  - name: daily-brief
+    type: document
+    destination: dashboard
+    description: Today's priorities, risks, reviews needed, process health
+
+  - name: priority-recommendations
+    type: data
+    destination: dashboard
+    description: Ranked list of what to work on with reasoning
+
+quality_criteria:
+  - Top 3 priorities match what the human actually works on
+  - Nothing important is missed (no "surprise" blockers)
+  - Reasoning is clear and specific (not generic advice)
+  - Brief is scannable in under 60 seconds
+
+feedback:
+  metrics:
+    - name: priority_accuracy
+      description: Did the human work on recommended priorities?
+      target: "> 60%"
+    - name: missed_items
+      description: Important items the human worked on that weren't surfaced
+      target: "decreasing trend"
+    - name: brief_usefulness
+      description: Implicit — does the human check the brief daily?
+      target: "daily engagement"
+  capture:
+    - What the human actually worked on (inferred from git activity, process runs)
+    - Items human added that weren't in the brief (missed priorities)
+    - Time spent on brief (engagement signal)
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: 20 daily briefs with > 60% priority accuracy
+      upgrade_to: spot-checked
+  downgrade_triggers:
+    - Priority accuracy drops below 40%
+    - Human stops checking the brief (disengagement)
+    - Major blocker not surfaced

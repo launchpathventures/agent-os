@@ -1,0 +1,135 @@
+# Agent OS — Process Definition
+# Process: Code Review (agents checking agents)
+# The harness — multiple agents review before human sees output.
+
+name: Code Review
+id: code-review
+version: 1
+status: active
+
+description: >
+  Multi-agent review pipeline. Convention checker, bug hunter, and
+  security reviewer each examine code independently. Lead reviewer
+  synthesises into a single annotated review. Human makes the final call.
+  This process is the quality harness for Feature Implementation.
+
+trigger:
+  type: event
+  event: feature-implementation.step.implement.complete
+  description: Automatically triggered when builder agent completes implementation
+
+inputs:
+  - name: code-changes
+    type: diff
+    source: process:feature-implementation
+    required: true
+    description: The code changes to review
+
+  - name: codebase
+    type: repository
+    source: git
+    required: true
+
+  - name: conventions
+    type: document
+    source: file
+    required: false
+
+  - name: learnings
+    type: document
+    source: process-memory
+    required: false
+    description: Past correction patterns — what this codebase gets wrong
+
+steps:
+  - id: convention-check
+    name: Pattern compliance check
+    executor: ai-agent
+    agent_role: convention-checker
+    description: >
+      Check code against project conventions (AGENTS.md, style guides).
+      Flag deviations. No opinion on logic — just pattern compliance.
+    inputs: [code-changes, conventions, learnings]
+    outputs: [convention-flags]
+    parallel_group: review # Runs in parallel with other reviewers
+
+  - id: bug-hunt
+    name: Bug and logic analysis
+    executor: ai-agent
+    agent_role: bug-hunter
+    description: >
+      Adversarial review — specifically try to find bugs, logic errors,
+      edge cases, race conditions. Think like a QA engineer trying to
+      break things.
+    inputs: [code-changes, codebase]
+    outputs: [bug-flags]
+    parallel_group: review
+
+  - id: security-scan
+    name: Security review
+    executor: ai-agent
+    agent_role: security-reviewer
+    description: >
+      Check for security vulnerabilities — injection, XSS, auth issues,
+      secrets in code, OWASP top 10. Flag with severity.
+    inputs: [code-changes]
+    outputs: [security-flags]
+    parallel_group: review
+
+  - id: synthesise
+    name: Synthesise review
+    executor: ai-agent
+    agent_role: lead-reviewer
+    description: >
+      Combine all reviewer flags into a single annotated review.
+      Deduplicate, prioritise by severity, provide actionable summary.
+      Distinguish blocking issues from suggestions.
+    inputs: [convention-flags, bug-flags, security-flags, code-changes]
+    outputs: [annotated-review]
+    depends_on: [convention-check, bug-hunt, security-scan]
+
+  - id: human-review
+    name: Human final review
+    executor: human
+    description: >
+      Human reviews the annotated diff. Agent flags are pre-applied.
+      Human approves, requests changes, or overrides agent flags.
+    inputs: [annotated-review, code-changes]
+    outputs: [review-decision]
+
+outputs:
+  - name: review-decision
+    type: decision
+    destination: process:feature-implementation
+    description: Approve, request changes, or reject
+
+  - name: annotated-review
+    type: document
+    destination: process-memory
+    description: Review preserved for learning
+
+quality_criteria:
+  - Real issues found (not noise)
+  - Signal-to-noise ratio above 70% (flags that lead to actual changes)
+  - No false sense of security (missed bugs that surface later)
+
+feedback:
+  metrics:
+    - name: signal_to_noise
+      description: Percentage of flags that led to actual code changes
+      target: "> 70%"
+    - name: missed_issues
+      description: Issues found by human that agents missed
+      target: "decreasing trend"
+    - name: false_positives
+      description: Flags the human dismissed as not real issues
+      target: "decreasing trend"
+  capture:
+    - Which flags human addressed vs dismissed
+    - Issues human found that agents missed
+    - Time saved vs manual-only review
+
+trust:
+  initial_tier: critical
+  upgrade_path: [] # Always human final review — never auto-approve code
+  downgrade_triggers: [] # Already at highest scrutiny

@@ -1,0 +1,133 @@
+# Agent OS — Process Definition
+# Process: Bug Investigation
+# From bug report to diagnosed fix.
+
+name: Bug Investigation
+id: bug-investigation
+version: 1
+status: active
+
+description: >
+  Takes a bug report or failing test, reproduces the issue, traces
+  the root cause, and proposes a fix with explanation. Human reviews
+  diagnosis before fix is implemented via Feature Implementation.
+
+trigger:
+  type: manual # or event from CI/monitoring
+  description: Human reports a bug, or CI flags a failure
+
+inputs:
+  - name: bug-report
+    type: document
+    source: manual
+    required: true
+    description: What's wrong — error message, reproduction steps, expected vs actual
+
+  - name: codebase
+    type: repository
+    source: git
+    required: true
+
+  - name: logs
+    type: data
+    source: system # CI logs, error tracking, console output
+    required: false
+    description: Relevant logs and error traces
+
+steps:
+  - id: reproduce
+    name: Reproduce the issue
+    executor: ai-agent
+    agent_role: debugger
+    description: >
+      Attempt to reproduce the bug from the report. Run the failing
+      test or recreate the scenario. Confirm the bug exists and
+      document exact reproduction steps.
+    inputs: [bug-report, codebase, logs]
+    outputs: [reproduction-result]
+    verification:
+      - Bug is confirmed reproducible (or documented as intermittent)
+      - Exact steps to reproduce are captured
+
+  - id: diagnose
+    name: Trace root cause
+    executor: ai-agent
+    agent_role: debugger
+    description: >
+      Trace the issue to its root cause. Read relevant code, follow
+      the execution path, identify where and why it breaks. Don't
+      just find the symptom — find the cause.
+    inputs: [reproduction-result, codebase]
+    outputs: [diagnosis]
+
+  - id: propose-fix
+    name: Propose fix
+    executor: ai-agent
+    agent_role: debugger
+    description: >
+      Propose a specific fix with explanation. Show what changes
+      are needed and why. Flag if the fix might affect other areas.
+    inputs: [diagnosis, codebase]
+    outputs: [fix-proposal]
+
+  - id: human-reviews
+    name: Human reviews diagnosis
+    executor: human
+    description: >
+      Human reviews the root cause analysis and proposed fix.
+      Approves the approach, suggests alternatives, or redirects.
+    inputs: [diagnosis, fix-proposal]
+    outputs: [approved-fix]
+
+  - id: implement-fix
+    name: Implement the fix
+    executor: handoff
+    handoff_to: feature-implementation
+    handoff_at_step: implement
+    description: >
+      Hand off to Feature Implementation process starting at the
+      implement step (skipping planning — diagnosis IS the plan).
+    inputs: [approved-fix]
+
+outputs:
+  - name: fix
+    type: code
+    destination: process:feature-implementation
+    description: Fix implemented through the standard code pipeline
+
+  - name: root-cause
+    type: document
+    destination: process-memory
+    description: Root cause analysis preserved — prevents recurrence
+
+quality_criteria:
+  - Bug is actually fixed (doesn't recur)
+  - No regressions introduced
+  - Root cause is correct (not just symptom patched)
+  - Fix is minimal (doesn't over-engineer the solution)
+
+feedback:
+  metrics:
+    - name: fix_success_rate
+      description: Percentage of fixes that actually resolve the bug
+      target: "> 90%"
+    - name: diagnosis_accuracy
+      description: Was the root cause correct? (tracked by recurrence)
+      target: "> 85%"
+    - name: regression_rate
+      description: Fixes that introduce new bugs
+      target: "< 5%"
+  capture:
+    - Bug recurrence after fix (automated tracking)
+    - Human corrections to diagnosis
+    - Time from report to fix
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: 15 accurate diagnoses
+      upgrade_to: spot-checked
+  downgrade_triggers:
+    - Fix doesn't resolve the bug
+    - Regression introduced
+    - Root cause was wrong
