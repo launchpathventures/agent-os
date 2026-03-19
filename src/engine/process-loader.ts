@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import YAML from "yaml";
 import { db, schema } from "../db";
+import type { ProcessStatus, TrustTier } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 export interface ProcessDefinition {
@@ -112,7 +113,7 @@ export async function syncProcessesToDb(
     const trustTier = def.trust.initial_tier.replace(
       "-",
       "_"
-    ) as typeof schema.trustTierEnum.enumValues[number];
+    ) as TrustTier;
 
     if (existing.length > 0) {
       // Update existing process
@@ -123,7 +124,7 @@ export async function syncProcessesToDb(
           description: def.description,
           version: def.version,
           definition: def as unknown as Record<string, unknown>,
-          status: def.status as typeof schema.processStatusEnum.enumValues[number],
+          status: def.status as ProcessStatus,
           trustTier,
           updatedAt: new Date(),
         })
@@ -138,7 +139,7 @@ export async function syncProcessesToDb(
         description: def.description,
         version: def.version,
         definition: def as unknown as Record<string, unknown>,
-        status: def.status as typeof schema.processStatusEnum.enumValues[number],
+        status: def.status as ProcessStatus,
         trustTier,
       });
 

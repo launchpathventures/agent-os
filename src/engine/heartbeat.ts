@@ -15,6 +15,7 @@
  */
 
 import { db, schema } from "../db";
+import type { StepExecutor } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import type { ProcessDefinition } from "./process-loader";
 import { executeStep, type StepExecutionResult } from "./step-executor";
@@ -148,7 +149,7 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
       processRunId,
       stepId: nextStep.id,
       status: "running",
-      executorType: nextStep.executor as typeof schema.stepExecutorEnum.enumValues[number],
+      executorType: nextStep.executor as StepExecutor,
       startedAt: new Date(),
     })
     .returning();
@@ -179,7 +180,7 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
           name,
           type: matchingOutput?.type || "text",
           content: content as Record<string, unknown>,
-          needsReview: nextStep.executor === "ai_agent", // AI outputs need review by default
+          needsReview: nextStep.executor === "ai-agent", // AI outputs need review by default
           confidenceScore: result.confidence,
         });
       }

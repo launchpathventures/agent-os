@@ -150,9 +150,62 @@ Process: [Name]
 
 **Adapter pattern**: Any runtime plugs in — Claude, GPT, scripts, APIs, rules engines. Three core methods: `invoke()`, `status()`, `cancel()`.
 
+**Agent harness** (the babushka model): Each agent operates within its own persistent operating context — the **agent harness** — which sits between the adapter (runtime) and the process harness (Layer 3). The agent harness is assembled before each invocation and includes:
+
+```
+Agent Harness: [Agent Name]
+├── Identity: role, capabilities, system prompt, personality
+├── Memory:
+│   ├── Agent-scoped: cross-cutting knowledge that travels with the agent
+│   │   (coding style, tool preferences, domain expertise, learned patterns)
+│   └── Process-scoped: injected from the current process assignment
+│       (correction patterns, quality criteria, process-specific context)
+├── Tools: authorised tools and MCP connections for this agent
+├── Permissions: what this agent can read, write, execute, approve
+├── Budget: remaining allocation, cost-per-invocation tracking
+└── Session: resumable state across heartbeats
+```
+
+This creates a **nested harness architecture**:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  PLATFORM HARNESS (Agent OS)                         │
+│  Cross-process governance, trust, dependency graph   │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │  PROCESS HARNESS (Layer 3)                       │ │
+│  │  Review patterns, quality gates, escalation      │ │
+│  │                                                   │ │
+│  │  ┌─────────────────────────────────────────────┐ │ │
+│  │  │  AGENT HARNESS (Layer 2)                     │ │ │
+│  │  │  Identity, memory, tools, permissions        │ │ │
+│  │  │                                               │ │ │
+│  │  │  ┌─────────────────────────────────────────┐ │ │ │
+│  │  │  │  RUNTIME (Adapter)                       │ │ │ │
+│  │  │  │  Claude, GPT, script, rules engine      │ │ │ │
+│  │  │  └─────────────────────────────────────────┘ │ │ │
+│  │  └─────────────────────────────────────────────┘ │ │
+│  └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+```
+
+Each layer has a distinct responsibility. The platform harness orchestrates across processes. The process harness enforces quality for a specific process. The agent harness assembles the operating context for a specific agent. The runtime executes. This separation means you can swap any layer independently — different agent in the same process, different process for the same agent, different runtime for the same agent harness.
+
+**Agent harness assembly** happens in a single function (inspired by Open SWE's `get_agent()` pattern): resolve agent identity → load agent memory + process memory → determine authorised tools → check budget → inject into adapter → execute. This function is the seam where all context converges before the runtime fires.
+
+**Memory model**: Two scopes, merged at invocation:
+
+| Scope | What it stores | Persists across | Example |
+|-------|---------------|----------------|---------|
+| **Agent-scoped** | Cross-cutting knowledge that travels with the agent | All process assignments | "This agent prefers explicit error handling over try/catch" |
+| **Process-scoped** | Learning specific to a process | All runs of that process | "Invoice descriptions are edited 60% of the time — mostly tone" |
+
+Both stored in the `memory` table with `scope_type` (`agent` or `process`) and `scope_id`. The harness merges relevant memories into the agent's context at invocation time, applying progressive disclosure (most relevant first, within context budget).
+
 **Org structure**: Agents have roles, reporting lines, permissions. They serve processes — the human's mental model is "my invoice process" not "Agent #7."
 
-**Session persistence**: Resumable sessions across heartbeats for context continuity.
+**Session persistence**: Resumable sessions across heartbeats for context continuity. Execution state is serialised to a snapshot (inspired by Sim Studio's snapshot/resume pattern) so runs can pause and resume across heartbeats.
 
 **Budget controls**: Per-agent, per-process cost tracking with soft alerts (80%) and hard stops (100%).
 
@@ -539,7 +592,7 @@ Trust:    Start supervised → earn spot-checked
 │  Claude API, OpenClaw, scripts, HTTP,    │
 │  rules engines                           │
 ├─────────────────────────────────────────┤
-│  DATA (Postgres + file system)           │
+│  DATA (SQLite + file system)             │
 │  Processes, runs, outputs, feedback,     │
 │  org context, dependency graph           │
 └─────────────────────────────────────────┘
@@ -551,7 +604,7 @@ Trust:    Start supervised → earn spot-checked
 |-----------|-----------|-----|
 | Frontend | Next.js + React + shadcn/ui + Tailwind | 2026 default, proven, fast |
 | API | Next.js API routes (start) → separate service (scale) | Start simple, split later |
-| Database | PostgreSQL + Drizzle ORM | Relational, typed, proven |
+| Database | SQLite + Drizzle ORM (dogfood) → PostgreSQL (scale) | Zero-setup for dogfood. See ADR-001. |
 | Background jobs | Node.js worker / cron (start) → proper queue (scale) | Start simple |
 | Agent runtime | Claude Code (primary), scripts, HTTP adapters | Adapter pattern allows any runtime |
 | Auth | API keys for agents, session auth for humans | Paperclip pattern |
@@ -561,6 +614,8 @@ Trust:    Start supervised → earn spot-checked
 ---
 
 ## Build Phases
+
+> **Note:** These original build phases have been refined into a more granular 12-phase roadmap in `docs/roadmap.md`. The roadmap is the current source of truth for build sequencing. The phases below are preserved for historical context.
 
 ### Phase 1: One Process, End to End (Weeks 1-3)
 - Data model: process definitions, runs, outputs, feedback
@@ -631,4 +686,9 @@ Trust:    Start supervised → earn spot-checked
 | [gstack](https://github.com/garrytan/gstack) | Specialised agent roles, parallel execution, design-first |
 | [compound-product](https://github.com/snarktank/compound-product) | Self-improvement cycle, autonomous analysis → PR |
 | [ai-dev-tasks](https://github.com/snarktank/ai-dev-tasks) | PRD → structured tasks → iterative execution |
+| [Sim Studio](https://github.com/simstudioai/sim) | Handler registry pattern, execution snapshot/resume, variable resolver chain |
+| [Open SWE](https://github.com/langchain-ai/open-swe) | Agent harness assembly (`get_agent()`), safety-net middleware, deterministic thread IDs, mid-run message injection |
+| [agency-agents](https://github.com/msitarzewski/agency-agents) | Handoff template taxonomy (7 types), quality gate pattern (dev↔QA with retries) |
+| Deeplake / db9.ai | Agent-native database concepts: branching for safety, hybrid memory model (agent-scoped + process-scoped) |
+| "AI Agent OS" practitioner pattern | Folder-structure-as-harness, hiring metaphor for non-technical users, skills as progressive disclosure |
 | Prior thinking (catalyst/temp/Agentic/) | Whitespace analysis, transformation strategy, wedge framework |

@@ -1,5 +1,5 @@
 /**
- * Agent OS — Drizzle Kit Configuration
+ * Agent OS — Drizzle Kit Configuration (SQLite)
  */
 
 import { defineConfig } from "drizzle-kit";
@@ -7,8 +7,8 @@ import { defineConfig } from "drizzle-kit";
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
-  dialect: "postgresql",
+  dialect: "sqlite",
   dbCredentials: {
-    url: process.env.DATABASE_URL || "postgresql://localhost:5432/agent_os",
+    url: "./data/agent-os.db",
   },
 });

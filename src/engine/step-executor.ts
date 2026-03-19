@@ -31,7 +31,6 @@ export async function executeStep(
 
   switch (step.executor) {
     case "ai-agent":
-    case "ai_agent":
       return claudeAdapter.execute(step, runInputs, processDefinition);
 
     case "script":

@@ -18,13 +18,17 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
     "dotenv": "^17.3.1",
+    "better-sqlite3": "^11.9.1",
     "drizzle-orm": "^0.45.1",
-    "postgres": "^3.4.8",
     "typescript": "^5.9.3",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^25.5.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.21.0"
