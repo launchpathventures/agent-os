@@ -1,7 +1,7 @@
 # Agent OS — Roadmap
 
 **Last updated:** 2026-03-20
-**Current phase:** Phase 3 complete. Pre-Phase 4 (dev pipeline orchestrator) complete. Phase 4 next (Workspace Foundation).
+**Current phase:** Phase 4a complete (work items + CLI infrastructure). Phase 4b next (human steps + capture).
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Agent OS is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Agent OS. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -140,8 +140,8 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 | Capability | Status | Source doc | Build from | Deliverable |
 |-----------|--------|-----------|------------|-------------|
 | **Work items** | | | | |
-| `workItems` table (type, status, goal_ancestry, assigned_process) | not started | ADR-010 | Paperclip tickets + goal ancestry | `src/db/schema.ts` |
-| Work item creation via CLI | not started | ADR-010 | citty + @clack/prompts | `src/cli.ts` |
+| `workItems` table (type, status, goal_ancestry, assigned_process) | done | ADR-010 | Paperclip tickets + goal ancestry | `src/db/schema.ts` |
+| Work item creation via CLI | done | ADR-010 | citty + @clack/prompts | `src/cli/commands/start.ts` |
 | Goal → task decomposition (manual first, orchestrator agent later) | not started | ADR-010 | Manus Planner module pattern | CLI command |
 | **Meta-processes (system agents)** | | | | |
 | Intake-classifier agent (classify work item type + urgency) | not started | ADR-010 | Original | System agent definition |
@@ -155,13 +155,13 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 | **Unified task surface** | | | | |
 | CLI shows review tasks + action tasks + goal-driven tasks together | not started | ADR-010 | Original | CLI command |
 | **CLI infrastructure** | | | | |
-| Command routing (citty) | not started | landscape.md | citty `/src/command.ts` | `src/cli.ts` |
-| Interactive UX (@clack/prompts) | not started | landscape.md | @clack/prompts | `src/cli.ts` |
-| Orient: `status` (work items + process health + brief) | not started | ADR-010, human-layer.md | Original | CLI command |
-| Review: `review`, `approve`, `edit`, `reject` | not started | human-layer.md | Paperclip approval flow | CLI commands |
-| Capture: `capture` (creates work item, routes via intake-classifier) | not started | ADR-010, human-layer.md | Original | CLI command |
-| Trust: `trust` (accept/reject/override/simulate) | not started | architecture.md L3 | Original (existing) | CLI command |
-| Define: `sync`, `start` | not started | architecture.md L1 | Keep existing patterns | CLI commands |
+| Command routing (citty) | done | landscape.md | citty `/src/command.ts` | `src/cli.ts` |
+| Interactive UX (@clack/prompts) | done | landscape.md | @clack/prompts | `src/cli/commands/reject.ts` |
+| Orient: `status` (work items + process health + brief) | done | ADR-010, human-layer.md | Original | `src/cli/commands/status.ts` |
+| Review: `review`, `approve`, `edit`, `reject` | done | human-layer.md | Paperclip approval flow | `src/cli/commands/review.ts`, `approve.ts`, `reject.ts` |
+| Capture: `capture` (creates work item, routes via intake-classifier) | partial | ADR-010, human-layer.md | Original | `src/cli/commands/capture.ts` (simple — redesigned in 4b) |
+| Trust: `trust` (accept/reject/override/simulate) | done | architecture.md L3 | Original (existing) | `src/cli/commands/trust.ts` |
+| Define: `sync`, `start` | done | architecture.md L1 | Keep existing patterns | `src/cli/commands/sync.ts`, `start.ts` |
 | **Attention model (Phase 4 scope)** | | | | |
 | Per-output confidence metadata on `stepRuns` | not started | ADR-011 | Content moderation three-band (adapted to categorical) | `src/db/schema.ts`, `src/engine/harness-handlers/trust-gate.ts` |
 | Confidence-based routing in trust gate (low → item review regardless of tier) | not started | ADR-011 | SAE Level 3 (system self-assessment) | `src/engine/harness-handlers/trust-gate.ts` |

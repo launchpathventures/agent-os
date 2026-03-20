@@ -13,7 +13,7 @@
 - **Claude adapter** — `src/adapters/claude.ts` with 10 role-based system prompts. Tool use: when step inputs include repository/document sources, adapter includes read_file/search_files/list_files tools and handles tool_use loop (max 25 calls). Provenance: Claude Code tool patterns + Claude API tool_use.
 - **Script adapter** — `src/adapters/script.ts` handles deterministic steps with on_failure.
 - **Process loader** — `src/engine/process-loader.ts` parses YAML including `parallel_group` containers and `depends_on` declarations. Validates dependencies (no circular deps, all targets exist). Exports named `StepDefinition`, `ParallelGroupDefinition`, `StepEntry` types.
-- **CLI (Phase 4a)** — Rewritten from switch-statement to citty framework. 11 commands: `sync`, `start`, `heartbeat`, `status`, `review`, `approve`, `edit` (alias), `reject`, `trust` (with `accept`/`reject`/`override`/`--simulate`), `capture`, `debt`. TTY-aware, `--json` on listing commands. `@clack/prompts` for interactive input. All backward compatible.
+- **CLI (Phase 4a)** — Rewritten from switch-statement to citty framework. 11 commands: `sync`, `start`, `heartbeat`, `status`, `review`, `approve`, `edit` (alias), `reject`, `trust` (with `accept`/`reject`/`override`/`--simulate`), `capture`, `debt`. TTY-aware, `--json` on listing commands. `@clack/prompts` for interactive input. All backward compatible. Reviewed: 4 flags resolved (command injection fix, N+1 query elimination, label conflation fix, dead code removal).
 - **Work items (Phase 4a)** — `workItems` table per ADR-010: type (question/task/goal/insight/outcome), status (intake/routed/in_progress/waiting_human/completed/failed), content, source, goalAncestry, assignedProcess, spawnedFrom, spawnedItems, executionIds, context, timestamps. `pnpm cli start` creates a work item of type `task` linked to the process run. Schema supports conditional flow per Insight-039 (no fixed-sequence assumptions).
 - **Harness pipeline** — `src/engine/harness.ts` with `HarnessPipeline` class. 5 handlers: memory-assembly → step-execution → review-pattern → trust-gate → feedback-recorder. Chain-of-responsibility pattern (Sim Studio provenance).
 - **Trust gate** — 4 tiers: supervised (always pause), spot-checked (~20% deterministic SHA-256+salt sampling), autonomous (advance unless flagged), critical (always pause, canAutoAdvance=false). Original pattern.
@@ -26,21 +26,20 @@
 - **Trust data & scoring (Phase 3a)** — `src/engine/trust.ts` computes trust state from sliding window (default 20 runs) over `feedback` + `harnessDecisions` + `stepRuns`. `src/engine/trust-diff.ts` computes word-level structured diffs via jsdiff with edit severity classification (WikiTrust thresholds). `trustChanges` table for immutable tier transition audit trail. CLI: `pnpm cli trust <process>` shows trust metrics, `pnpm cli approve --edit` opens $EDITOR with structured diff capture, `pnpm cli reject` records rejections. Trust state cached in `processes.trustData`. All 14 AC pass.
 - **Trust actions & decisions (Phase 3b)** — Trust tiers are now dynamic. `src/engine/trust-evaluator.ts` runs after every feedback record, checking upgrade eligibility (conjunctive) and downgrade triggers (disjunctive). `trustSuggestions` table for upgrade proposals. Upgrade: system suggests, human accepts/rejects via `pnpm cli trust accept/reject`. Downgrade: auto-executes to supervised, human can override via `pnpm cli trust override` (break-glass with escalation after 3). Grace period: 5 runs after upgrade, safety valve at 50%. Simulation: `pnpm cli trust <process> --simulate <tier>` replays sampling decisions. `canAutoAdvance=false` enforced for critical tier in CLI approve. Sub-window metrics (last 10 runs) for downgrade triggers. `SPOT_CHECK_RATE` shared constant. ADR-007 written. All 16 AC pass.
 - **Governance scaffolding** — All Phase 0 docs complete. Agent identity fields in schema.
-- **Review loop** — Tested 11 times across all phases. Found real issues each time (Phase 3b: window size mismatch for sub-window metrics, dead import, magic number duplication).
+- **Review loop** — Tested 12 times across all phases. Found real issues each time (Phase 4a: command injection, N+1 queries, label conflation, dead code).
 - **Agent tools** — `src/engine/tools.ts`. Three read-only codebase tools: `read_file`, `search_files`, `list_files`. Path traversal prevention (resolve + realpath). Secret file deny-list. Token budget (500 lines/read). Provenance: Claude Code Read/Grep/Glob patterns.
 - **DB schema enforcement** — `pnpm cli sync` runs `drizzle-kit push` before syncing process definitions. Handles both first-run (creates all tables) and schema evolution (diffs and applies changes). No manual migration needed.
-- **Development process** — 7 meta-roles as Claude Code skills (ADR-004: added Dev Designer). Brief template with status/depends_on/unlocks metadata, mandatory UX section, and mandatory Smoke Test section. Insights system (20 active, 15 archived — lifecycle-managed per Insight-021/022). Research system (9 reports). Debt system (4 items). Review checklist expanded to 11 points (added point 11: Execution Verification). Conditional handoffs: skills determine next steps based on output type, not hardcoded pipeline (Insight-018, absorbed). Artifact lifecycle management: briefs in `complete/` subfolder, insights audited and archived by Documenter, no duplicate numbering. QA/testing responsibility explicitly distributed: Builder owns execution (`pnpm test`, smoke test, test authoring), Reviewer verifies evidence (Insight-038). QA role re-entry at Phase 10.
+- **Development process** — 7 meta-roles as Claude Code skills (ADR-004: added Dev Designer). Brief template with status/depends_on/unlocks metadata, mandatory UX section, and mandatory Smoke Test section. Insights system (20 active, 15 archived — lifecycle-managed per Insight-021/022). Research system (9 reports). Debt system (5 items). Review checklist expanded to 11 points (added point 11: Execution Verification). Conditional handoffs: skills determine next steps based on output type, not hardcoded pipeline (Insight-018, absorbed). Artifact lifecycle management: briefs in `complete/` subfolder, insights audited and archived by Documenter, no duplicate numbering. QA/testing responsibility explicitly distributed: Builder owns execution (`pnpm test`, smoke test, test authoring), Reviewer verifies evidence (Insight-038). QA role re-entry at Phase 10.
 
 ## What Needs Rework
 
-- **CLI** — `src/cli.ts` is generic CRUD. Phase 4 (Workspace Foundation) will rewrite around work items, meta-processes, and human steps.
 - **Architecture "First Implementation" section** — still frames everything in terms of processes, not work items. Update when Phase 4 brief is written.
 
 ## In Progress
 
-- **Phase 4 briefs approved by Architect** — Parent brief (011) and sub-brief 4a (012) approved. Sub-briefs 4b (013) and 4c (014) refined with reviewer findings addressed (correctionPattern population specified, trust-evaluator bootstrap resolved). All briefs reviewed: FLAG → findings resolved. Next: `/dev-builder` with Brief 012.
-- **Phase 4a research validation** — Complete. All Brief 012 inputs verified, no gaps. Report at `docs/research/phase-4a-research-validation.md`.
-- **Phase 4 design assessment** — Complete (reviewed, PASS WITH NOTES, findings addressed). Report at `docs/research/phase-4-design-assessment.md`.
+- **Phase 4a complete (Brief 012)** — Built, reviewed (PASS WITH 4 FLAGS), all flags resolved in follow-up commit. Brief moved to `docs/briefs/complete/`. All 14 AC pass. Smoke test verified.
+- **Phase 4b next (Brief 013)** — Human step executor, `aos complete`, `aos capture` (manual), unified task surface, pattern notification. 12 AC.
+- **Phase 4c after (Brief 014)** — 4 system agents, per-output confidence, auto-classification. 10 AC.
 
 ## What's Blocked
 
@@ -360,7 +359,7 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list all deferred items.
 | Document | Purpose | Status |
 |----------|---------|--------|
 | `docs/briefs/011-phase-4-workspace-foundation.md` | Parent brief: full Phase 4 design, sub-phasing rationale, provenance, security, non-goals | **draft** (reviewed, PASS WITH FINDINGS, findings addressed) |
-| `docs/briefs/012-phase-4a-foundation.md` | Sub-brief 4a: workItems table + CLI rewrite (citty + clack) + status/review/approve/edit/reject/trust/sync/start (14 AC) | **draft** |
+| `docs/briefs/complete/012-phase-4a-foundation.md` | Sub-brief 4a: workItems table + CLI rewrite (citty + clack) + status/review/approve/edit/reject/trust/sync/start (14 AC) | **complete** (built, reviewed — PASS WITH 4 FLAGS, all flags resolved) |
 | `docs/briefs/013-phase-4b-human-steps-capture.md` | Sub-brief 4b: human executor suspend/resume + aos complete + aos capture (manual) + unified task surface + pattern notification (12 AC) | **draft** |
 | `docs/briefs/014-phase-4c-meta-processes.md` | Sub-brief 4c: 4 system agents + per-output confidence + auto-classification (10 AC) | **draft** |
 
@@ -545,8 +544,29 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list all deferred items.
 **What to change:**
 - **State.md "Next Steps" should reflect the approved work ordering** — cognition research is approved, Phase 4 briefs ready, orchestrator deployed.
 
+## Documenter Retrospective (2026-03-20 — Phase 4a Review Session)
+
+**What was produced this session:**
+1. Phase 4a review (PASS WITH 4 FLAGS) — structured checklist review against architecture spec, all 14 AC verified
+2. Four fixes applied: command injection (`execSync` → `execFileSync`), N+1 queries in status (pre-built process map), task→Review label conflation (status-aware labeling), dead CLIContext code removed
+3. Smoke test executed and verified (sync, status, status --json, trust display all working)
+4. Brief 012 moved to `docs/briefs/complete/`
+
+**What worked:**
+- **The review found real issues.** The command injection in `openInEditor` was a genuine security pattern violation — `execSync` with string interpolation from `$EDITOR` is the textbook example. The fix (`execFileSync` with array args) is a one-liner but removes a class of vulnerability. The N+1 queries would have degraded with scale. These are exactly the bugs the review process is designed to catch.
+- **Review → fix in one session.** The Reviewer identified 4 flags, the human approved the fix plan, and the fixes were applied and verified in the same conversation. No handoff friction.
+- **The 11-point checklist caught issues across different dimensions.** Security (point 10), performance/UX (point 9), spec compliance (point 4), and execution verification (point 11) each surfaced a distinct class of problem. The checklist is earning its keep.
+
+**What surprised us:**
+- **The Builder didn't run the smoke test (Flag 11).** This is the second time Insight-038 has caught missing execution evidence. The Builder contract was updated after the QA role evaluation session, but the pattern isn't yet habitual. The smoke test from the brief is concrete and runnable — there's no reason to skip it.
+- **Dead code shipped.** `CLIContext` was defined, implemented, and never wired into any command. The GitHub CLI factory injection pattern was the right idea, but only the interface was built — no command ever imported it. This suggests the Builder planned to use it but pivoted to direct `db` imports during implementation without cleaning up.
+
+**What to change:**
+- **Builder must include smoke test output in commit message or handoff notes.** The contract says it; the practice hasn't caught up. Consider adding a pre-commit check or making it a review gate.
+- **Dead code should be caught by the Builder's own review pass**, not left for the Reviewer. If a pattern is abandoned mid-implementation, delete the scaffolding.
+
 ## Next Steps
 
-1. **NOW:** Brief 015 complete — orchestrator + Telegram bot deployed. Use it to build Phase 4.
-2. **Then:** Phase 4 (briefs 011-014 already written, with ADR-012 context engineering + ADR-013 cognitive model fields in 4a scope)
+1. **NOW:** Phase 4a complete and reviewed. Proceed to Phase 4b (Brief 013 — human steps + capture).
+2. **Then:** Phase 4c (Brief 014 — meta-processes + confidence)
 3. **After Phase 4:** Phase 5 Work Evolution Verification (cognitive mode review framing + enriched feedback vocabulary)
