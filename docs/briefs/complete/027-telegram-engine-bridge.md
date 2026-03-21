@@ -1,7 +1,7 @@
 # Brief: Telegram Bot Engine Bridge
 
 **Date:** 2026-03-21
-**Status:** draft
+**Status:** complete
 **Depends on:** Brief 016 (CLI adapter, dev-pipeline YAML — complete), Brief 024 (integration foundation — complete)
 **Unlocks:** Live dogfooding of the engine via Telegram. Trust earning, memory accumulation, feedback recording on the dev pipeline. Validates engine under sustained real usage (Insight-050).
 
