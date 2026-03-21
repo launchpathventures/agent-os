@@ -1,0 +1,549 @@
+# Ditto — Use Case Database
+#
+# Concrete outcomes people use Ditto for. Each entry describes a real process
+# someone would recognise from their working life. These feed into:
+#   - Template library (templates/) — entries with template: true have one
+#   - Process-analyst agent — knowledge base for guided discovery
+#   - Landing page / README — recognition-driven marketing
+#   - Onboarding — "which of these sounds like your work?"
+#
+# Structure per entry:
+#   id: machine-readable identifier
+#   name: what you'd call it in conversation
+#   one_liner: the outcome in one sentence — what changes for the person
+#   domain: business domain (trades, ecommerce, professional-services, team-ops, finance, hr, marketing, customer-success, general)
+#   personas: which persona archetypes this resonates with [rob, lisa, jordan, nadia]
+#   trigger: what kicks it off (time-based, event, manual, data-change)
+#   steps: 3-5 plain language steps — how the process works
+#   good_looks_like: the quality standard the human would check
+#   integrations: external systems involved (email, accounting, crm, etc.)
+#   template: whether a template exists in templates/ (true/false)
+#   complexity: simple (1-2 steps, single tool) | moderate (3-5 steps, mixed) | complex (6+ steps, multi-system, human steps)
+
+---
+
+# ============================================================
+# QUOTING & SALES
+# ============================================================
+
+- id: quote-generation
+  name: Generate quotes from job specs
+  one_liner: Customer enquiries become accurate quotes in minutes instead of hours at the kitchen table.
+  domain: trades
+  personas: [rob]
+  trigger: event — new customer enquiry (email, text, voicemail transcription)
+  steps:
+    - Parse the customer request for job type, scope, and site details
+    - Look up material costs from supplier price list
+    - Estimate labour based on job type and historical data
+    - Apply margin rules (residential vs commercial)
+    - Draft quote document and send for review
+  good_looks_like: Materials priced correctly, labour estimate within 10% of actuals, margin applied consistently, professional formatting
+  integrations: [email, supplier-price-list, accounting]
+  template: false
+  complexity: moderate
+
+- id: quote-follow-up
+  name: Follow up on unanswered quotes
+  one_liner: No more lost jobs because you forgot to call back.
+  domain: trades
+  personas: [rob]
+  trigger: time-based — quote older than X days with no response
+  steps:
+    - Identify quotes with no customer response past threshold
+    - Draft follow-up message (tone escalates with age)
+    - Send or queue for human review based on trust tier
+    - Log outcome (won, lost, still pending)
+  good_looks_like: Follow-up sent within the window, tone appropriate, no follow-up on already-accepted quotes
+  integrations: [email, crm]
+  template: false
+  complexity: simple
+
+- id: sales-proposal-drafting
+  name: Draft sales proposals from meeting notes
+  one_liner: Meeting notes become polished proposals without spending the evening rewriting them.
+  domain: professional-services
+  personas: [jordan, nadia]
+  trigger: manual — after a client meeting
+  steps:
+    - Parse meeting notes or voice capture for key requirements
+    - Match requirements against service offerings
+    - Draft proposal with scope, timeline, and pricing
+    - Format to company template
+    - Queue for review
+  good_looks_like: All discussed requirements captured, pricing matches rate card, scope boundaries clear, no hallucinated commitments
+  integrations: [docs, crm]
+  template: false
+  complexity: moderate
+
+# ============================================================
+# INVOICING & ACCOUNTS
+# ============================================================
+
+- id: invoice-follow-up
+  name: Chase overdue invoices
+  one_liner: Overdue invoices get chased automatically — escalation decisions stay with you.
+  domain: finance
+  personas: [rob, lisa, jordan]
+  trigger: time-based — weekly scan or when invoices pass due date
+  steps:
+    - Identify invoices past due date, categorise by age (30/60/90+ days)
+    - Draft reminder emails with tone matching overdue period
+    - High-value invoices go to human for escalation decision
+    - Send approved reminders and log outcomes
+  good_looks_like: All overdue invoices caught, tone appropriate to relationship, high-value always human-reviewed, payment outcomes tracked
+  integrations: [accounting, email]
+  template: true
+  complexity: moderate
+
+- id: monthly-reconciliation
+  name: Reconcile monthly accounts
+  one_liner: Month-end reconciliation that takes 2 people 2 days, done in hours with human sign-off on exceptions.
+  domain: finance
+  personas: [jordan, nadia]
+  trigger: time-based — end of month
+  steps:
+    - Pull transactions from bank feed and accounting system
+    - Match transactions automatically by amount, date, reference
+    - Flag unmatched transactions as exceptions
+    - Human reviews and resolves exceptions
+    - Generate reconciliation report
+  good_looks_like: All transactions accounted for, exceptions genuinely ambiguous (not lazy matching), report balances to the cent
+  integrations: [accounting, bank-feed]
+  template: false
+  complexity: complex
+
+- id: expense-categorisation
+  name: Categorise and process expense claims
+  one_liner: Receipts get categorised correctly without someone manually keying every line item.
+  domain: finance
+  personas: [jordan, nadia]
+  trigger: event — receipt submitted or expense report uploaded
+  steps:
+    - Extract line items from receipt image or PDF
+    - Categorise against chart of accounts
+    - Flag policy violations (amount limits, restricted categories)
+    - Queue compliant claims for approval, violations for review
+  good_looks_like: Categories match actual spend, policy violations caught before payment, no duplicate submissions processed
+  integrations: [accounting, receipt-scanner]
+  template: false
+  complexity: moderate
+
+# ============================================================
+# CONTENT & MARKETING
+# ============================================================
+
+- id: product-descriptions
+  name: Write product descriptions in brand voice
+  one_liner: New products get descriptions that sound like you wrote them — because the system learned from every correction you made.
+  domain: ecommerce
+  personas: [lisa]
+  trigger: event — new product added to catalogue
+  steps:
+    - Pull product data (specs, images, category)
+    - Draft description using brand voice guidelines and differentiators
+    - Include SEO keywords and structured data
+    - Queue for review
+  good_looks_like: Matches brand voice, highlights actual differentiators (not generic features), SEO-complete, correct specs
+  integrations: [ecommerce-platform, product-database]
+  template: false
+  complexity: simple
+
+- id: social-media-content
+  name: Draft social media posts
+  one_liner: A week of social content drafted in minutes, consistent with your brand and calendar.
+  domain: marketing
+  personas: [lisa, jordan]
+  trigger: time-based — weekly content batch, or event — new product/announcement
+  steps:
+    - Review content calendar for upcoming themes
+    - Draft posts for each platform (tone and format adapted)
+    - Include relevant product links and hashtags
+    - Queue batch for review
+  good_looks_like: On-brand voice, platform-appropriate format, no broken links, aligns with content calendar
+  integrations: [social-media, content-calendar]
+  template: false
+  complexity: simple
+
+- id: email-campaign-drafting
+  name: Draft email marketing campaigns
+  one_liner: Campaign emails that match your voice and segment, without starting from scratch every time.
+  domain: marketing
+  personas: [lisa]
+  trigger: manual or time-based — campaign calendar
+  steps:
+    - Pull segment data and campaign brief
+    - Draft email copy with subject line variants
+    - Format to email template
+    - Queue for review with A/B test suggestions
+  good_looks_like: Copy matches segment tone, CTA clear, subject lines compelling, unsubscribe and compliance elements present
+  integrations: [email-marketing, crm]
+  template: false
+  complexity: moderate
+
+- id: competitor-price-monitoring
+  name: Monitor competitor pricing
+  one_liner: Know when a competitor changes their prices before your customers do.
+  domain: ecommerce
+  personas: [lisa]
+  trigger: time-based — daily scan
+  steps:
+    - Scan competitor product pages for price changes
+    - Compare against your current pricing
+    - Flag products where gap exceeds threshold
+    - Generate pricing alert with recommended actions
+  good_looks_like: Prices accurately captured, thresholds respected, alerts actionable (not just "price changed"), no false positives from sale prices
+  integrations: [ecommerce-platform, web-scraping]
+  template: false
+  complexity: moderate
+
+- id: content-review-pipeline
+  name: Review and approve content before publication
+  one_liner: Content goes through quality checks before it reaches customers — not after.
+  domain: marketing
+  personas: [lisa, nadia]
+  trigger: event — content submitted for review
+  steps:
+    - Check brand voice compliance
+    - Verify factual claims and links
+    - Flag potential issues (legal, sensitivity, accuracy)
+    - Queue for human approval or auto-publish based on trust tier
+  good_looks_like: Brand voice consistent, no broken links, factual claims verifiable, sensitive content always human-reviewed
+  integrations: [cms, docs]
+  template: true
+  complexity: simple
+
+# ============================================================
+# CUSTOMER COMMUNICATIONS
+# ============================================================
+
+- id: customer-follow-up
+  name: Draft follow-up emails after customer interactions
+  one_liner: Every customer interaction gets a timely follow-up without you remembering to send it.
+  domain: customer-success
+  personas: [rob, lisa, nadia]
+  trigger: event — after meeting, call, or support ticket resolution
+  steps:
+    - Pull interaction notes (meeting notes, call transcript, ticket)
+    - Draft follow-up summarising next steps and commitments
+    - Match tone to relationship stage and context
+    - Queue for review or send based on trust tier
+  good_looks_like: All commitments captured, tone appropriate to relationship, sent within expected timeframe, no hallucinated next steps
+  integrations: [email, crm, calendar]
+  template: false
+  complexity: simple
+
+- id: customer-complaint-response
+  name: Respond to customer complaints
+  one_liner: Complaints get acknowledged fast and correctly — escalation decisions stay with you.
+  domain: customer-success
+  personas: [lisa, nadia]
+  trigger: event — negative review, complaint email, or support ticket
+  steps:
+    - Classify complaint type and severity
+    - Pull order/account history for context
+    - Draft response (acknowledgment, resolution, compensation if warranted)
+    - High-severity always goes to human review
+    - Log resolution for pattern tracking
+  good_looks_like: Timely acknowledgment, factually accurate account history, resolution proportionate, empathetic tone, high-severity never auto-sent
+  integrations: [email, ecommerce-platform, crm]
+  template: false
+  complexity: moderate
+
+- id: review-response
+  name: Respond to online reviews
+  one_liner: Every review gets a thoughtful response — positive or negative — without it eating your evening.
+  domain: customer-success
+  personas: [rob, lisa]
+  trigger: event — new review posted
+  steps:
+    - Classify review sentiment and extract key themes
+    - Draft response matching tone to sentiment
+    - Negative reviews flagged for human review before posting
+    - Log response for reputation tracking
+  good_looks_like: Response addresses specific feedback (not generic), tone appropriate, negative reviews always human-checked, response time under 24hrs
+  integrations: [review-platforms, crm]
+  template: false
+  complexity: simple
+
+# ============================================================
+# HR & PEOPLE
+# ============================================================
+
+- id: reference-checking
+  name: Automate reference checking
+  one_liner: Reference checks that took 5 days now take 1 — with the hiring manager still making the final call.
+  domain: hr
+  personas: [jordan, nadia]
+  trigger: event — candidate reaches reference check stage
+  steps:
+    - Send standardised questionnaire to each referee
+    - Collate responses as they arrive
+    - Flag concerns or inconsistencies
+    - Produce summary for hiring manager review
+  good_looks_like: All referees contacted, responses accurately collated, concerns genuinely concerning (not over-flagging), summary concise
+  integrations: [email, hr-system]
+  template: false
+  complexity: moderate
+
+- id: onboarding-checklist
+  name: Coordinate new starter onboarding
+  one_liner: Nothing falls through the cracks when a new person starts — every department gets their tasks, every step gets tracked.
+  domain: hr
+  personas: [jordan, nadia]
+  trigger: event — new hire confirmed
+  steps:
+    - Generate onboarding checklist from role template
+    - Assign tasks to relevant departments (IT, facilities, HR, manager)
+    - Track completion and send reminders
+    - Human sign-off on first-day readiness
+  good_looks_like: All departments notified, no tasks missed, reminders timely not annoying, new starter has everything on day one
+  integrations: [email, hr-system, it-ticketing]
+  template: false
+  complexity: complex
+
+- id: leave-request-processing
+  name: Process leave requests
+  one_liner: Leave requests get checked against policy and team capacity before reaching the manager.
+  domain: hr
+  personas: [jordan, nadia]
+  trigger: event — leave request submitted
+  steps:
+    - Check leave balance and policy compliance
+    - Check team calendar for conflicts
+    - Flag issues (insufficient balance, team coverage gap)
+    - Route clean requests for approval, flagged requests with context
+  good_looks_like: Policy correctly applied, team conflicts identified, manager sees issues upfront, no surprise rejections
+  integrations: [hr-system, calendar]
+  template: false
+  complexity: simple
+
+# ============================================================
+# REPORTING & ANALYSIS
+# ============================================================
+
+- id: report-formatting
+  name: Format reports to company template
+  one_liner: Analysts focus on analysis — formatting, citations, and compliance checks happen automatically.
+  domain: professional-services
+  personas: [nadia]
+  trigger: event — draft report submitted
+  steps:
+    - Apply company template (headers, footers, styles)
+    - Check citation format and completeness
+    - Verify data sources are current
+    - Flag the recurring errors this analyst makes
+    - Queue formatted report for manager review
+  good_looks_like: Template correctly applied, all citations present and formatted, data sources current, known error patterns caught
+  integrations: [docs, data-sources]
+  template: false
+  complexity: simple
+
+- id: weekly-status-report
+  name: Generate weekly status reports
+  one_liner: The weekly report writes itself from the data — you just review and send.
+  domain: team-ops
+  personas: [jordan, nadia]
+  trigger: time-based — weekly
+  steps:
+    - Pull activity data from project tools and calendars
+    - Summarise progress, blockers, and upcoming milestones
+    - Format to stakeholder template
+    - Queue for review
+  good_looks_like: Data accurate and current, blockers clearly flagged, tone appropriate for audience, no stale information
+  integrations: [project-management, calendar, docs]
+  template: false
+  complexity: moderate
+
+- id: data-gathering
+  name: Gather data for analysis from multiple sources
+  one_liner: The 3-hour data gathering step before every analysis gets done overnight.
+  domain: professional-services
+  personas: [nadia, jordan]
+  trigger: manual — analyst requests data pull
+  steps:
+    - Parse data requirements from analyst's request
+    - Pull from relevant sources (databases, APIs, documents)
+    - Normalise and structure into analyst-ready format
+    - Flag gaps or quality issues
+    - Deliver dataset with provenance notes
+  good_looks_like: All requested data present, sources documented, quality issues flagged not hidden, format ready for immediate use
+  integrations: [databases, apis, docs]
+  template: false
+  complexity: complex
+
+# ============================================================
+# COMPLIANCE & QUALITY
+# ============================================================
+
+- id: compliance-document-prep
+  name: Prepare compliance documentation
+  one_liner: Compliance paperwork assembled from existing records — you review instead of compile.
+  domain: trades
+  personas: [rob, jordan]
+  trigger: event — job completion, audit request, or licence renewal
+  steps:
+    - Identify required documents for the compliance type
+    - Pull existing records (certifications, inspection reports, sign-offs)
+    - Assemble into required format
+    - Flag missing documents
+    - Queue for human sign-off
+  good_looks_like: All required documents present, correctly formatted, missing items clearly flagged, nothing fabricated
+  integrations: [document-management, regulatory-databases]
+  template: false
+  complexity: complex
+
+- id: quality-gate-checking
+  name: Check outputs against quality criteria before delivery
+  one_liner: Quality issues caught before the customer sees them — not after.
+  domain: general
+  personas: [lisa, nadia]
+  trigger: event — output ready for delivery
+  steps:
+    - Run output against defined quality criteria
+    - Check for known error patterns (learned from past corrections)
+    - Flag issues with severity
+    - Pass clean outputs, route flagged outputs for review
+  good_looks_like: Criteria consistently applied, known patterns caught, false positive rate low, clean outputs genuinely clean
+  integrations: []
+  template: false
+  complexity: simple
+
+- id: incident-response
+  name: Coordinate incident response
+  one_liner: When something goes wrong, the response process activates — roles assigned, comms drafted, timeline tracked.
+  domain: team-ops
+  personas: [jordan, nadia]
+  trigger: event — incident reported
+  steps:
+    - Classify severity and assign response roles
+    - Draft initial stakeholder communication
+    - Human confirms severity and approves comms
+    - Track resolution steps and timeline
+    - Generate post-incident report
+  good_looks_like: Fast initial response, severity correctly classified, stakeholders informed appropriately, timeline accurate, lessons captured
+  integrations: [email, messaging, incident-tracking]
+  template: true
+  complexity: complex
+
+# ============================================================
+# OPERATIONS & SCHEDULING
+# ============================================================
+
+- id: job-scheduling
+  name: Schedule and assign jobs to team members
+  one_liner: Tomorrow's schedule built from today's reality — skills matched, travel minimised, capacity respected.
+  domain: trades
+  personas: [rob]
+  trigger: time-based — daily, or event — new urgent job
+  steps:
+    - Review pending jobs and team availability
+    - Match jobs to team members by skill and location
+    - Optimise for travel time and job dependencies
+    - Draft schedule and send for review
+    - Notify team members after approval
+  good_looks_like: All jobs covered, skills matched, travel reasonable, no double-bookings, urgent jobs prioritised
+  integrations: [calendar, crm, mapping]
+  template: false
+  complexity: complex
+
+- id: inventory-monitoring
+  name: Monitor inventory levels and flag issues
+  one_liner: Stock problems surface before they become customer problems.
+  domain: ecommerce
+  personas: [lisa]
+  trigger: time-based — daily check, or event — stock level change
+  steps:
+    - Check current stock levels against sales velocity
+    - Identify items approaching stockout
+    - Flag slow-moving inventory
+    - Generate reorder suggestions with supplier lead times
+  good_looks_like: Stockout predictions accurate, reorder timing accounts for lead times, slow-movers correctly identified
+  integrations: [ecommerce-platform, supplier-system]
+  template: false
+  complexity: moderate
+
+- id: supplier-communication
+  name: Draft supplier communications
+  one_liner: Purchase orders, delivery queries, and price negotiations drafted from your data — not from memory.
+  domain: general
+  personas: [rob, lisa]
+  trigger: event — reorder needed, delivery issue, or price review
+  steps:
+    - Pull relevant context (order history, pricing, delivery performance)
+    - Draft communication appropriate to the situation
+    - Include specific data points (order numbers, agreed prices, delivery dates)
+    - Queue for review
+  good_looks_like: Factually accurate, references correct order/invoice numbers, tone professional, asks or states the right thing
+  integrations: [accounting, email, supplier-portal]
+  template: false
+  complexity: simple
+
+# ============================================================
+# KNOWLEDGE & PROCESS MANAGEMENT
+# ============================================================
+
+- id: meeting-notes-to-actions
+  name: Extract action items from meeting notes
+  one_liner: Meeting notes become tracked commitments — no more "I thought you were handling that."
+  domain: general
+  personas: [jordan, nadia]
+  trigger: event — meeting notes or transcript uploaded
+  steps:
+    - Parse notes for commitments, decisions, and action items
+    - Assign owners based on context
+    - Create tracked items with deadlines
+    - Send summary to attendees
+  good_looks_like: All commitments captured, owners correctly assigned, deadlines reasonable, no hallucinated action items
+  integrations: [calendar, project-management, email]
+  template: false
+  complexity: simple
+
+- id: knowledge-base-maintenance
+  name: Keep internal knowledge base current
+  one_liner: Documentation that updates itself when processes change — instead of decaying silently.
+  domain: team-ops
+  personas: [jordan, nadia]
+  trigger: event — process change, or time-based — periodic review
+  steps:
+    - Detect changes in processes, tools, or policies
+    - Identify affected knowledge base articles
+    - Draft updates reflecting current state
+    - Queue for subject matter expert review
+  good_looks_like: Changes accurately reflected, no stale information published, SME review on substantive changes
+  integrations: [knowledge-base, docs]
+  template: false
+  complexity: moderate
+
+- id: request-classification
+  name: Classify and route incoming requests
+  one_liner: Incoming work gets sorted and routed to the right process without someone triaging manually.
+  domain: team-ops
+  personas: [jordan, nadia]
+  trigger: event — new request received (email, form, message)
+  steps:
+    - Parse request for type, urgency, and domain
+    - Classify against known categories
+    - Route to appropriate process or team member
+    - Low-confidence classifications go to human for triage
+  good_looks_like: Correctly classified, urgency appropriate, routed to right destination, uncertain items flagged rather than guessed
+  integrations: [email, ticketing, messaging]
+  template: false
+  complexity: simple
+
+- id: sop-creation
+  name: Create standard operating procedures from practice
+  one_liner: The way your best person does it becomes the way everyone does it.
+  domain: general
+  personas: [nadia, jordan]
+  trigger: manual — when codifying a practice
+  steps:
+    - Interview or observe the process through conversation
+    - Structure into numbered steps with decision points
+    - Identify quality criteria and common errors
+    - Draft SOP document in company format
+    - Queue for owner review and approval
+  good_looks_like: Steps accurate and complete, decision points clear, common errors addressed, readable by the person doing the work
+  integrations: [docs, knowledge-base]
+  template: false
+  complexity: moderate

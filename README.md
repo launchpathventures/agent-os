@@ -1,84 +1,145 @@
 # Ditto
 
-**AI that gets better every time you work with it.**
+**A process-governed harness for AI agents that earns trust, learns from corrections, and thinks about its work.**
 
----
+Every agent framework solves execution. None solves what happens after — how agents earn trust over time, learn from human corrections without feedback forms, follow durable processes instead of reinventing their approach each run, or bring the right cognitive posture to different kinds of work.
 
-Every AI tool you've tried has the same problem: it doesn't stick.
+Ditto is the governed layer that sits around your agents. Agents are pluggable. Processes are durable. The harness is the product.
 
-You correct the quote. Tomorrow, same mistake. You teach it your brand voice. Next week, it's forgotten. You set up an automation. It breaks the moment reality doesn't match the flowchart.
+## What Makes This Different
 
-**The problem isn't AI capability. It's that AI has no process, no memory, and no accountability.** It reinvents its approach every time. Nobody's built the layer that makes AI actually reliable.
+**Process is the primitive.** Not tasks, not agents — processes. A process is a governance declaration: what inputs are acceptable, what quality gates apply, what trust level governs execution, what feedback loops capture learning. Defined in YAML. Refined through use. Never reinvented.
 
-Ditto is that layer.
+**Trust is earned, not configured.** Four tiers — supervised → spot-checked → autonomous → critical — earned through tracked approval rates and correction patterns over a sliding window. The system suggests upgrades. Humans decide. Quality drops trigger automatic downgrade. Different processes earn trust independently.
 
----
+**Corrections are learning.** Edits are diffed and stored. Approvals are confirmation. Rejections are signal. After 3+ similar corrections, the system surfaces the pattern. No feedback forms. The harness learns from natural human work.
 
-## What's Actually Different
+**Agents have a cognitive architecture.** Not just tools and prompts — agents get mental models, reflection prompts, and adaptive scaffolding matched to the task. The orchestrator acts as executive function: monitoring convergence, sensing when to rethink, surfacing honest uncertainty. Honest "I'm not sure" earns more trust, not less. ([ADR-014](docs/adrs/014-agent-cognitive-architecture.md))
 
-Not features. Fundamentals.
+**The system runs on itself.** Intake classification, routing, trust evaluation, and orchestration are all processes running through the same governed harness. The infrastructure earns trust the same way user processes do.
 
-**Nothing else earns trust.** Every AI tool is all-or-nothing: you supervise everything, or you hope for the best. Ditto starts supervised — you review every output. As the system proves reliable (tracked approval rates, correction rates, consistency), it suggests reducing oversight. You decide. Different processes earn trust independently. Quality drops? Oversight increases automatically. No other system does this.
+## Who It's For
 
-**Nothing else learns from what you naturally do.** You won't fill out feedback forms. Nobody does. So Ditto learns from your actual work. Edit an output — that's a lesson (the system diffs and stores the correction). Approve — that's confirmation. Reject — that's a correction. After three similar edits: "You always add the sustainability angle. Make this permanent?" One tap. The process improves without you teaching it explicitly. No other system captures feedback this way.
+Ditto serves people responsible for real outcomes — not technology. A trades business owner who checks every quote because nothing else gets the pricing right. An ecommerce director who rewrites every product description because the AI can't learn her brand voice. A team manager who corrects the same report formatting every week. A technologist who can see 20 things that should be automated but can't build 20 solutions.
 
-**Nothing else thinks about how to think.** This is the biggest gap in AI today. Every agent framework gives agents tasks and tools. None gives agents the right *mindset* for each task, monitors whether their approach is working, or adapts when it isn't. Ditto does: research gets curiosity, review gets rigour, analysis gets precision. Agents have access to proven reasoning tools and the judgment to choose which to apply. When something isn't working, the system notices — and an honest "I'm not sure about this one" earns *more* trust, not less. No other system has a cognitive architecture for agents.
+They know what "good" looks like. They don't write prompts, draw workflow diagrams, or configure triggers. Ditto's goal is to meet them where they are — conversational process setup, not configuration wizards. Describe your work the way you'd explain it to a smart new hire. The system builds the structure around your answers.
 
-**Nothing else makes AI work feel like working with a great team.** The morning brief summarises what happened overnight. The review queue shows only what needs your judgment. Autonomous processes run silently — no notifications when things are fine. One queue for everything, from your phone or your desk. The system stays quiet when things are working and tells you why when they're not.
+**30 concrete use cases** across trades, ecommerce, finance, HR, professional services, and team operations are catalogued in [docs/use-cases.yaml](docs/use-cases.yaml).
 
-## What This Actually Feels Like
+## What a Process Looks Like
 
-**Week 1:** You describe what's eating your time — quoting, content review, invoice follow-up. The system helps you shape it into a process. You check every output. You correct a few things. The system learns.
+```yaml
+name: Invoice Follow-Up
+status: draft
+template: true
 
-**Week 3:** Corrections are rare. The system shows you the data: "Last 20 outputs — 18 approved clean. Want to reduce oversight?" You accept. Now you review samples, not everything.
+steps:
+  - id: identify-overdue
+    name: Identify Overdue Invoices
+    executor: script
 
-**Month 2:** You add a second process. Then a third. One morning brief covers all of them. You're making decisions, not doing operations.
+  - id: draft-reminders
+    name: Draft Reminder Emails
+    executor: ai-agent
+    depends_on: [identify-overdue]
 
-**Month 3:** Most processes run on their own. You handle exceptions. The system proposes improvements backed by evidence. You decide. Your evenings are yours again.
+  - id: review-escalations
+    name: Review High-Value Escalations
+    executor: human              # process pauses here for human decision
+    depends_on: [draft-reminders]
 
-This isn't a pitch. It's a working engine — 5 build phases complete, 66 tests passing, 11 processes running, end-to-end work evolution verified.
+  - id: send-reminders
+    name: Send Approved Reminders
+    executor: script
+    depends_on: [review-escalations]
 
-## Who This Is For
+quality_criteria:
+  - All overdue invoices identified (none skipped)
+  - Reminder tone matches overdue period (30/60/90+ days)
+  - High-value invoices always go through human review
 
-People who own outcomes — not technology.
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "10 runs at > 85% approval rate"
+      upgrade_to: spot_checked
+```
 
-- The trades business owner who can't run the business AND do the work
-- The ecommerce director who wants to be strategic but spends all day reacting
-- The team lead who spends half their day reviewing things they've already taught people how to do
-- The technologist who can see 20 things that should be automated but can't build 20 solutions
+Three executor types (`ai-agent`, `script`, `human`), plus `integration` for external systems (CLI, MCP, REST). Human steps suspend execution and resume when the human provides input. Trust and quality criteria are declared per-process.
 
-You don't need to be a developer. You don't need to draw workflow diagrams. You don't need to write prompts. You just need to know what good looks like — the system helps you build everything else.
+## Architecture
 
----
+Six layers. Each builds on the one below.
 
-## Building AI Agents? Read This.
+```
+L6  Human        CLI (12 commands) · web dashboard planned
+L5  Learning     correction capture · pattern detection · improvement proposals (partial)
+L4  Awareness    process dependencies · event propagation (planned)
+L3  Harness      memory → execution → review → routing → trust gate → feedback
+L2  Agent        Claude · CLI · script · integration adapters · tool use · memory assembly
+L1  Process      YAML definitions · parallel groups · conditional routing · human steps
+```
 
-The agent framework space has solved execution. It hasn't solved governance, trust, learning, or cognitive quality.
+**Engine:** SQLite + Drizzle ORM. WAL mode. Zero-setup (`pnpm cli sync` creates everything).
 
-Everyone can build an agent that runs. Nobody has built an agent that earns trust, learns from corrections, and gets smarter about how it thinks. That's the gap. Here's what your agents are missing:
+**Harness pipeline:** 6 composable handlers. Every step — including external API calls — traverses the full pipeline. Review patterns: maker-checker, adversarial, spec-testing.
 
-**A harness.** Not just prompts and tools — composable review patterns where agents check each other's work, trust tiers earned through track record, feedback loops that capture learning from natural human actions, and memory that persists across runs. Your agents run inside this. It makes them production-ready.
+**System agents:** 4 running through the harness today: intake-classifier (keyword matching), router (LLM-based), orchestrator (goal-directed decomposition), trust-evaluator. All supervised, earning trust through the same mechanism as user processes.
 
-**A cognitive architecture.** The right mindset per task. Metacognitive monitoring ("is this approach working?"). Adaptive scaffolding that gives capable models freedom and supports weaker ones. Space for intuition — noticing what wasn't asked for. No agent framework has this. ([ADR-014](docs/adrs/014-agent-cognitive-architecture.md))
+**Integrations:** Multi-protocol (CLI today, MCP and REST in progress). Registry-based YAML declarations per service. Credential scrubbing. Retry with exponential backoff. All calls logged in the activity table.
 
-**Executive function in the orchestrator.** Not "decompose goal → track tasks." An orchestrator that monitors whether the approach is converging on the intention, senses when to rethink, stops unproductive patterns, and surfaces structured learning from failures. The difference between a task tracker and a manager.
+## Current State
 
-**Durable process.** Defined once, refined through corrections, executed consistently. Industry standards (APQC) as starting points. Templates with governance declarations. No reinventing the approach every run.
+| Metric | Value |
+|--------|-------|
+| Build phases complete | 6 |
+| Tests passing | 82 |
+| Process definitions | 11 |
+| Process templates | 3 (invoice follow-up, content review, incident response) |
+| System agents | 4 |
+| CLI commands | 12 |
 
-If you're building on OpenClaw, CrewAI, LangGraph, or AutoGen — Ditto isn't a replacement. It's the governed, trust-earning, learning harness that sits around your agents. Bring your own AI runtime. Ditto provides everything else.
+**Working:** process engine, harness pipeline, trust earning (4 tiers), human steps with suspend/resume, goal-directed orchestrator, auto-classification capture, integration registry (CLI protocol), memory assembly (two-scope, salience-scored), implicit feedback capture, conditional routing, parallel execution.
 
-**Go deeper:**
-- [Agent Integration Guide](docs/agent-integration-guide.md) — **8 patterns your AI agents can adopt today.** Designed for machine reading. Drop it into your agent's context.
-- [Technical Overview](docs/TECHNICAL.md) — five engines, six-layer architecture, composition strategy
-- [Architecture Specification](docs/architecture.md) — the full design with provenance for every pattern
-- [ADR-014: Agent Cognitive Architecture](docs/adrs/014-agent-cognitive-architecture.md) — how agents think, not just execute
-- [Roadmap](docs/roadmap.md) — what's built, what's next, where to contribute
+**In progress:** MCP protocol + agent tool use (Brief 025), credential management (Brief 026), cognitive toolkit (ADR-014 Phase A1).
+
+**Not yet built:** web dashboard, conversational process setup, mobile experience, full learning pipeline (pattern extraction, improvement proposals), process discovery from org data.
+
+See [current state](docs/state.md) and [roadmap](docs/roadmap.md) for the full capability map through Phase 13.
+
+## Key Design Decisions
+
+Every pattern traces to a source project or is marked as original. Composition over invention.
+
+| Decision | ADR | Source |
+|----------|-----|--------|
+| SQLite + Drizzle ORM | [ADR-001](docs/adrs/001-sqlite.md) | antfarm, better-sqlite3 |
+| Two-scope memory with salience | [ADR-003](docs/adrs/003-memory-architecture.md) | Mem0, Letta, memU |
+| Multi-protocol integrations | [ADR-005](docs/adrs/005-integration-architecture.md) | Google Workspace CLI, Nango, Composio |
+| Trust earning algorithm | [ADR-007](docs/adrs/007-trust-earning.md) | Discourse TL3, eBay seller standards, ISO 2859 |
+| Agent cognitive architecture | [ADR-014](docs/adrs/014-agent-cognitive-architecture.md) | MeMo, MAP, Reflexion, Farnam Street |
+
+Full provenance in the [architecture spec](docs/architecture.md).
+
+## For Agent Developers
+
+If you're building on CrewAI, LangGraph, AutoGen, or similar — Ditto isn't a replacement. It's the governed harness that wraps your agents:
+
+- **Progressive trust** — supervised → spot-checked → autonomous, earned through track record
+- **Implicit learning** — corrections become permanent without feedback forms
+- **Cognitive architecture** — right thinking approach per task, adaptive scaffolding, executive function
+- **Durable process** — defined once, refined through use, governance built in
+- **Composable review** — maker-checker, adversarial, spec-testing patterns
+
+[Agent Integration Guide](docs/agent-integration-guide.md) — 8 patterns your agents can adopt today. Designed for machine reading — drop it into your agent's context.
 
 ## Learn More
 
 - [Vision](docs/vision.md) — why this exists
-- [Who We're Building For](docs/personas.md) — real stories, real problems
-- [Current State](docs/state.md) — what's working right now
+- [Personas](docs/personas.md) — who we're building for
+- [Technical Overview](docs/TECHNICAL.md) — five engines, composition strategy
+- [Architecture](docs/architecture.md) — full spec with provenance
+- [Roadmap](docs/roadmap.md) — what's built, what's next
 
 ## License
 
