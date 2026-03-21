@@ -1,5 +1,5 @@
 /**
- * Agent OS — CLI Adapter
+ * Ditto — CLI Adapter
  *
  * Executes AI agent steps by spawning CLI tools (claude, codex) as subprocesses.
  * Same interface as the Claude API adapter. Uses the user's CLI subscription

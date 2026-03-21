@@ -1,7 +1,7 @@
 # Insight-011: Mobile Is Operate Mode
 
 **Date:** 2026-03-19
-**Trigger:** Designer research into mobile/remote Agent OS experience — mapping the six human jobs to mobile surfaces
+**Trigger:** Designer research into mobile/remote Ditto experience — mapping the six human jobs to mobile surfaces
 **Layers affected:** L6 Human, L1 Process
 **Status:** active
 

@@ -1,4 +1,4 @@
-# Agent OS — Architecture Specification
+# Ditto — Architecture Specification
 
 **Version:** 0.1.0
 **Date:** 2026-03-18
@@ -10,7 +10,7 @@
 
 Working with agents should feel like working with the most reliable, self-reflective, learning-oriented teammates you've ever had. The interaction mirrors how great teams work: problems and hunches evolve into discrete work, and the team helps navigate this naturally.
 
-Agent OS is the workspace where non-technical people hand off work to governed, trust-earning processes — and get pulled back in only when their judgment is needed. It orchestrates and creates reliable organisational memory and workflows that run, evolve, and improve.
+Ditto is the workspace where non-technical people hand off work to governed, trust-earning processes — and get pulled back in only when their judgment is needed. It orchestrates and creates reliable organisational memory and workflows that run, evolve, and improve.
 
 ---
 
@@ -18,7 +18,7 @@ Agent OS is the workspace where non-technical people hand off work to governed, 
 
 ### The User's Job Is Handoff, Not Management
 
-The purpose of Agent OS is handoff. The human hands off work to the system and gets pulled back in only when required. Two kinds of work exist:
+The purpose of Ditto is handoff. The human hands off work to the system and gets pulled back in only when required. Two kinds of work exist:
 
 | Kind | Character | Entry | Example |
 |------|-----------|-------|---------|
@@ -27,7 +27,7 @@ The purpose of Agent OS is handoff. The human hands off work to the system and g
 
 Both need processes behind them. The difference is how they enter the system. The compound effect is that reactive work gradually becomes repetitive as the system learns patterns — ad-hoc tasks the user keeps doing become proposed processes.
 
-Agent OS is NOT an automation platform (Zapier, n8n) and NOT a project management tool (Monday.com, Linear, Notion). It is a **living workspace** where:
+Ditto is NOT an automation platform (Zapier, n8n) and NOT a project management tool (Monday.com, Linear, Notion). It is a **living workspace** where:
 - The user enters work naturally (questions, tasks, goals, insights)
 - The system routes work to its learned processes
 - Processes execute with trust-gated quality assurance
@@ -73,7 +73,7 @@ The platform's job is:
 
 ### Work Items Enter, Processes Execute
 
-All work enters Agent OS as a **work item** — a universal unit with a type, lifecycle, and goal ancestry:
+All work enters Ditto as a **work item** — a universal unit with a type, lifecycle, and goal ancestry:
 
 | Type | Lifecycle | Example |
 |------|-----------|---------|
@@ -87,7 +87,7 @@ Every work item carries **goal ancestry** — the chain of parent goals that exp
 
 ### The System Runs ON Itself
 
-Agent OS's core orchestration capabilities are not hardcoded infrastructure — they are **meta-processes** with system agents going through the same harness pipeline as user processes. They start supervised. They earn trust. They get corrected. They improve.
+Ditto's core orchestration capabilities are not hardcoded infrastructure — they are **meta-processes** with system agents going through the same harness pipeline as user processes. They start supervised. They earn trust. They get corrected. They improve.
 
 Ten system agents drive the framework (see ADR-008 + ADR-010):
 
@@ -104,13 +104,13 @@ Ten system agents drive the framework (see ADR-008 + ADR-010):
 | **process-discoverer** | Discovers processes from org data | Discovery accuracy |
 | **governance-monitor** | Watches for trust gaming, compliance gaps | Detection accuracy |
 
-The system that governs user work is itself governed by the same system. This is what makes Agent OS a living system, not a platform.
+The system that governs user work is itself governed by the same system. This is what makes Ditto a living system, not a platform.
 
 ### Structure Is the Product
 
 The biggest barrier to AI value is not AI capability — it is the absence of structure around the interaction (Insight-030). Raw chat puts the entire cognitive burden on the user: figure out what to ask, how to frame it, what to do with the output, whether it's good, and what comes next. Most people can't do this well.
 
-Agent OS provides eight things that raw chat doesn't:
+Ditto provides eight things that raw chat doesn't:
 
 1. **Loose structure** — process definitions give shape without rigidity
 2. **Guidance** — meta-agents guide how work should be composed and evolve
@@ -143,7 +143,7 @@ Frameworks like APQC (12,000+ standard business processes), ITIL, COBIT, and ISO
 
 Every organisation — from a sole trader to a 200-person company — already has a digital footprint that encodes its real processes. Emails show communication patterns and approval chains. Documents show templates and review cycles. Calendars show governance cadences. Financial records show transactional workflows. Messaging channels show where decisions happen and what gets stuck. Service desk tickets show request-to-resolution flows.
 
-Agent OS connects to these readily available data sources and builds a persistent, evolving understanding of how the organisation actually works — the **organizational data model**. This is not a one-time onboarding step. It is an ongoing capability: a mode the user can invoke at any time for Agent OS to analyze, learn, validate, and detect gaps.
+Ditto connects to these readily available data sources and builds a persistent, evolving understanding of how the organisation actually works — the **organizational data model**. This is not a one-time onboarding step. It is an ongoing capability: a mode the user can invoke at any time for Ditto to analyze, learn, validate, and detect gaps.
 
 The user's role shifts from *author* to *editor*. Instead of describing processes from scratch (which requires process literacy most people don't have), the system shows them what it found and they react — confirm, correct, add context. This produces more accurate process definitions because they're grounded in evidence rather than recall.
 
@@ -156,11 +156,11 @@ Analyze mode feeds everything else:
 
 Every agent team has a meta-process: scan for improvements, propose changes with evidence, route to human for approval. The platform doesn't just run processes — it evolves them. The human stays in control because improvements are always proposed, never applied silently.
 
-### Agent OS Is a Harness Creator
+### Ditto Is a Harness Creator
 
-Agent OS is not an agent framework. It is a **harness creator**.
+Ditto is not an agent framework. It is a **harness creator**.
 
-Agents are commodities — Claude, GPT, scripts, APIs, whatever comes next. What Agent OS creates is the **harness** within which agents operate. The harness has two dimensions:
+Agents are commodities — Claude, GPT, scripts, APIs, whatever comes next. What Ditto creates is the **harness** within which agents operate. The harness has two dimensions:
 
 1. **Evolving** — it learns from feedback, corrections, and trust data. The harness today is different from the harness next month. Every human edit, every approval, every rejection feeds back into a tighter, smarter harness.
 2. **Orchestrating** — it coordinates multiple agents, determines who checks whom, what runs in parallel, when to pause for humans, and how trust is earned.
@@ -171,9 +171,9 @@ Agents are pluggable. Processes are durable. The harness is the product.
 
 ### Composition Over Invention
 
-Agent OS composes proven open-source projects rather than building from scratch. The first principle — for the platform and for every agent within it — is: **"what can we build FROM?"** not **"what can we build?"**
+Ditto composes proven open-source projects rather than building from scratch. The first principle — for the platform and for every agent within it — is: **"what can we build FROM?"** not **"what can we build?"**
 
-Every significant component starts with a research step: scout the gold standard, evaluate what exists, adopt or adapt the best available, and only write custom code to fill genuine gaps. The unique value Agent OS creates is in the harness, trust, governance, and learning layers — not in reinventing orchestration, storage, or CLI frameworks that already exist.
+Every significant component starts with a research step: scout the gold standard, evaluate what exists, adopt or adapt the best available, and only write custom code to fill genuine gaps. The unique value Ditto creates is in the harness, trust, governance, and learning layers — not in reinventing orchestration, storage, or CLI frameworks that already exist.
 
 ---
 
@@ -283,7 +283,7 @@ This creates a **nested harness architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  PLATFORM HARNESS (Agent OS)                         │
+│  PLATFORM HARNESS (Ditto)                         │
 │  Cross-process governance, trust, dependency graph   │
 │                                                       │
 │  ┌─────────────────────────────────────────────────┐ │
@@ -350,7 +350,7 @@ Trust automatically **downgrades** when:
 
 **Attention model** (routing mechanics here; full concept in the Cross-Cutting: Attention Model section below — see ADR-011):
 
-Trust tiers determine oversight **rate** (how often). The attention model determines oversight **form** (how it's presented). Together they shape whether Agent OS feels like a noisy approval queue or a quiet workspace.
+Trust tiers determine oversight **rate** (how often). The attention model determines oversight **form** (how it's presented). Together they shape whether Ditto feels like a noisy approval queue or a quiet workspace.
 
 | Trust tier | Attention form | Override triggers |
 |------------|---------------|-------------------|
@@ -389,7 +389,7 @@ Two graphs, two purposes:
 
 | Graph | Scope | Character | Example |
 |-------|-------|-----------|---------|
-| **Process dependency graph** | How Agent OS processes relate to each other | Operational, reactive, event-driven | "Process A produced output, notify Process B" |
+| **Process dependency graph** | How Ditto processes relate to each other | Operational, reactive, event-driven | "Process A produced output, notify Process B" |
 | **Organizational data model** | How the organisation actually works | Analytical, evolving, evidence-based | "Email + Xero show a quoting process averaging 3-5 days" |
 
 The organizational data model is not just a discovery input. It enables:
@@ -442,7 +442,7 @@ Governance spans Layers 3 (Harness) and 4 (Awareness). Trust tiers govern indivi
 
 **Agent Authentication:**
 
-Every agent operating within Agent OS must have a verified identity. As the platform scales beyond a single user to teams and organisations, we need to know:
+Every agent operating within Ditto must have a verified identity. As the platform scales beyond a single user to teams and organisations, we need to know:
 - **Who is this agent?** — Identity, owner, organisation
 - **What is it allowed to do?** — Scoped permissions per process, per environment
 - **How did it get here?** — Provenance (was it registered by an authorised human? by another trusted agent?)
@@ -459,7 +459,7 @@ A dedicated agent or team of agents provides cross-cutting governance and compli
 | **Team** | Cross-agent interactions, review pattern integrity | Reviewer agent actually challenges builder output (not rubber-stamping) |
 | **Organisation** | Policy compliance, data handling, audit completeness | All outputs in regulated processes have full audit trails |
 
-The governance function is itself a process — it runs within Agent OS, subject to its own trust tier (always supervised or critical). It monitors other processes for:
+The governance function is itself a process — it runs within Ditto, subject to its own trust tier (always supervised or critical). It monitors other processes for:
 - Agents operating outside their declared permissions
 - Trust tiers being circumvented or gamed
 - Quality criteria being consistently unmet without escalation
@@ -467,11 +467,11 @@ The governance function is itself a process — it runs within Agent OS, subject
 
 **Key principle:** Governance agents cannot modify processes or override trust tiers. They can only surface findings and recommend actions to humans. The human always decides.
 
-This is an evolving concept that will be refined as Agent OS scales beyond single-user dogfooding to team and organisational use.
+This is an evolving concept that will be refined as Ditto scales beyond single-user dogfooding to team and organisational use.
 
 ### Cross-Cutting: External Integrations
 
-Integrations span Layers 1 (Process), 2 (Agent), 3 (Harness), and 4 (Awareness). They connect Agent OS processes to external systems — email, communication channels, cloud storage, accounting software, CRMs, and any other service a process needs.
+Integrations span Layers 1 (Process), 2 (Agent), 3 (Harness), and 4 (Awareness). They connect Ditto processes to external systems — email, communication channels, cloud storage, accounting software, CRMs, and any other service a process needs.
 
 **Two integration purposes:**
 
@@ -539,13 +539,13 @@ Process: [Name]
 │   └── ...
 ```
 
-**Provenance:** Multi-protocol resolution pattern from Google Workspace CLI (ships CLI + MCP + REST). Brokered credentials from Composio. Skills-wrapping-MCP from OpenClaw. Code-first integration functions from Nango. Trust-aware integration access, integration feedback capture, and process-scoped permissions are Original to Agent OS. See ADR-005.
+**Provenance:** Multi-protocol resolution pattern from Google Workspace CLI (ships CLI + MCP + REST). Brokered credentials from Composio. Skills-wrapping-MCP from OpenClaw. Code-first integration functions from Nango. Trust-aware integration access, integration feedback capture, and process-scoped permissions are Original to Ditto. See ADR-005.
 
 ### Cross-Cutting: Attention Model (ADR-011)
 
 The attention model spans Layers 3 (Harness) and 6 (Human). It answers a question trust tiers don't: **in what form** does the human experience process outputs?
 
-Trust tiers determine oversight **rate** — how often. The attention model determines oversight **form** — item review, digest, or alert. Together they shape whether Agent OS feels like a noisy approval queue or a quiet workspace where the human is pulled in only when their judgment adds value.
+Trust tiers determine oversight **rate** — how often. The attention model determines oversight **form** — item review, digest, or alert. Together they shape whether Ditto feels like a noisy approval queue or a quiet workspace where the human is pulled in only when their judgment adds value.
 
 **Three attention modes:**
 
@@ -559,7 +559,7 @@ Trust tiers determine oversight **rate** — how often. The attention model dete
 
 **Silence is a feature.** When an autonomous process runs cleanly, the human sees nothing until the next digest. No notification, no queue item. The absence of noise IS the signal that things are working. This is the Management by Exception pattern from management science.
 
-**Provenance:** Content moderation three-band routing (TikTok, YouTube). ISO 2859 switching rules. Management by Exception (active MBE). Hersey-Blanchard Situational Leadership. SAE J3016 Level 3 (system knows when it's out of its depth). Zapier Digest (batch review). PagerDuty Event Intelligence (noise reduction). Per-output confidence routing, digest as explicit attention mode, and silence-as-feature are Original to Agent OS. See ADR-011.
+**Provenance:** Content moderation three-band routing (TikTok, YouTube). ISO 2859 switching rules. Management by Exception (active MBE). Hersey-Blanchard Situational Leadership. SAE J3016 Level 3 (system knows when it's out of its depth). Zapier Digest (batch review). PagerDuty Event Intelligence (noise reduction). Per-output confidence routing, digest as explicit attention mode, and silence-as-feature are Original to Ditto. See ADR-011.
 
 ### Cross-Cutting: Agent Cognitive Architecture (ADR-014)
 
@@ -583,11 +583,11 @@ Trust tiers determine oversight **rate** (how often). The attention model determ
 
 **Trust rewards cognitive quality:** Agents with well-calibrated uncertainty earn trust faster. Productive failure (structured learning from failures) and proactive concern flagging contribute positively to trust evaluation. Trust is built through vulnerability and authenticity, not just performance metrics.
 
-**Provenance:** MeMo (Guan et al., 2024) for toolkit-not-prescription. MAP (Webb et al., Nature Communications 2025) for modular cognitive decomposition. Reflexion (Shinn et al., NeurIPS 2023) for metacognitive monitoring. CoALA (Sumers et al., TMLR 2024) for theoretical framework. Prompting Inversion (Bernstein et al., 2025) for adaptive scaffolding. Farnam Street (mental models), Tony Robbins (state management), Brené Brown (relational trust), cognitive neuroscience (executive function). Three-layer architecture, executive function as orchestrator, adaptive scaffolding, and cognitive quality in trust are Original to Agent OS. See ADR-014.
+**Provenance:** MeMo (Guan et al., 2024) for toolkit-not-prescription. MAP (Webb et al., Nature Communications 2025) for modular cognitive decomposition. Reflexion (Shinn et al., NeurIPS 2023) for metacognitive monitoring. CoALA (Sumers et al., TMLR 2024) for theoretical framework. Prompting Inversion (Bernstein et al., 2025) for adaptive scaffolding. Farnam Street (mental models), Tony Robbins (state management), Brené Brown (relational trust), cognitive neuroscience (executive function). Three-layer architecture, executive function as orchestrator, adaptive scaffolding, and cognitive quality in trust are Original to Ditto. See ADR-014.
 
 ### Layer 6: Human Layer (The Interface)
 
-A living workspace, not a dashboard. The user works IN Agent OS — it's always open, actively working on their behalf, and pulls them in when judgment is needed. Three design principles govern the layer:
+A living workspace, not a dashboard. The user works IN Ditto — it's always open, actively working on their behalf, and pulls them in when judgment is needed. Three design principles govern the layer:
 
 **1. Conversation is pervasive.** Available on every view, not just setup. The user can talk from any context — ask questions, give instructions, capture work. The Conversation Thread (Primitive 8) is the universal interaction surface.
 
@@ -677,7 +677,7 @@ Three activity contexts coexist (not hard mode switches):
 
 ## Borrowing Strategy
 
-Agent OS composes proven patterns rather than inventing from scratch:
+Ditto composes proven patterns rather than inventing from scratch:
 
 | What we need | Borrow from | Pattern |
 |-------------|-------------|---------|
@@ -721,7 +721,7 @@ Agent OS composes proven patterns rather than inventing from scratch:
 - Human steps in processes — processes pause for real-world human actions, then resume (ADR-010)
 - Memory as UX — the system demonstrates accumulated context, never feels like "new chat" (Insight-028)
 - Attention model — trust tiers determine oversight rate, attention model determines oversight form. Per-output confidence + digest review. No surveyed system combines process-level trust with per-output confidence routing (autonomous-oversight-patterns research)
-- Structure as the product — the eight things raw chat is missing (Insight-030). Agent OS IS the scaffolding that makes AI useful for non-technical users
+- Structure as the product — the eight things raw chat is missing (Insight-030). Ditto IS the scaffolding that makes AI useful for non-technical users
 - Analyze mode — connecting to readily available org data to build a persistent understanding of how the organisation actually works
 - Organizational data model — persistent, evolving org understanding in Layer 4
 - Adapter abstraction — users bring their own AI execution substrate (CLI, API, local). Trust system handles quality differences naturally (Insight-041)
@@ -758,7 +758,7 @@ Process: Self-Improvement Scan
 
 ## First Implementation: Coding Agent Team
 
-The dogfood. Applying Agent OS principles to agentic coding orchestration.
+The dogfood. Applying Ditto principles to agentic coding orchestration.
 
 ### Coding Processes
 
@@ -967,7 +967,7 @@ Trust:    Start supervised → earn spot-checked
 | Trust model | Progressive, earned per-process | Start conservative, earn autonomy via track record |
 | Feedback capture | Implicit (edits ARE feedback) | Humans won't fill out forms |
 | Self-healing | Propose, never auto-fix | Human governance preserved |
-| First dogfood | Coding agent team | Meta-benefit: builds Agent OS using Agent OS |
+| First dogfood | Coding agent team | Meta-benefit: builds Ditto using Ditto |
 | Tech stack | Next.js + Postgres + Claude | Proven, fast, the user knows it |
 | Deployment | Headless engine + universal frontend | Web + mobile, separate concerns |
 
@@ -975,7 +975,7 @@ Trust:    Start supervised → earn spot-checked
 
 | Question | Impact | When to resolve |
 |----------|--------|----------------|
-| Agent OS product name | Branding, repo name | Before public launch |
+| Ditto product name | Branding, repo name | Before public launch |
 | Pricing model | Revenue, market positioning | Before beta |
 | Multi-tenancy from day one? | Architecture complexity | Phase 1 |
 | Process template library — initial scope | Onboarding quality | Phase 3+ |
@@ -1001,7 +1001,7 @@ Trust:    Start supervised → earn spot-checked
 | [Open SWE](https://github.com/langchain-ai/open-swe) | Agent harness assembly (`get_agent()`), safety-net middleware, deterministic thread IDs, mid-run message injection |
 | [agency-agents](https://github.com/msitarzewski/agency-agents) | Handoff template taxonomy (7 types), quality gate pattern (dev↔QA with retries) |
 | Deeplake / db9.ai | Agent-native database concepts: branching for safety, hybrid memory model (agent-scoped + process-scoped) |
-| "AI Agent OS" practitioner pattern | Folder-structure-as-harness, hiring metaphor for non-technical users, skills as progressive disclosure |
+| "AI Ditto" practitioner pattern | Folder-structure-as-harness, hiring metaphor for non-technical users, skills as progressive disclosure |
 | [OpenClaw](https://openclaw.ai/) | Skills-as-progressive-disclosure, skills wrapping MCP servers, channel adapters |
 | [Google Workspace CLI](https://github.com/googleworkspace/cli) | Multi-protocol integration (CLI + MCP + REST for same service), agent skills pattern |
 | [Nango](https://github.com/NangoHQ/nango) | Code-first TypeScript integration functions, managed OAuth, syncs + actions model |

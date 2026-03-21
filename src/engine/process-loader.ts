@@ -1,5 +1,5 @@
 /**
- * Agent OS — Process Loader
+ * Ditto — Process Loader
  *
  * Reads YAML process definitions and registers them in the database.
  * Process definitions are the source of truth — the DB stores runtime state.
@@ -165,6 +165,25 @@ export function flattenSteps(definition: ProcessDefinition): StepDefinition[] {
 }
 
 /**
+ * Validate integration steps have required config.service field.
+ * Returns error messages (empty array = valid).
+ */
+export function validateIntegrationSteps(definition: ProcessDefinition): string[] {
+  const errors: string[] = [];
+  const allSteps = flattenSteps(definition);
+
+  for (const step of allSteps) {
+    if (step.executor === "integration") {
+      if (!step.config?.service) {
+        errors.push(`Integration step "${step.id}" missing required config.service field`);
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
  * Validate process definition dependencies.
  * - All depends_on targets must exist as step IDs or group IDs
  * - No circular dependencies
@@ -282,6 +301,16 @@ export async function syncProcessesToDb(
         console.error(`    - ${err}`);
       }
       throw new Error(`Process "${def.name}" has dependency errors`);
+    }
+
+    // Validate integration steps (AC-10: config.service required)
+    const integrationErrors = validateIntegrationSteps(def);
+    if (integrationErrors.length > 0) {
+      console.error(`  Integration validation errors in ${def.name}:`);
+      for (const err of integrationErrors) {
+        console.error(`    - ${err}`);
+      }
+      throw new Error(`Process "${def.name}" has integration step errors`);
     }
 
     const existing = await db

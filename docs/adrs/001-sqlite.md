@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent OS needs persistent storage for process definitions, runs, outputs, feedback, and the activity trail. The original implementation used Postgres via Drizzle ORM, requiring a running Postgres server — too heavy for dogfood development.
+Ditto needs persistent storage for process definitions, runs, outputs, feedback, and the activity trail. The original implementation used Postgres via Drizzle ORM, requiring a running Postgres server — too heavy for dogfood development.
 
 The architecture calls for zero-setup: `pnpm install` + `ANTHROPIC_API_KEY` should be the only requirements. A local database that lives in the repository's `data/` directory (gitignored) meets this requirement.
 
@@ -21,7 +21,7 @@ Replace Postgres with SQLite using better-sqlite3 as the driver and Drizzle ORM 
 
 - **Schema:** `pgTable` → `sqliteTable`, `pgEnum` → text columns with TypeScript union types, `uuid` → text with `crypto.randomUUID()`, `jsonb` → text with `mode: 'json'`, `timestamp` → integer with `mode: 'timestamp_ms'`, `boolean` → integer with `mode: 'boolean'`
 - **Connection:** better-sqlite3 with WAL mode and foreign keys enabled
-- **DB location:** `data/agent-os.db`, auto-created on first run
+- **DB location:** `data/ditto.db`, auto-created on first run
 - **Schema sync:** `drizzle-kit push` (destructive sync, acceptable for dogfood)
 
 No data model changes — same tables, same columns, same relationships. This is a driver swap.
@@ -39,13 +39,13 @@ Additional pattern source:
 - **Source project:** bun-elysia-drizzle-sqlite (https://github.com/remuspoienar/bun-elysia-drizzle-sqlite)
 - **Source files:** Schema definition patterns using `sqliteTable`
 - **What we took:** Drizzle SQLite schema patterns (sqliteTable, text mode json, integer mode timestamp_ms)
-- **What we changed:** Applied to Agent OS's richer data model (11 tables vs their simpler schema)
+- **What we changed:** Applied to Ditto's richer data model (11 tables vs their simpler schema)
 
 ## Consequences
 
 - **Easier:** Fresh clone → `pnpm install` → `pnpm cli sync` → working. No Postgres setup.
 - **Easier:** Database inspection via any SQLite tool (DB Browser, sqlite3 CLI, Drizzle Studio).
-- **Easier:** Reset by deleting `data/agent-os.db`.
+- **Easier:** Reset by deleting `data/ditto.db`.
 - **Harder:** Concurrent write-heavy workloads (not a concern for dogfood).
 - **Harder:** Full-text search (SQLite FTS exists but not as ergonomic as Postgres).
 - **New constraint:** `drizzle-kit push` is destructive — fine for dogfood, needs migration tooling before production.

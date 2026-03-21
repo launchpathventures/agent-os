@@ -1,5 +1,5 @@
 /**
- * Agent OS — Script Adapter
+ * Ditto — Script Adapter
  *
  * Executes deterministic script/command steps.
  * For things that don't need AI: running tests, type-checking,

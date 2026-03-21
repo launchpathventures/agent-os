@@ -1,11 +1,11 @@
-# Agent OS — User Personas and Problem Framing
+# Ditto — User Personas and Problem Framing
 
 **Version:** 0.2.0
 **Date:** 2026-03-19
 **Status:** Draft — foundational input for Designer and Architect roles
-**Scope:** Who we're building for, what their world looks like, and what problems Agent OS solves from their perspective
+**Scope:** Who we're building for, what their world looks like, and what problems Ditto solves from their perspective
 
-This document captures the *user's* reality — not the system architecture, not the technical design, but the lived experience of the people Agent OS exists to serve. Every design and architecture decision should be traceable to a real problem felt by a real person described here.
+This document captures the *user's* reality — not the system architecture, not the technical design, but the lived experience of the people Ditto exists to serve. Every design and architecture decision should be traceable to a real problem felt by a real person described here.
 
 **Provenance:** These personas are defined by the project creator based on domain knowledge of target markets and user archetypes. They are not yet validated by user research. Treat them as strong hypotheses — good enough to drive design, but update when real user contact provides new data.
 
@@ -13,7 +13,7 @@ This document captures the *user's* reality — not the system architecture, not
 
 ## The Core User Insight
 
-The people Agent OS serves are **not** looking for an "AI platform." They are looking for **relief from the operational work that consumes their days** — the reviewing, checking, reconciling, formatting, chasing, and coordinating that prevents them from doing the strategic work they're actually good at.
+The people Ditto serves are **not** looking for an "AI platform." They are looking for **relief from the operational work that consumes their days** — the reviewing, checking, reconciling, formatting, chasing, and coordinating that prevents them from doing the strategic work they're actually good at.
 
 They don't think in terms of "agents" or "workflows" or "orchestration." They think: *"I spend 3 hours every Monday reconciling invoices and I know a machine should be doing this."* Or: *"I personally check every quote before it goes to the customer because last time I didn't, we quoted the wrong price."*
 
@@ -27,7 +27,7 @@ And when they *do* try AI, they hit the reinvention problem: the same prompt pro
 
 ### 1. One Process Must Be Valuable
 
-Agent OS must deliver clear value from a **single process**. The product can't require an organisational chart of processes before the user sees the benefit. One process — invoice reconciliation, quote generation, content review — running reliably with progressive trust should justify the product on its own.
+Ditto must deliver clear value from a **single process**. The product can't require an organisational chart of processes before the user sees the benefit. One process — invoice reconciliation, quote generation, content review — running reliably with progressive trust should justify the product on its own.
 
 This means:
 - Onboarding starts with one process, not a "set up your organisation" wizard
@@ -99,9 +99,9 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Rob's core problem:** He's the bottleneck for every operational decision in his business, but he spends most of his day on tools (literally) not at a desk. He needs his business operations to keep moving while he's on site — and he needs to make decisions from his phone in the gaps between jobs.
 
-**What Agent OS gives Rob (single process start):** Rob starts with one process: quote generation. When a customer enquiry comes in (email, text, voicemail transcription), the quoting process drafts a quote based on Rob's pricing rules and past quotes for similar jobs. Rob gets a push notification: "New quote ready for Acme bathroom reno — $14,200. Tap to review." He opens it on his phone between jobs, scans the line items, adjusts the labour estimate (the system was 2 hours low), approves, and it's sent. 3 minutes instead of 45 minutes at the kitchen table. That one process — just quoting — is enough to justify Agent OS.
+**What Ditto gives Rob (single process start):** Rob starts with one process: quote generation. When a customer enquiry comes in (email, text, voicemail transcription), the quoting process drafts a quote based on Rob's pricing rules and past quotes for similar jobs. Rob gets a push notification: "New quote ready for Acme bathroom reno — $14,200. Tap to review." He opens it on his phone between jobs, scans the line items, adjusts the labour estimate (the system was 2 hours low), approves, and it's sent. 3 minutes instead of 45 minutes at the kitchen table. That one process — just quoting — is enough to justify Ditto.
 
-**Rob's first week (Define + Delegate):** Rob sits down at the kitchen table (the one time he's at a "desk") and describes his quoting process to Agent OS: "Customer calls or emails about a job. I work out the materials from the spec, add labour based on the job size, add margin, and send the quote." The system asks: "Where do your material prices come from?" (supplier price list). "How do you estimate labour?" (hours per job type — Rob gives rough rules). "What margin?" (25% residential, 20% commercial). By the end of a 20-minute conversation, the quoting process exists. Rob activates it supervised — every quote comes to him for review on his phone.
+**Rob's first week (Define + Delegate):** Rob sits down at the kitchen table (the one time he's at a "desk") and describes his quoting process to Ditto: "Customer calls or emails about a job. I work out the materials from the spec, add labour based on the job size, add margin, and send the quote." The system asks: "Where do your material prices come from?" (supplier price list). "How do you estimate labour?" (hours per job type — Rob gives rough rules). "What margin?" (25% residential, 20% commercial). By the end of a 20-minute conversation, the quoting process exists. Rob activates it supervised — every quote comes to him for review on his phone.
 
 **Rob's mobile day (month 2):** Morning brief on his phone over coffee: "3 quotes ready for review. Follow-up process flagged: the Henderson job quote is 4 days old with no response — draft follow-up attached. Yesterday's invoice batch: 5 of 5 sent, 2 marked paid." Rob approves 2 quotes, adjusts one, taps "send follow-up" on Henderson, and he's on the road by 7am. The review queue is empty. On site at 10am, a customer mentions wanting a quote for a hot water replacement. Rob voice-captures: "Henderson also wants HW quote, Rinnai system, access is tight." The capture process classifies it and adds it to the quoting pipeline. Rob doesn't think about it again until the draft quote appears in his review queue tomorrow morning.
 
@@ -132,7 +132,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Lisa's core problem:** She can't get ahead of her business because she's constantly reacting — to quality issues, content that doesn't match the brand, pricing that's drifted, customer problems that should have been caught earlier. She needs processes that handle the routine and surface exceptions before they become customer-facing problems.
 
-**What Agent OS gives Lisa (single process start):** Lisa starts with product description generation. When a new product is added to the catalogue, the content process drafts a description using Lisa's brand voice, the product's key differentiators, and competitor positioning data. Lisa reviews on her phone between meetings — approves most, edits the ones that don't capture the differentiator. After 3 weeks, the "Teach this" pattern kicks in: "You consistently add the material source country and the sustainability angle. Teach this?" Lisa taps yes. That one process frees up 4 hours a week of content editing.
+**What Ditto gives Lisa (single process start):** Lisa starts with product description generation. When a new product is added to the catalogue, the content process drafts a description using Lisa's brand voice, the product's key differentiators, and competitor positioning data. Lisa reviews on her phone between meetings — approves most, edits the ones that don't capture the differentiator. After 3 weeks, the "Teach this" pattern kicks in: "You consistently add the material source country and the sustainability angle. Teach this?" Lisa taps yes. That one process frees up 4 hours a week of content editing.
 
 **Lisa's expansion (month 2):** The content process is running at spot-checked trust — Lisa reviews 1 in 5 descriptions. She adds a competitor price monitoring process: daily scan of 3 competitor sites, flag any product where the price gap exceeds 15%. Her morning brief now covers both: "2 descriptions ready for review. 3 products flagged for pricing — competitor X dropped their widget price by 20% yesterday." Lisa handles both from her phone on the commute in. The product strategy deck? She finally has time for it.
 
@@ -159,7 +159,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Jordan's core problem:** They have the vision but not the capacity. They can see the operational leverage AI could provide across their organisation, but every solution requires either custom development or stitching together 5 tools. They need a platform that lets them stand up processes quickly, prove value, and expand — becoming the person who unlocked organisational leverage, not the person who maintains 15 different automations.
 
-**What Agent OS gives Jordan (single process start):** Jordan starts with the HR reference checking process that was requested on Monday. They describe it to Agent OS: "We get a candidate name and 3 referees. We need to email each referee a standard questionnaire, collate the responses, flag any concerns, and produce a summary for the hiring manager." The process is live by Tuesday. The HR lead gets their first automated reference check summary in the review queue Wednesday morning. Jordan has delivered visible value in 48 hours — and the platform that made it possible can do the same for the other 7 items on their list.
+**What Ditto gives Jordan (single process start):** Jordan starts with the HR reference checking process that was requested on Monday. They describe it to Ditto: "We get a candidate name and 3 referees. We need to email each referee a standard questionnaire, collate the responses, flag any concerns, and produce a summary for the hiring manager." The process is live by Tuesday. The HR lead gets their first automated reference check summary in the review queue Wednesday morning. Jordan has delivered visible value in 48 hours — and the platform that made it possible can do the same for the other 7 items on their list.
 
 **Jordan's leverage moment (month 2):** Jordan now has 4 processes running across 3 departments. The finance reconciliation process saved 2 person-days per month. The HR reference process cut turnaround from 5 days to 1. Jordan's morning brief — which they check on their phone during the commute — shows process health across all departments. In the leadership meeting, Jordan shows the Process Graph on the big screen: "Here's what we've automated, here's the time saved, here's what's next." The conversation shifts from "should we do this?" to "what's next on the list?"
 
@@ -189,7 +189,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Nadia's core problem:** She's managing quality across multiple people's operational processes. Each team member has the same pattern: good at the core work, drowning in the surrounding admin. Nadia corrects the same formatting and compliance issues repeatedly. She needs her team's operational processes to be agent-supported — with her as the quality governor across all of them.
 
-**What Agent OS gives Nadia (single process start):** Nadia starts with one process: report formatting and compliance checking. When an analyst finishes their draft, the formatting process applies the standard template, checks citations, verifies data sources, and flags the recurring baseline-numbers error. The analyst gets a pre-formatted draft with issues highlighted. Nadia's review queue shows only the reports that need her judgment — not the ones that just needed formatting. One process, applied across her whole team, cuts her review time by 60%.
+**What Ditto gives Nadia (single process start):** Nadia starts with one process: report formatting and compliance checking. When an analyst finishes their draft, the formatting process applies the standard template, checks citations, verifies data sources, and flags the recurring baseline-numbers error. The analyst gets a pre-formatted draft with issues highlighted. Nadia's review queue shows only the reports that need her judgment — not the ones that just needed formatting. One process, applied across her whole team, cuts her review time by 60%.
 
 **Nadia's team view (month 2):** Nadia's morning brief — checked on her phone before standup — shows: "Team output: 6 reports delivered, 4 approved clean, 2 corrected (both formatting issues now taught). Team health: all processes green except Chen's data gathering process (3 failures this week — data source API changed)." In the standup, Nadia already knows who's behind and why. The 20-minute Slack scramble before client meetings is gone. She opens the Process Graph on her laptop: her team's processes are interconnected — analyst output feeds the client reporting process, which feeds the quarterly review process. She can see the system, not just the tasks.
 
@@ -205,7 +205,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** Binary trust. Either the tool does it autonomously (and things go wrong silently) or the human checks everything (and there's no point using the tool).
 
-**What Agent OS does differently:** Progressive trust. Everything starts supervised — the human reviews every output. As the system proves reliable, it earns less oversight. But the human never "turns off" monitoring — the system downgrades itself if quality drops. The human's anxiety is addressed by visible trust data: "47 runs, 83% clean, corrections decreasing."
+**What Ditto does differently:** Progressive trust. Everything starts supervised — the human reviews every output. As the system proves reliable, it earns less oversight. But the human never "turns off" monitoring — the system downgrades itself if quality drops. The human's anxiety is addressed by visible trust data: "47 runs, 83% clean, corrections decreasing."
 
 ### Problem 2: "AI reinvents its approach every time — nothing learns, nothing sticks"
 
@@ -213,7 +213,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** No durable process. No memory. Each invocation is a blank slate. Some tools have "custom instructions" but they're generic — they don't learn from the specific corrections the user makes on specific types of work. There's no accumulating standard that improves over time.
 
-**What Agent OS does differently:** Processes are durable — defined once, refined through use, executed consistently. The AI doesn't reinvent its approach; it follows a governed process that improves. Edits ARE feedback. When the user corrects an output, the system captures the diff, detects patterns across corrections, and offers to make them permanent: "You consistently fix the baseline year in Chen's reports. Teach this?" One tap, and the correction becomes a quality criterion the harness enforces. The process gets better every time — the opposite of reinvention.
+**What Ditto does differently:** Processes are durable — defined once, refined through use, executed consistently. The AI doesn't reinvent its approach; it follows a governed process that improves. Edits ARE feedback. When the user corrects an output, the system captures the diff, detects patterns across corrections, and offers to make them permanent: "You consistently fix the baseline year in Chen's reports. Teach this?" One tap, and the correction becomes a quality criterion the harness enforces. The process gets better every time — the opposite of reinvention.
 
 ### Problem 3: "I can't see what's happening across all my work"
 
@@ -221,7 +221,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** Each tool shows its own activity. There's no cross-tool awareness. The human is the integration layer — they hold the full picture in their head.
 
-**What Agent OS does differently:** One morning brief, one review queue — on the phone. Everything that needs human attention flows through the same interface: a quote to approve, a report to review, a pricing alert, a process improvement suggestion. The Daily Brief explains priorities and reasoning. The human makes decisions in one place, from wherever they are.
+**What Ditto does differently:** One morning brief, one review queue — on the phone. Everything that needs human attention flows through the same interface: a quote to approve, a report to review, a pricing alert, a process improvement suggestion. The Daily Brief explains priorities and reasoning. The human makes decisions in one place, from wherever they are.
 
 ### Problem 4: "Setting up automation is harder than just doing the work"
 
@@ -229,7 +229,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** They require the user to think like a programmer — define inputs, map logic, handle edge cases upfront. Non-technical users don't think this way. They think in outcomes: "I need quotes out the door within 24 hours."
 
-**What Agent OS does differently:** Conversation-first setup. The user describes their pain: "Customer calls about a job, I have to work out materials and labour and send a quote." The system recognises the pattern, asks one question at a time, and builds the process definition alongside the conversation. The user corrects and confirms. They never draw a workflow diagram or configure a trigger. By the time the conversation ends, the process exists — and the very first output appears in their review queue.
+**What Ditto does differently:** Conversation-first setup. The user describes their pain: "Customer calls about a job, I have to work out materials and labour and send a quote." The system recognises the pattern, asks one question at a time, and builds the process definition alongside the conversation. The user corrects and confirms. They never draw a workflow diagram or configure a trigger. By the time the conversation ends, the process exists — and the very first output appears in their review queue.
 
 ### Problem 5: "I don't trust AI because I can't see its reasoning"
 
@@ -237,7 +237,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** Black boxes. The AI produces output, but there's no audit trail, no confidence scores, no source citations, no record of what was checked.
 
-**What Agent OS does differently:** Visible harness. Every output shows what was checked (pricing check: passed, margin check: 1 warning). Confidence scores per item. Evidence trails with source links. The user reviews the harness's review — not raw output. They learn to calibrate: "85% confidence from this agent usually means one minor issue."
+**What Ditto does differently:** Visible harness. Every output shows what was checked (pricing check: passed, margin check: 1 warning). Confidence scores per item. Evidence trails with source links. The user reviews the harness's review — not raw output. They learn to calibrate: "85% confidence from this agent usually means one minor issue."
 
 ### Problem 6: "Work piles up because I can't act on it away from my desk"
 
@@ -245,7 +245,7 @@ The outcome owner is the person **responsible for results** — they might have 
 
 **Why existing tools fail:** Desktop-only design. Most business tools assume you're at a computer. Mobile is an afterthought — a shrunken desktop that's painful to use. The tools that are mobile-native (messaging, email) aren't structured enough for process decisions.
 
-**What Agent OS does differently:** Seamless mobile support. The desk is where most work happens — setup, complex editing, deep review, analysis. But simple decisions flow to the phone naturally: approve a quote, triage a report, capture a note. Push notifications surface what needs attention. "Edit @ desk" lets the user acknowledge an issue on mobile and complete the edit when they're back at a screen. The same queue, same state, no sync friction — the phone extends the desk rather than replacing it.
+**What Ditto does differently:** Seamless mobile support. The desk is where most work happens — setup, complex editing, deep review, analysis. But simple decisions flow to the phone naturally: approve a quote, triage a report, capture a note. Push notifications surface what needs attention. "Edit @ desk" lets the user acknowledge an issue on mobile and complete the edit when they're back at a screen. The same queue, same state, no sync friction — the phone extends the desk rather than replacing it.
 
 ---
 
@@ -268,7 +268,7 @@ These are framed from what the user is *trying to accomplish*, not what the syst
 ## Anti-Personas: Who We're NOT Building For
 
 ### The Prompt Engineer
-Someone who enjoys iterating on prompts, fine-tuning AI behaviour, and optimising model parameters. They want control over the AI itself. Agent OS is the wrong tool — they want direct model access.
+Someone who enjoys iterating on prompts, fine-tuning AI behaviour, and optimising model parameters. They want control over the AI itself. Ditto is the wrong tool — they want direct model access.
 
 ### The Workflow Designer
 Someone who thinks in boxes and arrows, enjoys visual programming tools, and wants to design complex conditional logic. They'd be better served by n8n, Retool, or custom code.
@@ -277,7 +277,7 @@ Someone who thinks in boxes and arrows, enjoys visual programming tools, and wan
 Someone who fundamentally doesn't believe AI can do knowledge work — period. Not "I've been burned" (that's Rob — our ideal user) but "machines can't do this and never will." Experiential sceptics who've been burned by bad tools are actually our best early adopters — their high standards generate the feedback data that makes the harness better.
 
 ### The "Just Automate Everything" Person
-Someone who wants to remove humans from the loop entirely. Agent OS's core principle is that humans stay in control. If they want full automation, they want a different product.
+Someone who wants to remove humans from the loop entirely. Ditto's core principle is that humans stay in control. If they want full automation, they want a different product.
 
 ---
 

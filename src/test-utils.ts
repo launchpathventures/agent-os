@@ -1,5 +1,5 @@
 /**
- * Agent OS — Test Utilities
+ * Ditto — Test Utilities
  *
  * Shared helpers for integration tests.
  * Creates fresh SQLite databases per test — no mocks.
@@ -24,7 +24,7 @@ export type TestDb = BetterSQLite3Database<typeof schema>;
  * Returns { db, cleanup } — call cleanup() in afterEach.
  */
 export function createTestDb(): { db: TestDb; dbPath: string; cleanup: () => void } {
-  const dbPath = path.join(os.tmpdir(), `agent-os-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+  const dbPath = path.join(os.tmpdir(), `ditto-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
@@ -134,6 +134,8 @@ function createTables(sqlite: Database.Database): void {
       cost_cents INTEGER DEFAULT 0,
       error TEXT,
       confidence_level TEXT,
+      integration_service TEXT,
+      integration_protocol TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 

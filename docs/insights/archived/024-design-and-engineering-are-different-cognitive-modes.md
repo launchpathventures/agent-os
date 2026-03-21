@@ -20,9 +20,9 @@ Professional product teams overwhelmingly separate these as distinct roles. The 
 
 ## Implications
 
-- The Agent OS dev process needs a dedicated design perspective — not as a checklist within the Architect role, but as a separate cognitive mode with its own skill contract
-- This is especially critical for Agent OS specifically, where the core value proposition (16 primitives, Explore → Operate, implicit feedback, trust visibility) is fundamentally design work
-- The same principle will apply within the platform itself: when Agent OS orchestrates processes for users, the process-definition step (L1) should be governed by user-first thinking, not implementation-first thinking
+- The Ditto dev process needs a dedicated design perspective — not as a checklist within the Architect role, but as a separate cognitive mode with its own skill contract
+- This is especially critical for Ditto specifically, where the core value proposition (16 primitives, Explore → Operate, implicit feedback, trust visibility) is fundamentally design work
+- The same principle will apply within the platform itself: when Ditto orchestrates processes for users, the process-definition step (L1) should be governed by user-first thinking, not implementation-first thinking
 - The dev process should model what the platform will eventually enforce: separate design and engineering governance
 
 ## Where It Should Land

@@ -7,7 +7,7 @@
 
 ## The Insight
 
-External system integrations in Agent OS split along two independent axes:
+External system integrations in Ditto split along two independent axes:
 
 **Axis 1: Purpose — what the integration is for**
 

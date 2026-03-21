@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent OS models what humans do with work (six interaction jobs), how work flows (processes, harness, meta-processes), what deserves attention (ADR-011 attention model), and how trust is earned (ADR-007). These answer:
+Ditto models what humans do with work (six interaction jobs), how work flows (processes, harness, meta-processes), what deserves attention (ADR-011 attention model), and how trust is earned (ADR-007). These answer:
 
 - **What** gets reviewed? → Trust tiers
 - **How often?** → Trust tiers
@@ -16,7 +16,7 @@ But none of these answer: **What kind of thinking does the human need to bring?*
 
 When Rob reviews a quote, he applies 20 years of intuition in 30 seconds. When Lisa reviews a product description, she holds brand voice and audience empathy simultaneously. When Nadia reviews an analyst's report, she checks formatting compliance AND assesses whether the analysis is sound. These are fundamentally different cognitive acts — yet the system presents them identically: approve / edit / reject.
 
-Research (`docs/research/human-cognition-models-for-agent-os.md`) surveyed cognitive science frameworks (Kahneman, Dreyfus, Klein, Polanyi, Simon, Weick, Edmondson, Bloom) and applied AI/HCI systems across 8 areas. It identified seven cognitive dimensions the architecture doesn't model, and found no surveyed AI platform that implements cognitive modeling for work oversight (Insight-037).
+Research (`docs/research/human-cognition-models-for-ditto.md`) surveyed cognitive science frameworks (Kahneman, Dreyfus, Klein, Polanyi, Simon, Weick, Edmondson, Bloom) and applied AI/HCI systems across 8 areas. It identified seven cognitive dimensions the architecture doesn't model, and found no surveyed AI platform that implements cognitive modeling for work oversight (Insight-037).
 
 ### Design forces
 
@@ -111,7 +111,7 @@ The human decides at every level. The system never auto-escalates to implementat
 
 **Provenance:**
 - Abstraction ladder: Weick's sensemaking (retrospective pattern detection), Bloom's taxonomy (Analyze → Evaluate → Create). Soar's impasse-driven learning (automatically compile problem-solving experience into chunks).
-- Thresholds (3+ corrections = pattern, 3+ patterns = structural): Pattern from Agent OS's existing trust earning (ADR-007 uses similar accumulation thresholds). Specific numbers are tunable.
+- Thresholds (3+ corrections = pattern, 3+ patterns = structural): Pattern from Ditto's existing trust earning (ADR-007 uses similar accumulation thresholds). Specific numbers are tunable.
 
 ### 3. Four dimensions that inform but don't ship as mechanisms
 
@@ -151,15 +151,15 @@ Framing:
 
 ## Provenance
 
-**Cognitive mode concept:** Kahneman (System 1/System 2), Dreyfus (5-stage skill acquisition), Bloom (revised taxonomy: Remember → Create). Applied as process/step-level declaration that adapts review experience. No AI platform implements this for work oversight. **Original to Agent OS.**
+**Cognitive mode concept:** Kahneman (System 1/System 2), Dreyfus (5-stage skill acquisition), Bloom (revised taxonomy: Remember → Create). Applied as process/step-level declaration that adapts review experience. No AI platform implements this for work oversight. **Original to Ditto.**
 
-**Enriched feedback / tacit knowledge capture:** Polanyi (tacit knowledge). Knowledge elicitation literature (Springer 2022 — cooperative games + ontologies). Applied as structured rejection vocabulary with elicitation prompts. **Original to Agent OS.**
+**Enriched feedback / tacit knowledge capture:** Polanyi (tacit knowledge). Knowledge elicitation literature (Springer 2022 — cooperative games + ontologies). Applied as structured rejection vocabulary with elicitation prompts. **Original to Ditto.**
 
-**Insight escalation ladder:** Weick (sensemaking — retrospective pattern detection across levels). Soar cognitive architecture (impasse-driven learning — automatic compilation). Bloom (Analyze → Evaluate → Create progression). Applied as four-level abstraction-aware learning pipeline. **Original to Agent OS.**
+**Insight escalation ladder:** Weick (sensemaking — retrospective pattern detection across levels). Soar cognitive architecture (impasse-driven learning — automatic compilation). Bloom (Analyze → Evaluate → Create progression). Applied as four-level abstraction-aware learning pipeline. **Original to Ditto.**
 
-**Challenge orientation:** Edmondson (psychological safety). Principal-agent theory (CMR 2025). SAE Level 3 (self-assessment). Applied as extension of ADR-011 confidence with optional `concern` field. **Original to Agent OS.**
+**Challenge orientation:** Edmondson (psychological safety). Principal-agent theory (CMR 2025). SAE Level 3 (self-assessment). Applied as extension of ADR-011 confidence with optional `concern` field. **Original to Ditto.**
 
-**Stakes awareness:** Simon (bounded rationality, satisficing). Cognitive Load Theory (Springer 2026). Applied as enrichment of ADR-011 §6 deferred importance classification. **Original to Agent OS.**
+**Stakes awareness:** Simon (bounded rationality, satisficing). Cognitive Load Theory (Springer 2026). Applied as enrichment of ADR-011 §6 deferred importance classification. **Original to Ditto.**
 
 **Entity memory / relational context:** Zep/Graphiti temporal knowledge graph (open source, Python, 2025). Three-scope model (short-term + long-term + reasoning from Neo4j Labs 2025). Applied as third memory scope alongside agent + process. **Build FROM Zep/Graphiti; integration is Original.**
 

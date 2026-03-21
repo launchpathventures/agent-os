@@ -19,9 +19,9 @@ import { SPOT_CHECK_RATE } from "../trust-constants";
 
 /**
  * Salt for sampling hash. Prevents gaming by making the hash unpredictable
- * from processRunId + stepId alone. Override via AGENT_OS_SAMPLING_SALT env var.
+ * from processRunId + stepId alone. Override via DITTO_SAMPLING_SALT env var.
  */
-const SAMPLING_SALT = process.env.AGENT_OS_SAMPLING_SALT || "agent-os-default-salt-v1";
+const SAMPLING_SALT = process.env.DITTO_SAMPLING_SALT || "ditto-default-salt-v1";
 
 /**
  * Deterministic hash-based sampling.

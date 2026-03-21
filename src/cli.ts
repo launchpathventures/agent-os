@@ -1,7 +1,7 @@
 /**
- * Agent OS — CLI Entry Point (citty)
+ * Ditto — CLI Entry Point (citty)
  *
- * The command-line interface for operating Agent OS.
+ * The command-line interface for operating Ditto.
  * Rewritten from switch-statement to citty framework (Phase 4a, Brief 012).
  *
  * Provenance: citty (unjs/citty) for routing, @clack/prompts for interactive UX.
@@ -39,9 +39,9 @@ import { debtCommand } from "./cli/commands/debt";
 
 const main = defineCommand({
   meta: {
-    name: "aos",
+    name: "ditto",
     version: "0.1.0",
-    description: "Agent OS — workspace for human-agent collaboration",
+    description: "Ditto — AI that gets better every time you work with it",
   },
   subCommands: {
     sync: syncCommand,

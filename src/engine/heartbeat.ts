@@ -1,5 +1,5 @@
 /**
- * Agent OS — Heartbeat Engine
+ * Ditto — Heartbeat Engine
  *
  * Borrowed from Paperclip's heartbeat model: agents wake, execute, sleep.
  * A heartbeat is a single execution cycle for a process run.

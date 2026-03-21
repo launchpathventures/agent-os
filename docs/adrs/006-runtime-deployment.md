@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent OS's engine currently runs on the developer's laptop as a Node.js process with SQLite (ADR-001). This works for building but fails for operating:
+Ditto's engine currently runs on the developer's laptop as a Node.js process with SQLite (ADR-001). This works for building but fails for operating:
 
 1. **The always-on problem.** Heartbeats run on timers. When the laptop sleeps, all Node.js timers pause silently — scheduled agent wake-ups are missed, trust data stops accumulating, and processes stall. Phase 3 (Trust Earning) requires continuous feedback accumulation. The engine needs to run 24/7.
 
@@ -44,13 +44,13 @@ Agent OS's engine currently runs on the developer's laptop as a Node.js process 
 
 **"Sign up → first process running in 2 minutes."**
 
-Agent OS provides a managed cloud service where users create an account and get a running instance with zero infrastructure. This is the primary onboarding path for Rob, Lisa, Jordan, and Nadia.
+Ditto provides a managed cloud service where users create an account and get a running instance with zero infrastructure. This is the primary onboarding path for Rob, Lisa, Jordan, and Nadia.
 
 - Each user/team gets an isolated instance (per-tenant database, per-tenant engine process or container)
 - PostgreSQL per tenant (managed — Supabase, Neon, or similar)
 - Web dashboard + API served from the cloud
 - Push notifications, mobile access, cross-device state — all work natively because the engine is cloud-hosted with a stable URL
-- BYOK (Bring Your Own Key) for LLM API access — users provide their Anthropic API key. Agent OS never stores or proxies LLM API calls through its own accounts.
+- BYOK (Bring Your Own Key) for LLM API access — users provide their Anthropic API key. Ditto never stores or proxies LLM API calls through its own accounts.
 - Authentication via passkeys + OAuth (Google, GitHub)
 
 **Pricing model (informed by landscape research):**
@@ -60,13 +60,13 @@ Agent OS provides a managed cloud service where users create an account and get 
 
 **License:** AGPL-3.0 (follows Cal.com, Plane, Twenty). This protects against competitors offering a closed-source hosted version while keeping the code fully open source. Anyone can self-host. Anyone can inspect the code. Modifications must be shared.
 
-**When to build:** The managed cloud is not needed for dogfood. It becomes the priority when Agent OS is ready for external users (post-Phase 5 verification, likely Phase 10 timeframe when the web dashboard exists). The architecture decisions made now must not prevent this path.
+**When to build:** The managed cloud is not needed for dogfood. It becomes the priority when Ditto is ready for external users (post-Phase 5 verification, likely Phase 10 timeframe when the web dashboard exists). The architecture decisions made now must not prevent this path.
 
 ### Track B: Self-Hosted (developer and data-sovereignty path)
 
 **"git clone → running in 10 minutes."**
 
-Agent OS is fully self-hostable. This serves: (a) us during dogfood, (b) Jordan-type users who prefer self-hosting, (c) enterprises with data sovereignty requirements.
+Ditto is fully self-hostable. This serves: (a) us during dogfood, (b) Jordan-type users who prefer self-hosting, (c) enterprises with data sovereignty requirements.
 
 **Tier B1: Dogfood (now → Phase 5)**
 - Engine runs on a cheap VPS (Hetzner CX23 at EUR 3.49/month, or Oracle Cloud free tier at $0)
@@ -181,7 +181,7 @@ The mobile UX spec defines seven constraints. The two-track model addresses each
 **Follow-up decisions needed:**
 - **Track A cloud infrastructure** — which provider, multi-tenant isolation model (Phase 10 timeframe)
 - **Track A pricing specifics** — free tier limits, pro tier pricing (Phase 10 timeframe)
-- **AGPL + CLA details** — contribution guidelines, license headers (before external contributors). Note: the CLA must NOT be used for relicensing — its purpose is contribution clarity only. The Gitea/Forgejo community split (documented in `docs/research/hosted-cloud-patterns.md`) was triggered by CLA + relicensing concerns. Agent OS should commit upfront that the CLA will not grant relicensing rights.
+- **AGPL + CLA details** — contribution guidelines, license headers (before external contributors). Note: the CLA must NOT be used for relicensing — its purpose is contribution clarity only. The Gitea/Forgejo community split (documented in `docs/research/hosted-cloud-patterns.md`) was triggered by CLA + relicensing concerns. Ditto should commit upfront that the CLA will not grant relicensing rights.
 - **VPS provider for dogfood** — developer choice (Hetzner, Oracle free tier)
 - **One-click deploy templates** — Railway + Render configs (Phase 10 timeframe)
 - **Turso/libSQL evaluation** — intermediate SQLite-with-sync option for Track B multi-device (Phase 13)

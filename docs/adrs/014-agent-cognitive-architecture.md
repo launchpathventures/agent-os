@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent OS models what agents do (process steps, executors), how they're governed (trust tiers, review patterns), what deserves attention (ADR-011), and what kind of human thinking review demands (ADR-013). These answer:
+Ditto models what agents do (process steps, executors), how they're governed (trust tiers, review patterns), what deserves attention (ADR-011), and what kind of human thinking review demands (ADR-013). These answer:
 
 - **What** does the agent do? → Process definitions
 - **How is it governed?** → Trust tiers + review patterns
@@ -27,7 +27,7 @@ Humans are powerful problem solvers because of capabilities beyond skill:
 6. **Executive function** — the governing capability that selects, monitors, and fluidly shifts all of the above
 7. **Intuition** — pattern matching below conscious awareness, sensing when something is off
 
-The software consulting market (~$500B+) charges primarily for problem framing (~40%) and adaptation (~20%) — not methodology and execution. Agent OS with process-as-primitive captures methodology + execution. The cognitive architecture captures the remaining 60%: how to think about problems, when to change approach, and when to trust a gut signal over a metric.
+The software consulting market (~$500B+) charges primarily for problem framing (~40%) and adaptation (~20%) — not methodology and execution. Ditto with process-as-primitive captures methodology + execution. The cognitive architecture captures the remaining 60%: how to think about problems, when to change approach, and when to trust a gut signal over a metric.
 
 Research (`docs/research/cognitive-prompting-architectures.md`) surveyed 30+ sources across prompting science, cognitive architectures, and metacognition in AI. Key findings:
 
@@ -41,7 +41,7 @@ Research (`docs/research/cognitive-prompting-architectures.md`) surveyed 30+ sou
 - **Cognitive Design Patterns (Wray et al., AGI 2025):** LLMs lack reliable reconsideration — ability to abandon prior commitments and switch strategies. **The executive function gap.**
 - **CoT diminishing returns (Meincke et al., 2025):** Reasoning models gain only 2-3% from explicit chain-of-thought at 20-80% time cost. External scaffolding has decreasing value as models improve. **Evidence for adaptive scaffolding depth.**
 - **CoALA (Sumers et al., TMLR 2024):** Theoretical framework organizing agent cognition around memory types, action spaces, and decision cycles. Provides the conceptual vocabulary.
-- **Insight-046:** The principle — "Agent OS provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use. Executive function and intuition govern selection."
+- **Insight-046:** The principle — "Ditto provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use. Executive function and intuition govern selection."
 
 ### The critical design tension
 
@@ -129,7 +129,7 @@ The `freedom` field (high / medium / low) signals to the harness how much scaffo
 
 ### 2. Executive function as orchestrator evolution
 
-**The judgment hierarchy (Insight-047):** Agent OS separates structure from judgment through a clear four-level hierarchy. Each level has a distinct scope of freedom:
+**The judgment hierarchy (Insight-047):** Ditto separates structure from judgment through a clear four-level hierarchy. Each level has a distinct scope of freedom:
 
 | Level | What it governs | Scope of freedom |
 |---|---|---|
@@ -267,21 +267,21 @@ steps:
 
 ## Provenance
 
-**Three-layer architecture concept:** Original to Agent OS — no existing system composes cognitive infrastructure + toolkit + context as agent harness layers. Research basis: MeMo (Guan et al., 2024) for toolkit-not-prescription pattern; MAP (Webb et al., Nature Communications 2025) for modular cognitive decomposition; CoALA (Sumers et al., TMLR 2024) for theoretical framework.
+**Three-layer architecture concept:** Original to Ditto — no existing system composes cognitive infrastructure + toolkit + context as agent harness layers. Research basis: MeMo (Guan et al., 2024) for toolkit-not-prescription pattern; MAP (Webb et al., Nature Communications 2025) for modular cognitive decomposition; CoALA (Sumers et al., TMLR 2024) for theoretical framework.
 
-**Executive function as orchestrator:** Original to Agent OS — no production system implements unified executive function (working memory + cognitive flexibility + inhibitory control + progress monitoring) for multi-step agent processes. Research basis: MAP Monitor/Evaluator modules; Wray et al. (AGI 2025) cognitive design patterns; Toy et al. (2024) metacognition module.
+**Executive function as orchestrator:** Original to Ditto — no production system implements unified executive function (working memory + cognitive flexibility + inhibitory control + progress monitoring) for multi-step agent processes. Research basis: MAP Monitor/Evaluator modules; Wray et al. (AGI 2025) cognitive design patterns; Toy et al. (2024) metacognition module.
 
 **Mental model toolkit:** MeMo pattern (Guan et al., 2024) — provide mental models as composable tools, let the agent choose. Implementation adapted for process-harness context. Content informed by Farnam Street / Shane Parrish mental model library. **Adopt pattern, build implementation.**
 
 **Metacognitive monitoring:** Reflexion pattern (Shinn et al., NeurIPS 2023, MIT License) — verbal self-reflection stored as episodic memory. Toy et al. (2024) metacognition module — periodic self-evaluation with strategy adjustment. **Adopt patterns, build integration.**
 
-**Adaptive scaffolding:** Original to Agent OS — no framework adapts cognitive scaffolding depth based on model capability + task novelty + trust tier. Research basis: Prompting Inversion (Bernstein et al., 2025); CoT diminishing returns (Meincke et al., 2025).
+**Adaptive scaffolding:** Original to Ditto — no framework adapts cognitive scaffolding depth based on model capability + task novelty + trust tier. Research basis: Prompting Inversion (Bernstein et al., 2025); CoT diminishing returns (Meincke et al., 2025).
 
-**Cognitive quality in trust:** Original to Agent OS — no system rewards calibrated uncertainty and productive failure as trust-building behaviors. Conceptual basis: Brené Brown (vulnerability as trust builder); Steyvers & Peters (2025) metacognition and uncertainty communication.
+**Cognitive quality in trust:** Original to Ditto — no system rewards calibrated uncertainty and productive failure as trust-building behaviors. Conceptual basis: Brené Brown (vulnerability as trust builder); Steyvers & Peters (2025) metacognition and uncertainty communication.
 
 **State management and priming:** Tony Robbins (state determines performance); context priming research (Liu et al., 2023; Kim et al., 2025). Applied as position-aware context assembly and situation-dependent priming. **Adopt research findings, build implementation.**
 
-**ACE Framework (Shapiro):** Informed the layered architecture concept. Six-layer cognitive architecture with executive function and cognitive control as distinct layers. Not adopted directly — Agent OS uses a three-layer model tailored to process-driven execution.
+**ACE Framework (Shapiro):** Informed the layered architecture concept. Six-layer cognitive architecture with executive function and cognitive control as distinct layers. Not adopted directly — Ditto uses a three-layer model tailored to process-driven execution.
 
 ## Consequences
 

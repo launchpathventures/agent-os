@@ -1,11 +1,11 @@
-# Agent OS — Human Layer Design
+# Ditto — Human Layer Design
 
 **Version:** 0.1.0
 **Date:** 2026-03-18
 **Status:** Draft — companion to architecture.md
 **Scope:** Layer 6 (Human Layer) in full detail — wireframes, interactions, UX philosophy, experience narrative
 
-This document captures the design thinking behind the human-facing layer of Agent OS. The architecture spec (`architecture.md`) defines WHAT the 16 primitives are. This document defines HOW they work, WHAT they look like, and WHY they're designed this way.
+This document captures the design thinking behind the human-facing layer of Ditto. The architecture spec (`architecture.md`) defines WHAT the 16 primitives are. This document defines HOW they work, WHAT they look like, and WHY they're designed this way.
 
 ---
 
@@ -13,7 +13,7 @@ This document captures the design thinking behind the human-facing layer of Agen
 
 ### The Six Human Jobs
 
-Every UI decision in Agent OS is evaluated through the lens of six jobs a human performs in an agent organisation. These are universal — regardless of domain, role, or industry.
+Every UI decision in Ditto is evaluated through the lens of six jobs a human performs in an agent organisation. These are universal — regardless of domain, role, or industry.
 
 | Job | Question the human is asking | Primary primitives |
 |-----|------------------------------|-------------------|
@@ -35,7 +35,7 @@ In the future, every knowledge worker manages and delegates to agents. This fram
 
 ### Three Modes: Analyze, Explore, Operate
 
-Different phases of work need different interfaces. Agent OS encodes this directly:
+Different phases of work need different interfaces. Ditto encodes this directly:
 
 | Mode | Interface | When |
 |------|-----------|------|
@@ -43,7 +43,7 @@ Different phases of work need different interfaces. Agent OS encodes this direct
 | **Explore** | Conversation Thread + Process Builder (dual pane) | Defining and refining processes — guided by evidence from Analyze or from a blank canvas |
 | **Operate** | Dashboard, queues, cards, metrics | Daily use, monitoring, reviewing, deciding |
 
-The magic is in the **transitions**: Analyze surfaces what's really happening → Explore crystallises that into process definitions → Operate runs them. The user can enter at any mode — Analyze for evidence-first discovery, Explore for conversation-first definition, Operate for daily execution. Analyze is not a one-time onboarding step; it's a mode the user returns to whenever they want Agent OS to look at how things are actually working.
+The magic is in the **transitions**: Analyze surfaces what's really happening → Explore crystallises that into process definitions → Operate runs them. The user can enter at any mode — Analyze for evidence-first discovery, Explore for conversation-first definition, Operate for daily execution. Analyze is not a one-time onboarding step; it's a mode the user returns to whenever they want Ditto to look at how things are actually working.
 
 ### The Boiling Frog: Progressive Disclosure
 
@@ -234,7 +234,7 @@ Speed:     ▁▁▂▃▅▇▇▇██  ↑ improving
 
 **Job:** Review — "Is this output right?"
 
-**The single most important UI element in Agent OS.** This is the human's primary workspace. Everything agents produce that needs human eyes flows through this queue.
+**The single most important UI element in Ditto.** This is the human's primary workspace. Everything agents produce that needs human eyes flows through this queue.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -768,7 +768,7 @@ The "what should I be doing" view. Opens every morning.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  [Logo] Agent OS          [Capture 🎤] [Profile ●]   │
+│  [Logo] Ditto          [Capture 🎤] [Profile ●]   │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
 │  ┌── Daily Brief (Primitive 1) ───────────────────┐  │
@@ -831,7 +831,7 @@ Where new processes are born. Dual-pane: conversation + structure.
 
 ## The Daily Experience: A Narrative
 
-This is the north star for what using Agent OS feels like. Written from the perspective of a user managing multiple projects with coding agents.
+This is the north star for what using Ditto feels like. Written from the perspective of a user managing multiple projects with coding agents.
 
 ### 6:00am — Agents Work While You Sleep
 

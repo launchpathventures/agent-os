@@ -16,7 +16,7 @@ The three design principles that matter are:
 
 The Output Viewer (Primitive 6) carries most of the composability burden — it adapts to six output types at runtime. That IS runtime composition. It's just React.
 
-A formal ViewSpec protocol becomes valuable when Agent OS needs multi-platform rendering (mobile, third-party surfaces) — Phase 13+. Until then, build good React components with clean prop interfaces.
+A formal ViewSpec protocol becomes valuable when Ditto needs multi-platform rendering (mobile, third-party surfaces) — Phase 13+. Until then, build good React components with clean prop interfaces.
 
 ## Implications
 

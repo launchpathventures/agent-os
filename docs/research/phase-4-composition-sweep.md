@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-20
 **Status:** Complete (reviewed — PASS WITH NOTES)
-**Purpose:** Extract HOW existing projects implement capabilities Agent OS needs for Phase 4 (Workspace Foundation), not just that they exist.
+**Purpose:** Extract HOW existing projects implement capabilities Ditto needs for Phase 4 (Workspace Foundation), not just that they exist.
 **Triggered by:** Insight-031 — composition discipline weakened as architecture matured; 12 of 21 Phase 4 capabilities marked "Original" without proportional pattern extraction.
 
 ---
@@ -242,7 +242,7 @@ How do projects decompose goals into subtasks and coordinate execution?
 - Orchestrator handles synthesis and quality checking
 - This is a prompt-driven pattern, not an infrastructure pattern
 
-**Mapping to Agent OS:** The orchestrator system agent (ADR-010) decomposes goal work items into task work items. Each task is routed to a process. The orchestrator tracks completion and synthesises progress.
+**Mapping to Ditto:** The orchestrator system agent (ADR-010) decomposes goal work items into task work items. Each task is routed to a process. The orchestrator tracks completion and synthesises progress.
 
 ### Option B: Send Pattern for Map-Reduce (LangGraph)
 
@@ -292,7 +292,7 @@ Manager agent receives task → decides which crew member handles it → crew me
 
 ### Known gap
 
-No project implements goal decomposition with **goal ancestry tracking** (where every subtask carries the chain of parent goals explaining WHY it exists). Paperclip has the data model (`goals` + `issues` tables with parent references) but doesn't use an orchestrator agent to drive decomposition. This combination is Original to Agent OS.
+No project implements goal decomposition with **goal ancestry tracking** (where every subtask carries the chain of parent goals explaining WHY it exists). Paperclip has the data model (`goals` + `issues` tables with parent references) but doesn't use an orchestrator agent to drive decomposition. This combination is Original to Ditto.
 
 ---
 
@@ -480,7 +480,7 @@ Rendered via `lipgloss` terminal layout as split-panel dashboard: left column (I
 
 **File:** `packages/prompts/src/*.ts`
 
-**Key primitives for Agent OS:**
+**Key primitives for Ditto:**
 
 1. **select** — single-choice with render states (submit, cancel, list_with_cursor)
 2. **multiselect** — checkbox style with required validation
@@ -553,17 +553,17 @@ This table summarises approaches — implementation detail for each is in the re
 | **LangGraph** | Channel state with reducers | Checkpoint backends (memory/SQLite/PG) | Checkpoint + Command(resume=value) | `/libs/langgraph/langgraph/checkpoint/base.py` |
 | **CrewAI** | Task context propagation | Replay from specific task | Sequential replay | `/src/crewai/crew.py`|
 
-**Agent OS's existing state model** (SQLite via Drizzle) most closely resembles the LangGraph checkpoint approach — serialized state per execution step with a single backend. Mastra's path-based resume is the most directly adaptable pattern for the human step executor.
+**Ditto's existing state model** (SQLite via Drizzle) most closely resembles the LangGraph checkpoint approach — serialized state per execution step with a single backend. Mastra's path-based resume is the most directly adaptable pattern for the human step executor.
 
 ---
 
 ## Summary: Extracted Patterns Mapped to Phase 4 Capabilities
 
-The following tables map extracted patterns to Agent OS capabilities. These are factual mappings, not recommendations — the Architect decides which patterns to adopt, adapt, or reject.
+The following tables map extracted patterns to Ditto capabilities. These are factual mappings, not recommendations — the Architect decides which patterns to adopt, adapt, or reject.
 
 ### For Agent Assembly (Phase 4 harness)
 
-| Pattern | Source | Adaptation for Agent OS |
+| Pattern | Source | Adaptation for Ditto |
 |---------|--------|------------------------|
 | Single-function assembly | Open SWE `get_agent()` | Agent harness assembly function: resolve identity → load agent+process memory → determine tools → check budget → inject into adapter. Already in architecture.md. |
 | Multi-source tool gathering | Mastra 7-source pattern | Process-scoped tools + agent-scoped tools + integration tools + system tools merged at invocation time |
@@ -572,7 +572,7 @@ The following tables map extracted patterns to Agent OS capabilities. These are 
 
 ### For Work Routing (intake-classifier + router)
 
-| Pattern | Source | Adaptation for Agent OS |
+| Pattern | Source | Adaptation for Ditto |
 |---------|--------|------------------------|
 | Three-mode routing | Inngest AgentKit | Code-based for known process matches, LLM-based for ambiguous routing, hybrid for progressive trust |
 | Schema-driven selection | Mastra Networks | Available processes provided as schemas to router LLM — it generates `{ processId, prompt }` |
@@ -581,7 +581,7 @@ The following tables map extracted patterns to Agent OS capabilities. These are 
 
 ### For Human Step Suspend/Resume (Phase 4b)
 
-| Pattern | Source | Adaptation for Agent OS |
+| Pattern | Source | Adaptation for Ditto |
 |---------|--------|------------------------|
 | Path-based suspend/resume | Mastra | Suspend at step → serialize execution path + step results → resume skips completed steps |
 | Structured suspend payload | Mastra `suspendPayload` | Human step includes: instructions, context, input_fields, timeout (per ADR-010) |
@@ -590,7 +590,7 @@ The following tables map extracted patterns to Agent OS capabilities. These are 
 
 ### For Safety-Net Middleware (harness enhancement)
 
-| Pattern | Source | Adaptation for Agent OS |
+| Pattern | Source | Adaptation for Ditto |
 |---------|--------|------------------------|
 | Ordered middleware chain | Open SWE 4-layer | Extend harness pipeline: add error normalization, empty-output guard, structural guarantees |
 | Pre/post processors | Mastra | Input processors for memory injection, output processors for feedback capture |
@@ -598,7 +598,7 @@ The following tables map extracted patterns to Agent OS capabilities. These are 
 
 ### For CLI (Phase 4a)
 
-| Pattern | Source | Adaptation for Agent OS |
+| Pattern | Source | Adaptation for Ditto |
 |---------|--------|------------------------|
 | Parallel aggregation dashboard | GitHub CLI `gh status` | `status` command loads work items + process health + review queue in parallel |
 | Entity-segregated + aggregation | GitHub CLI command structure | `work`, `review`, `process`, `capture` commands + unified `status` |
@@ -642,4 +642,4 @@ The following landscape.md evaluations should be updated based on this research:
 
 ## Provenance Notes
 
-Every pattern cited in this report includes project name and file path. Patterns marked as "Adaptation for Agent OS" describe how the extracted implementation maps to Agent OS's architecture — they are not recommendations (that's the Architect's job).
+Every pattern cited in this report includes project name and file path. Patterns marked as "Adaptation for Ditto" describe how the extracted implementation maps to Ditto's architecture — they are not recommendations (that's the Architect's job).

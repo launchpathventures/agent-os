@@ -1,4 +1,4 @@
-# Insight 027: Agent OS Is a Workspace, Not an Automation Platform
+# Insight 027: Ditto Is a Workspace, Not an Automation Platform
 
 **Date:** 2026-03-20
 **Status:** absorbed into ADR-010 + architecture.md Core Thesis
@@ -9,13 +9,13 @@
 
 ## The Insight
 
-**The ultimate purpose of Agent OS is handoff.** The human hands off work to processes that get it done, and gets pulled back in only when required. Some work is repetitive and scheduled (reconcile accounts monthly). Other work is reactive and inspiration-driven (a customer calls, an insight strikes, a goal forms). Both are real work. Both need reliable execution.
+**The ultimate purpose of Ditto is handoff.** The human hands off work to processes that get it done, and gets pulled back in only when required. Some work is repetitive and scheduled (reconcile accounts monthly). Other work is reactive and inspiration-driven (a customer calls, an insight strikes, a goal forms). Both are real work. Both need reliable execution.
 
-Agent OS at its core is about **orchestrating and creating reliable organisational memory and workflows that run, evolve, and improve.** The system remembers how work gets done, gets better at it over time, and knows when to pull the human in and when to carry on.
+Ditto at its core is about **orchestrating and creating reliable organisational memory and workflows that run, evolve, and improve.** The system remembers how work gets done, gets better at it over time, and knows when to pull the human in and when to carry on.
 
 All work starts with an **input**: a question, insight, outcome required, task, or goal. Processes are not what users interact with — processes are **skills** (workflows, capabilities) the system has learned for responding to user inputs. The daily experience should feel like working **in** a living workspace, not managing an automation platform.
 
-The current documentation frames Agent OS as "define processes → review outputs → earn trust" — which is the interaction model of Zapier/n8n with a trust layer. The real product is a workspace where the user enters their work (questions, tasks, goals, insights) and the system dispatches that work to its learned processes/skills.
+The current documentation frames Ditto as "define processes → review outputs → earn trust" — which is the interaction model of Zapier/n8n with a trust layer. The real product is a workspace where the user enters their work (questions, tasks, goals, insights) and the system dispatches that work to its learned processes/skills.
 
 ## Why This Matters
 
@@ -36,7 +36,7 @@ The current documentation frames Agent OS as "define processes → review output
 | **Repetitive/scheduled** | Predictable, high-volume, trust-earnable | Schedule, event, data arrival | Reconcile accounts, generate quotes, format reports, compliance checks |
 | **Reactive/inspiration-driven** | Unpredictable, variable, judgment-heavy | Human input, external event, insight | Customer calls, new product idea, competitive threat, "I just realised..." |
 
-Both are real work. Both need processes behind them. The difference is how they enter the system — scheduled work runs automatically, reactive work enters through the human. Agent OS must handle both seamlessly. The compound effect is that reactive work gradually becomes repetitive work as the system learns patterns.
+Both are real work. Both need processes behind them. The difference is how they enter the system — scheduled work runs automatically, reactive work enters through the human. Ditto must handle both seamlessly. The compound effect is that reactive work gradually becomes repetitive work as the system learns patterns.
 
 ## Work Input Taxonomy (Provisional)
 
@@ -72,14 +72,14 @@ This means the user's task list is a mix of:
 
 All three surface in the same workspace. The system tracks all three.
 
-## Agent OS Positioning
+## Ditto Positioning
 
-Agent OS sits between two existing worlds:
+Ditto sits between two existing worlds:
 
-- **OpenClaw / conversational AI**: Flexible, natural interaction — but unstructured. No process memory, no trust earning, no quality tracking. Agent OS adds **structure** to this.
-- **Paperclip / orchestration frameworks**: Structured, governed, auditable — but complex and developer-facing. Agent OS makes this **accessible** to non-technical users.
+- **OpenClaw / conversational AI**: Flexible, natural interaction — but unstructured. No process memory, no trust earning, no quality tracking. Ditto adds **structure** to this.
+- **Paperclip / orchestration frameworks**: Structured, governed, auditable — but complex and developer-facing. Ditto makes this **accessible** to non-technical users.
 
-The user specifically values Paperclip's ability to see **org structure of agents**. For Agent OS, the equivalent is seeing **process structure and connections** — the Process Graph as a primary navigation/orientation tool, not a secondary visualisation.
+The user specifically values Paperclip's ability to see **org structure of agents**. For Ditto, the equivalent is seeing **process structure and connections** — the Process Graph as a primary navigation/orientation tool, not a secondary visualisation.
 
 ## What This Does NOT Change
 

@@ -1,7 +1,7 @@
-# How Should Agent OS Calibrate Human Attention?
+# How Should Ditto Calibrate Human Attention?
 
 **Research date:** 2026-03-20
-**Question:** How do real systems balance autonomous execution with human oversight — and how should Agent OS ensure processes run independently without becoming noisy, overwhelming, or unnecessarily busy?
+**Question:** How do real systems balance autonomous execution with human oversight — and how should Ditto ensure processes run independently without becoming noisy, overwhelming, or unnecessarily busy?
 **Inputs:** `docs/architecture.md`, `docs/landscape.md`, `docs/human-layer.md`, `docs/adrs/007-trust-earning.md`, web research across agent platforms, management science, statistical quality control, content moderation, financial compliance, autonomous systems
 **Related:** Insight-030 (Structure Is the Missing Layer)
 
@@ -9,9 +9,9 @@
 
 ## Why This Research Exists
 
-Agent OS's trust tiers (supervised → spot-checked → autonomous → critical) and trust-earning algorithm (ADR-007) provide the foundation for graduated oversight. But the current design has a gap: **the system's primary interaction model is per-output review** — every process output that needs human eyes flows through the Review Queue as an individual item to approve, edit, or reject.
+Ditto's trust tiers (supervised → spot-checked → autonomous → critical) and trust-earning algorithm (ADR-007) provide the foundation for graduated oversight. But the current design has a gap: **the system's primary interaction model is per-output review** — every process output that needs human eyes flows through the Review Queue as an individual item to approve, edit, or reject.
 
-The concern: even with trust tiers, this could make Agent OS feel like a system that demands constant attention rather than one that runs independently and pulls the human in only when their judgment is needed. The aspiration is a workspace that feels like managing a reliable team — periodic check-ins calibrated to importance and trust, not a queue of approvals.
+The concern: even with trust tiers, this could make Ditto feel like a system that demands constant attention rather than one that runs independently and pulls the human in only when their judgment is needed. The aspiration is a workspace that feels like managing a reliable team — periodic check-ins calibrated to importance and trust, not a queue of approvals.
 
 This research investigates how real systems solve this problem, across agent platforms, management science, statistical quality control, and autonomous systems.
 
@@ -21,7 +21,7 @@ This research investigates how real systems solve this problem, across agent pla
 
 The research surfaced a convergent finding: the oversight problem and the input problem are two sides of the same coin.
 
-**The input side:** Users of raw AI chat (Claude, ChatGPT) don't know how to interact effectively. They lack structure, guidance, standards, goal orientation, quality control, and abstraction of complexity. They end up using AI in primitive, unsophisticated ways. Agent OS solves this by providing structural scaffolding — processes, meta-agents, industry standards, goal ancestry — so the user doesn't need to be a prompt engineer. (See Insight-030.)
+**The input side:** Users of raw AI chat (Claude, ChatGPT) don't know how to interact effectively. They lack structure, guidance, standards, goal orientation, quality control, and abstraction of complexity. They end up using AI in primitive, unsophisticated ways. Ditto solves this by providing structural scaffolding — processes, meta-agents, industry standards, goal ancestry — so the user doesn't need to be a prompt engineer. (See Insight-030.)
 
 **The execution side:** Once work is structured and running, the system must execute autonomously and pull the human in only when their judgment genuinely adds value. The system should feel quiet when things are working and loud only when something needs attention.
 
@@ -46,7 +46,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 
 **The mechanism:** The agent producing the output also assesses its own confidence. This is not the same as the trust tier (which is process-level, historical). Confidence is per-output, per-invocation: "I'm 95% sure this invoice reconciliation is correct" vs "I'm 60% sure — the amounts are close but the descriptions don't match well."
 
-**Gap in Agent OS:** Trust tiers operate at the process level — a spot-checked process reviews ~20% of outputs, selected by deterministic sampling (SHA-256 hash). This means the sampling is random, not informed. A routine output and a weird output have the same probability of being reviewed. Confidence-based routing would let the agent flag uncertain outputs regardless of the sampling schedule.
+**Gap in Ditto:** Trust tiers operate at the process level — a spot-checked process reviews ~20% of outputs, selected by deterministic sampling (SHA-256 hash). This means the sampling is random, not informed. A routine output and a weird output have the same probability of being reviewed. Confidence-based routing would let the agent flag uncertain outputs regardless of the sampling schedule.
 
 **Sources:** TikTok transparency reports, Swiss Re underwriting automation research, Anthropic "Measuring Agent Autonomy" (Feb 2026), Visa fraud monitoring program documentation.
 
@@ -68,7 +68,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 
 **The mechanism:** The human's review cadence is decoupled from the agent's execution cadence. The agent runs on its heartbeat. The human reviews on their schedule. The system accumulates, prioritises, and presents.
 
-**Agent OS has the foundation:** The Daily Brief (Primitive 1) is already designed as a digest — "here's what happened overnight, here's what needs your attention today." But the Review Queue (Primitive 5) is designed as a per-item approval surface. The gap is the space between these two: a mode where routine outputs accumulate silently and are presented as a batch summary, not as individual review items.
+**Ditto has the foundation:** The Daily Brief (Primitive 1) is already designed as a digest — "here's what happened overnight, here's what needs your attention today." But the Review Queue (Primitive 5) is designed as a per-item approval surface. The gap is the space between these two: a mode where routine outputs accumulate silently and are presented as a batch summary, not as individual review items.
 
 **Architectural note:** The architecture spec defines the Review Queue as "the single most important UI element" and "the human's primary workspace." Adding a digest mode is not just a feature addition — it redefines the Review Queue's scope from purely item-level review to a dual-mode surface. The Architect should evaluate whether this broadens Primitive 5 or warrants a separate primitive.
 
@@ -94,7 +94,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 | Autonomous driving (SAE Level 4) | System handles its own failures within defined domain; human only needed outside operational design domain | System managing itself |
 
 **The formal management science:** Management by Exception (MBE) has two variants:
-- **Active MBE:** Manager proactively monitors dashboards/metrics and intervenes when deviation is detected. Maps to Agent OS's Process Card health indicators and Performance Sparklines.
+- **Active MBE:** Manager proactively monitors dashboards/metrics and intervenes when deviation is detected. Maps to Ditto's Process Card health indicators and Performance Sparklines.
 - **Passive MBE:** Manager only acts when problems are brought to their attention. Maps to exception-only alerts from autonomous processes.
 
 **The Hersey-Blanchard progression:** Situational Leadership maps directly to trust tiers:
@@ -103,7 +103,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 - S3 (Participating) → early Autonomous: low direction, human available for consultation
 - S4 (Delegating) → mature Autonomous: exception-only, human reviews summaries
 
-**Gap in Agent OS:** The architecture describes trust tier downgrades when error rates exceed thresholds (correction rate >30%, any rejection, auto-check failure >20%). These are the "exception" triggers. But the current design surfaces these as individual events in the Review Queue. The MBE pattern suggests they should surface as **process-level alerts** — "Invoice Reconciliation has degraded: correction rate hit 35% over last 10 runs" — not as individual flagged outputs.
+**Gap in Ditto:** The architecture describes trust tier downgrades when error rates exceed thresholds (correction rate >30%, any rejection, auto-check failure >20%). These are the "exception" triggers. But the current design surfaces these as individual events in the Review Queue. The MBE pattern suggests they should surface as **process-level alerts** — "Invoice Reconciliation has degraded: correction rate hit 35% over last 10 runs" — not as individual flagged outputs.
 
 **Sources:** PagerDuty AIOps documentation, Waymo Fleet Response blog (Oct 2024), Splunk alert fatigue best practices, Hersey-Blanchard Situational Leadership (toolshero.com).
 
@@ -120,13 +120,13 @@ The research surfaced a convergent finding: the oversight problem and the input 
 | ISO 2859-1 (acceptance sampling) | Three-state switching: Normal → Tightened → Reduced → Discontinued | 10 consecutive clean lots + switching score → Reduced | 2-of-5 failures → Tightened; 5 consecutive under Tightened → Discontinued |
 | Skip-lot sampling (NIST SkSP-2) | After qualifying streak, skip entire lots — inspect only fraction f | 10-15 consecutive lots accepted → inspect 1-in-5 | Any single failure → revert to 100% inspection |
 | FDA pharmaceutical QA | Sampling frequency calibrated to demonstrated process capability | Well-validated process earns reduced monitoring | Process deviation triggers increased monitoring |
-| Agent OS trust tiers (current) | Fixed rates: supervised=100%, spot-checked=20%, autonomous=exceptions | Conjunctive upgrade conditions (ADR-007) | Disjunctive downgrade triggers (ADR-007) |
+| Ditto trust tiers (current) | Fixed rates: supervised=100%, spot-checked=20%, autonomous=exceptions | Conjunctive upgrade conditions (ADR-007) | Disjunctive downgrade triggers (ADR-007) |
 
-**Agent OS already has this** via trust tiers and ADR-007's switching rules. The ISO 2859 switching rules validate the approach — Agent OS's "10 runs at ≥85% approval" for supervised→spot-checked is in the same family as ISO's "10 consecutive clean lots" for normal→reduced.
+**Ditto already has this** via trust tiers and ADR-007's switching rules. The ISO 2859 switching rules validate the approach — Ditto's "10 runs at ≥85% approval" for supervised→spot-checked is in the same family as ISO's "10 consecutive clean lots" for normal→reduced.
 
-**What ISO 2859 adds that Agent OS doesn't have:** The concept of a **fourth state — Discontinued/Suspended** — where the process is halted entirely until the root cause is addressed. Agent OS downgrades to supervised but doesn't have a "suspended" state where the process stops running.
+**What ISO 2859 adds that Ditto doesn't have:** The concept of a **fourth state — Discontinued/Suspended** — where the process is halted entirely until the root cause is addressed. Ditto downgrades to supervised but doesn't have a "suspended" state where the process stops running.
 
-**Also:** ISO 2859's switching is based on consecutive successes (streak-based), while Agent OS uses a sliding window average. Streak-based is more conservative — one failure breaks the streak regardless of the overall rate. This is worth considering for the upgrade path.
+**Also:** ISO 2859's switching is based on consecutive successes (streak-based), while Ditto uses a sliding window average. Streak-based is more conservative — one failure breaks the streak regardless of the overall rate. This is worth considering for the upgrade path.
 
 **Sources:** ISO 2859-1 comprehensive guide (testcoo.com), NIST skip-lot sampling handbook, FDA Process Validation guidance, AQL inspection level documentation.
 
@@ -138,7 +138,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 
 **Sheridan & Verplank's 10 Levels of Automation (1978):**
 
-| Level | Description | Agent OS mapping |
+| Level | Description | Ditto mapping |
 |-------|------------|-----------------|
 | 5 | Computer executes if human approves | Supervised tier |
 | 6 | Computer executes, human can veto within limited time | — (not in current design) |
@@ -146,7 +146,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 | 8 | Computer executes, informs human only if asked | Autonomous with on-demand review |
 | 9 | Computer executes, informs human only if it decides to | Autonomous with confidence routing |
 
-**Key insight:** Levels 5-9 are all about the **timing and conditionality of human notification**, not about who makes the decision. Agent OS's trust tiers currently map to levels 5 (supervised) and ~7 (spot-checked). The architecture doesn't yet distinguish between levels 7-9, which represent meaningfully different oversight experiences:
+**Key insight:** Levels 5-9 are all about the **timing and conditionality of human notification**, not about who makes the decision. Ditto's trust tiers currently map to levels 5 (supervised) and ~7 (spot-checked). The architecture doesn't yet distinguish between levels 7-9, which represent meaningfully different oversight experiences:
 - Level 7: "I did this, FYI" (digest/batch)
 - Level 8: "I did this, ask me if you want to know" (on-demand)
 - Level 9: "I did this, I'll tell you if I think you need to know" (confidence routing)
@@ -159,7 +159,7 @@ The research surfaced a convergent finding: the oversight problem and the input 
 
 ---
 
-## Synthesis: What Agent OS Needs
+## Synthesis: What Ditto Needs
 
 ### What's already right
 
@@ -217,7 +217,7 @@ These four gaps point to a missing architectural concept: the **attention model*
 | **Autonomous** | Digest only — summary in Daily Brief, detail on demand | Low confidence → item review; metric deviation → process alert; auto-downgrade → supervised |
 | **Critical** | Item review — every output, always | None (architectural invariant) |
 
-The attention model is the missing link between trust tiers (which determine oversight *rate*) and the human experience (which determines oversight *form*). Trust tiers answer "how often?" The attention model answers "in what form?" Together they determine whether Agent OS feels like a noisy approval queue or a quiet workspace that pulls you in when it matters.
+The attention model is the missing link between trust tiers (which determine oversight *rate*) and the human experience (which determines oversight *form*). Trust tiers answer "how often?" The attention model answers "in what form?" Together they determine whether Ditto feels like a noisy approval queue or a quiet workspace that pulls you in when it matters.
 
 ### Concrete numbers as targets
 

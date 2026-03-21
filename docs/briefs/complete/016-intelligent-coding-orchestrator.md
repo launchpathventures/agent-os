@@ -20,11 +20,11 @@ Brief 015 delivered a working dev pipeline as a **parallel system** — `claude 
 
 The solution: define the dev pipeline as a **process YAML** and run it on the **real engine**. The coding process becomes the first process that exercises conditional routing, a CLI adapter, notification events, and confidence-based gating — all capabilities the engine needs for Phase 4b/4c anyway.
 
-This also establishes the **adapter abstraction**: users choose their execution substrate (Claude CLI, Codex CLI, API) and Agent OS wraps it in governance. The CLI adapter is the first alternative to the existing API adapter.
+This also establishes the **adapter abstraction**: users choose their execution substrate (Claude CLI, Codex CLI, API) and Ditto wraps it in governance. The CLI adapter is the first alternative to the existing API adapter.
 
 ## Objective
 
-The dev pipeline runs as a process on the Agent OS engine. The heartbeat drives execution. The harness wraps every step with trust gates, feedback capture, memory assembly, and review patterns. The coding process earns trust, captures corrections, and improves over time — like any Agent OS process. The Telegram bot subscribes to harness events for mobile review and digest.
+The dev pipeline runs as a process on the Ditto engine. The heartbeat drives execution. The harness wraps every step with trust gates, feedback capture, memory assembly, and review patterns. The coding process earns trust, captures corrections, and improves over time — like any Ditto process. The Telegram bot subscribes to harness events for mobile review and digest.
 
 ## Non-Goals
 

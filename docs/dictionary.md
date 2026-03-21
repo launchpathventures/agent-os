@@ -1,6 +1,6 @@
-# Agent OS Glossary
+# Ditto Glossary
 
-The canonical reference for every key term, concept, and component in Agent OS. This is the shared vocabulary for the entire project. Entries are alphabetical. Each entry includes its definition within the Agent OS context, the architecture layer it belongs to, and related terms.
+The canonical reference for every key term, concept, and component in Ditto. This is the shared vocabulary for the entire project. Entries are alphabetical. Each entry includes its definition within the Ditto context, the architecture layer it belongs to, and related terms.
 
 ---
 
@@ -20,7 +20,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 3 (Harness)
 - Related: Maker-Checker, Specification Testing, Ensemble Consensus, Review Pattern
 
-**Agent Authentication** — The system by which every agent operating within Agent OS has a verified identity, scoped permissions, and known provenance. The foundation upon which governance rests.
+**Agent Authentication** — The system by which every agent operating within Ditto has a verified identity, scoped permissions, and known provenance. The foundation upon which governance rests.
 - Layer: Cross-cutting
 - Related: Governance Function, Trust Tier, Provenance
 
@@ -32,7 +32,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 2 (Agent)
 - Related: Adapter, Heartbeat, Session Persistence, Budget Controls
 
-**Agent OS** — The universal platform for non-technical people to define, monitor, review, and improve agent-operated processes across any business domain. Not an agent framework but a harness creator.
+**Ditto** — The universal platform for non-technical people to define, monitor, review, and improve agent-operated processes across any business domain. Not an agent framework but a harness creator.
 - Layer: Meta
 - Related: Harness, Process, Human Layer
 
@@ -44,7 +44,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Infrastructure
 - Related: Maker-Checker, Composition Over Invention, ralph, YAML
 
-**APQC** — An industry standard framework cataloguing 12,000+ standard business processes. One of several frameworks (alongside ITIL, COBIT, ISO 9001) that Agent OS uses as base knowledge. Users never see the framework identifiers directly.
+**APQC** — An industry standard framework cataloguing 12,000+ standard business processes. One of several frameworks (alongside ITIL, COBIT, ISO 9001) that Ditto uses as base knowledge. Users never see the framework identifiers directly.
 - Layer: 1 (Process)
 - Related: Capability Catalog, Industry Standards, Process Builder
 
@@ -88,7 +88,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 2 (Agent)
 - Related: Planner, Reviewer, ralph, Feature Implementation
 
-**Capability Catalog** — The model for Agent OS's process library: a guided, evolving capability catalog (not an app store or raw templates). The platform acts as a consultant, recognising pain points and assembling capabilities into processes.
+**Capability Catalog** — The model for Ditto's process library: a guided, evolving capability catalog (not an app store or raw templates). The platform acts as a consultant, recognising pain points and assembling capabilities into processes.
 - Layer: 6 (Human)
 - Related: APQC, Industry Standards, Process Builder, Conversation Thread
 
@@ -112,11 +112,11 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 1 (Process)
 - Related: Scout, Evaluator, Proposer, Self-Improvement Meta-Process, compound-product
 
-**Composition Over Invention** — A core principle: Agent OS composes proven open-source projects rather than building from scratch. Every significant component starts with a research step. The unique value is in the harness, trust, governance, and learning layers.
+**Composition Over Invention** — A core principle: Ditto composes proven open-source projects rather than building from scratch. Every significant component starts with a research step. The unique value is in the harness, trust, governance, and learning layers.
 - Layer: Meta
 - Related: Borrowing Strategy, Research Before Design, antfarm, ralph, gstack, Paperclip
 
-**Compound Effect** — The value proposition of Agent OS over time: Week 1 you review everything; Week 8 most processes are spot-checked; Month 3 established processes are autonomous. The system gets better every week because the harness evolves from every human interaction.
+**Compound Effect** — The value proposition of Ditto over time: Week 1 you review everything; Week 8 most processes are spot-checked; Month 3 established processes are autonomous. The system gets better every week because the harness evolves from every human interaction.
 - Layer: Meta
 - Related: Trust Earning, Implicit Feedback, Learning Layer
 
@@ -200,7 +200,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Meta (Development Process), L1 Process, L6 Human
 - Related: Dev Researcher, Dev Architect, Human Layer, Six Human Jobs
 
-**Dev Process** — The formalised development workflow for building Agent OS. Seven meta-roles (PM, Designer, Researcher, Architect, Builder, Reviewer, Documenter) implemented as skills that constrain the AI agent's behaviour. The manual precursor to the automated harness. Reference: `docs/dev-process.md`.
+**Dev Process** — The formalised development workflow for building Ditto. Seven meta-roles (PM, Designer, Researcher, Architect, Builder, Reviewer, Documenter) implemented as skills that constrain the AI agent's behaviour. The manual precursor to the automated harness. Reference: `docs/dev-process.md`.
 - Layer: Meta
 - Related: Dev PM, Dev Designer, Dev Researcher, Dev Architect, Dev Builder, Dev Reviewer, Dev Documenter, Dogfooding
 
@@ -208,7 +208,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Meta
 - Related: Roadmap, Phase, Re-entry Condition
 
-**Dogfooding** — The practice of using your own product to build and test it. Agent OS dogfoods by using its own harness patterns (review loop, briefs, trust principles) to govern its own development. The coding agent team is the first dogfood — building Agent OS using Agent OS principles.
+**Dogfooding** — The practice of using your own product to build and test it. Ditto dogfoods by using its own harness patterns (review loop, briefs, trust principles) to govern its own development. The coding agent team is the first dogfood — building Ditto using Ditto principles.
 - Layer: Meta
 - Related: Composition Over Invention, Review Checklist, Brief
 
@@ -240,7 +240,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 6 (Human)
 - Related: Decide, Data View, Output Viewer, Confidence Score
 
-**Explore Mode** — One of Agent OS's two coexisting modes. A conversational interface for discovery, refinement, debugging, and strategy. The metaphor is a conversation with a smart colleague. Explore crystallises into Operate.
+**Explore Mode** — One of Ditto's two coexisting modes. A conversational interface for discovery, refinement, debugging, and strategy. The metaphor is a conversation with a smart colleague. Explore crystallises into Operate.
 - Layer: 6 (Human)
 - Related: Operate Mode, Crystallisation, Conversation Thread, Process Builder
 
@@ -256,11 +256,11 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 6 (Human)
 - Related: Review, Implicit Feedback, Teach This, Correction Pattern
 
-**Governance Function** — A dedicated agent or team providing cross-cutting governance and compliance assurance at individual, team, and organisation scope. Itself a process that runs within Agent OS at the supervised or critical trust tier. Can surface findings and recommend actions but cannot modify processes or override trust tiers.
+**Governance Function** — A dedicated agent or team providing cross-cutting governance and compliance assurance at individual, team, and organisation scope. Itself a process that runs within Ditto at the supervised or critical trust tier. Can surface findings and recommend actions but cannot modify processes or override trust tiers.
 - Layer: Cross-cutting
 - Related: Agent Authentication, Trust Tier, Harness Layer, Provenance
 
-**gstack** — A project by Garry Tan providing 13 specialised agent roles via slash commands. Reference for Layers 2 and 3: role diversity validates Agent OS's role-based system prompts.
+**gstack** — A project by Garry Tan providing 13 specialised agent roles via slash commands. Reference for Layers 2 and 3: role diversity validates Ditto's role-based system prompts.
 - Layer: Infrastructure
 - Related: Planner, Builder, Reviewer, Agent Roles, Composition Over Invention
 
@@ -268,7 +268,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 1 (Process)
 - Related: Step Executor, Process Layer, Bug Investigation, Feature Implementation
 
-**Harness** — The core product of Agent OS. Not an agent framework but the governance structure within which agents operate. Has two dimensions: evolving (learns from feedback, corrections, trust data) and orchestrating (coordinates agents, determines who checks whom, when to pause for humans).
+**Harness** — The core product of Ditto. Not an agent framework but the governance structure within which agents operate. Has two dimensions: evolving (learns from feedback, corrections, trust data) and orchestrating (coordinates agents, determines who checks whom, when to pause for humans).
 - Layer: 3 (Harness)
 - Related: Harness Layer, Trust Tier, Review Pattern, Governance Function
 
@@ -336,7 +336,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Meta
 - Related: Brief, Constraints, ADR
 
-**Operate Mode** — One of Agent OS's two coexisting modes. A structured dashboard interface for daily use, monitoring, reviewing, and deciding. No conversation needed — just status, actions, and decisions. The metaphor is a factory floor with dashboards.
+**Operate Mode** — One of Ditto's two coexisting modes. A structured dashboard interface for daily use, monitoring, reviewing, and deciding. No conversation needed — just status, actions, and decisions. The metaphor is a factory floor with dashboards.
 - Layer: 6 (Human)
 - Related: Explore Mode, Crystallisation, Review Queue, Process Card
 
@@ -360,7 +360,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Infrastructure
 - Related: Heartbeat, Adapter, Budget Controls, Composition Over Invention
 
-**Phase** — A numbered stage in the Agent OS roadmap (`docs/roadmap.md`). Each phase has an objective, deliverables, and status. Phases are sequenced by dependency: Phase 0 (Scaffolding) → Phase 1 (Storage) → Phase 2 (Harness) → etc. The roadmap supersedes the original 4-phase plan in architecture.md.
+**Phase** — A numbered stage in the Ditto roadmap (`docs/roadmap.md`). Each phase has an objective, deliverables, and status. Phases are sequenced by dependency: Phase 0 (Scaffolding) → Phase 1 (Storage) → Phase 2 (Harness) → etc. The roadmap supersedes the original 4-phase plan in architecture.md.
 - Layer: Meta
 - Related: Roadmap, Brief, Deferred, Re-entry Condition
 
@@ -384,7 +384,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 2 (Agent)
 - Related: Project Orchestration, Daily Brief, Process Graph
 
-**Process** — The atomic unit of Agent OS. Inputs, transformation, outputs, with known sources and known destinations. Not a workflow — a governance declaration that specifies what inputs are acceptable, what value looks like, what quality gates apply, what trust level governs execution, and what outputs matter. Agents are pluggable; processes are durable.
+**Process** — The atomic unit of Ditto. Inputs, transformation, outputs, with known sources and known destinations. Not a workflow — a governance declaration that specifies what inputs are acceptable, what value looks like, what quality gates apply, what trust level governs execution, and what outputs matter. Agents are pluggable; processes are durable.
 - Layer: 1 (Process)
 - Related: Process Layer, Process-as-Primitive, Process Builder, Step Executor
 
@@ -416,9 +416,9 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 1 (Process)
 - Related: Process, Industry Standards, Quality Criteria, Step Executor
 
-**Process-as-Primitive** — The core thesis that the atomic unit of Agent OS is the process — not a task, not an agent, not a workflow. Processes are how businesses think about work. This framing is original to Agent OS.
+**Process-as-Primitive** — The core thesis that the atomic unit of Ditto is the process — not a task, not an agent, not a workflow. Processes are how businesses think about work. This framing is original to Ditto.
 - Layer: Meta
-- Related: Process, Harness, Agent OS
+- Related: Process, Harness, Ditto
 
 **Processes View** — A view composition showing Process Cards in grid or list format with a toggle to Process Graph. Used by process owners and managers for an overview of all processes.
 - Layer: 6 (Human)
@@ -428,7 +428,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 6 (Human)
 - Related: Conversation Thread, Process Builder, Capability Catalog
 
-**Progressive Trust** — The model where trust is earned per process through track record, not configured by a settings toggle. Start conservative (supervised), earn autonomy through consistent quality. Original to Agent OS.
+**Progressive Trust** — The model where trust is earned per process through track record, not configured by a settings toggle. Start conservative (supervised), earn autonomy through consistent quality. Original to Ditto.
 - Layer: 3 (Harness)
 - Related: Trust Tier, Trust Earning, Trust Downgrade, Compound Effect
 
@@ -472,7 +472,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: Meta
 - Related: Composition Over Invention, Borrowing Strategy, Landscape Analysis
 
-**Review Checklist** — An 8-item checklist used to review every piece of work against the Agent OS architecture. Items: layer alignment, provenance, composition check, spec compliance, trust model, feedback capture, simplicity, roadmap freshness. The harness on our own build process. Located at `docs/review-checklist.md`. Provenance: Paperclip `.agents/skills/pr-report/SKILL.md`.
+**Review Checklist** — An 8-item checklist used to review every piece of work against the Ditto architecture. Items: layer alignment, provenance, composition check, spec compliance, trust model, feedback capture, simplicity, roadmap freshness. The harness on our own build process. Located at `docs/review-checklist.md`. Provenance: Paperclip `.agents/skills/pr-report/SKILL.md`.
 - Layer: Meta
 - Related: Review Process, Harness, Dogfooding
 
@@ -484,7 +484,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 3 (Harness)
 - Related: Maker-Checker, Adversarial Review, Specification Testing, Ensemble Consensus
 
-**Review Queue** — UI primitive (#5) and the single most important UI element in Agent OS. All agent outputs waiting for human decision flow through this queue. Universal interaction: review then approve, edit, reject, or escalate. Includes "Auto-approve similar" for trust building.
+**Review Queue** — UI primitive (#5) and the single most important UI element in Ditto. All agent outputs waiting for human decision flow through this queue. Universal interaction: review then approve, edit, reject, or escalate. Includes "Auto-approve similar" for trust building.
 - Layer: 6 (Human)
 - Related: Review, Output Viewer, Feedback Widget, Auto-approve, Review View
 
@@ -496,7 +496,7 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 2 (Agent)
 - Related: Builder, Code Review, Convention Checker, antfarm, gstack
 
-**Roadmap** — The complete capability map for Agent OS (`docs/roadmap.md`). Every item traces back to architecture.md, human-layer.md, or landscape.md. Tracks status per capability: not started, in progress, done, or deferred (with re-entry condition). The current source of truth for build sequencing, superseding architecture.md's original 4-phase plan.
+**Roadmap** — The complete capability map for Ditto (`docs/roadmap.md`). Every item traces back to architecture.md, human-layer.md, or landscape.md. Tracks status per capability: not started, in progress, done, or deferred (with re-entry condition). The current source of truth for build sequencing, superseding architecture.md's original 4-phase plan.
 - Layer: Meta
 - Related: Phase, Brief, State, Deferred, Re-entry Condition
 
@@ -580,11 +580,11 @@ The canonical reference for every key term, concept, and component in Agent OS. 
 - Layer: 3 (Harness)
 - Related: Supervised, Spot-checked, Autonomous, Critical, Trust Control
 
-**WAL Mode (Write-Ahead Logging)** — A SQLite performance optimisation where writes go to a separate log before being merged into the main database file. Enables concurrent reads during writes. Used by antfarm and adopted for Agent OS's SQLite storage. Enabled via `db.pragma('journal_mode = WAL')`.
+**WAL Mode (Write-Ahead Logging)** — A SQLite performance optimisation where writes go to a separate log before being merged into the main database file. Enables concurrent reads during writes. Used by antfarm and adopted for Ditto's SQLite storage. Enabled via `db.pragma('journal_mode = WAL')`.
 - Layer: Infrastructure
 - Related: SQLite, better-sqlite3, antfarm
 
-**UI Primitives** — The 16 composable, domain-agnostic components that assemble into any view in Agent OS. The same primitives serve marketing, finance, real estate, coding, or any other domain. Original to Agent OS.
+**UI Primitives** — The 16 composable, domain-agnostic components that assemble into any view in Ditto. The same primitives serve marketing, finance, real estate, coding, or any other domain. Original to Ditto.
 - Layer: 6 (Human)
 - Related: View Compositions, Six Human Jobs, Human Layer
 

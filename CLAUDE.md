@@ -1,8 +1,8 @@
-# Agent OS — Claude Code Instructions
+# Ditto — Claude Code Instructions
 
 ## What This Project Is
 
-Agent OS is a harness creator for human-agent collaboration. It creates the evolving, orchestrating harness within which agents operate — not the agents themselves. Process is the primitive. The harness is the product.
+Ditto is a harness creator for human-agent collaboration. It creates the evolving, orchestrating harness within which agents operate — not the agents themselves. Process is the primitive. The harness is the product.
 
 ## Before You Do Anything
 
@@ -14,12 +14,12 @@ Agent OS is a harness creator for human-agent collaboration. It creates the evol
 ## Design Documents (read when relevant, not every session)
 
 - `docs/personas.md` — Who we're building for: three personas, five problems, jobs-to-be-done, emotional journey. Primary lens for Designer and Architect.
-- `docs/vision.md` — Why Agent OS exists, the insight, the principles. Independent of architecture.
+- `docs/vision.md` — Why Ditto exists, the insight, the principles. Independent of architecture.
 - `docs/architecture.md` — Source of truth: six-layer spec, process primitive, trust tiers, harness patterns
 - `docs/human-layer.md` — Layer 6 detailed design: 16 primitives, 8 views, wireframes, interaction patterns
 - `docs/landscape.md` — Building blocks: what to adopt vs build, framework evaluations
-- `docs/dictionary.md` — Canonical glossary of all Agent OS terms
-- `docs/dev-process.md` — How Agent OS gets built: role contracts, session flows, quality check layering
+- `docs/dictionary.md` — Canonical glossary of all Ditto terms
+- `docs/dev-process.md` — How Ditto gets built: role contracts, session flows, quality check layering
 - `docs/insights/` — Design discoveries that emerge during building. One file per insight. Capture here; absorb into architecture.md or ADRs when mature.
 - `docs/changelog.md` — Historical record: completed phases, retrospectives, resolved decisions. Read on demand, not every session.
 - `docs/research/README.md` — Index of all 27 research reports with status and consumers.

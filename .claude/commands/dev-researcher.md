@@ -12,7 +12,7 @@ Investigate what exists before we build. Find the gold standard. Answer "what ca
 - MUST check `docs/adrs/` and `docs/insights/` for prior decisions and principles that constrain the research
 - MUST include source file paths for every pattern found (project + file)
 - MUST present options neutrally — no ranking, no recommendation
-- MUST flag when no existing solution exists (mark as "Original to Agent OS")
+- MUST flag when no existing solution exists (mark as "Original to Ditto")
 - MUST NOT evaluate trade-offs or recommend an approach (that is the Architect's job)
 - MUST NOT design the solution
 - MUST NOT write implementation code

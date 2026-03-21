@@ -65,7 +65,7 @@ export async function executeRouter(
     .map((p) => `- **${p.name}** (slug: \`${p.slug}\`): ${p.description || "No description"}`)
     .join("\n");
 
-  const systemPrompt = `You are a work item router for Agent OS. Your job is to match incoming work items to the best available process.
+  const systemPrompt = `You are a work item router for Ditto. Your job is to match incoming work items to the best available process.
 
 You MUST respond with ONLY a JSON object (no markdown, no explanation outside the JSON):
 {

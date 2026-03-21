@@ -7,9 +7,9 @@
 
 ---
 
-## Why This Matters for Agent OS
+## Why This Matters for Ditto
 
-Agent OS's architecture defines a nested harness model (Platform → Process → Agent → Runtime). Every agent invocation assembles context from multiple sources: agent identity, process definition, agent-scoped memory, process-scoped memory, tool schemas, task inputs, and conversation history. This context assembly is the single largest driver of token cost and quality — too little context produces poor outputs; too much burns tokens on irrelevance and degrades performance (lost-in-the-middle effect).
+Ditto's architecture defines a nested harness model (Platform → Process → Agent → Runtime). Every agent invocation assembles context from multiple sources: agent identity, process definition, agent-scoped memory, process-scoped memory, tool schemas, task inputs, and conversation history. This context assembly is the single largest driver of token cost and quality — too little context produces poor outputs; too much burns tokens on irrelevance and degrades performance (lost-in-the-middle effect).
 
 The architecture already specifies memory assembly at invocation time (ADR-003) and progressive disclosure (Insight-003). This research extends that foundation with implementation-level patterns from production systems.
 
@@ -63,7 +63,7 @@ System prompt (identity + role + rules)
 | **Open SWE** | `get_agent()` | 9-step pipeline: extract config → create sandbox → clone repo → load AGENTS.md → assemble 13-section system prompt → configure model → bind 6 tools → inject 4 middleware → bind config | `agent/server.py` |
 | **Mastra** | Dynamic resolution in `agent.ts` | 7 parallel tool sources: assigned, memory, workspace, skill, agent (sub-agents), runtime, client. Client tools override agent-provided ones | `packages/core/src/agent/agent.ts` |
 | **Claude Agent SDK** | Hierarchical loading | Managed policy → ancestor CLAUDE.md → `.claude/rules/` (path-conditional) → user rules → auto memory from MEMORY.md | System prompt composition pipeline |
-| **Agent OS (current)** | `memory-assembly.ts` handler | Agent-scoped + process-scoped memories, sorted by reinforcement/confidence, budget-truncated to char limit | `src/engine/harness-handlers/memory-assembly.ts` |
+| **Ditto (current)** | `memory-assembly.ts` handler | Agent-scoped + process-scoped memories, sorted by reinforcement/confidence, budget-truncated to char limit | `src/engine/harness-handlers/memory-assembly.ts` |
 
 ### 1.2 Letta's Context Budget Model
 
@@ -171,7 +171,7 @@ For multi-step processes, the harness should inject only what the current step n
 | Review | Original output, quality criteria, correction history | Tool schemas, execution details |
 | Human step | Summary of what happened, what's needed, deadline | Agent memories, tool schemas |
 
-**Existing pattern in Agent OS:** `stepNeedsTools()` in `src/adapters/claude.ts` already conditionally includes tools based on step input types (repository/document sources). This pattern should extend to memory and context.
+**Existing pattern in Ditto:** `stepNeedsTools()` in `src/adapters/claude.ts` already conditionally includes tools based on step input types (repository/document sources). This pattern should extend to memory and context.
 
 **Source:** LangChain DeepAgents harness, AWS multi-agent orchestration patterns
 
@@ -355,7 +355,7 @@ Three strategies identified in production (Factory AI evaluation):
 
 **Cursor's approach:** Convert long tool outputs to files rather than keeping in conversation context. Reduces token usage by 46.9% while maintaining accuracy.
 
-**Relevance to Agent OS:** Step outputs that flow between process steps could be stored as references rather than inline, with only summaries in the conversation context.
+**Relevance to Ditto:** Step outputs that flow between process steps could be stored as references rather than inline, with only summaries in the conversation context.
 
 ---
 
@@ -377,7 +377,7 @@ LLMs exhibit U-shaped attention: tokens at the beginning and end of context rece
 | **Reranking** | Position most relevant content at optimal locations | Reranker inference |
 | **Structured formatting** | XML/markdown sections with clear labels | Free |
 
-### 6.3 Implications for Agent OS
+### 6.3 Implications for Ditto
 
 The agent harness assembly should order context sections for maximum attention:
 
@@ -462,7 +462,7 @@ The harness should assemble different context profiles for different step types:
 
 ### 8.3 Parallel Step Context Isolation
 
-When steps run in parallel (Agent OS's `parallel_group`), each step should receive:
+When steps run in parallel (Ditto's `parallel_group`), each step should receive:
 - Independent context assembly (no shared mutable state during execution)
 - Step-specific memory (only memories relevant to this step's agent/role)
 - Step-specific tools (only tools authorised for this step)
@@ -490,18 +490,18 @@ No surveyed system addresses this specifically. Mastra's suspend/resume preserve
 |---------|--------------|--------|
 | **What carries forward** | Process A's output (structured data, not conversation history) | AWS Step Functions (explicit state passing between activities) |
 | **Budget isolation** | Each process has its own token budget — Process B's budget is independent of Process A's | Paperclip (per-task budget enforcement) |
-| **Memory scope interaction** | Process A's memories stay with Process A; Process B loads its own process-scoped memories | Agent OS ADR-003 (process-scoped memory is per-process) |
+| **Memory scope interaction** | Process A's memories stay with Process A; Process B loads its own process-scoped memories | Ditto ADR-003 (process-scoped memory is per-process) |
 | **Context from upstream** | Process B receives Process A's output as a step input, not as injected memory | Inngest AgentKit (typed state passed between agents in network) |
 
-**Key principle:** Cross-process context is explicit (structured outputs), not implicit (shared conversation or memory). This aligns with the architecture's "loosely coupled through declared dependencies" (architecture.md, Layer 4). No system handles trust-aware context passing across process boundaries — this is Original to Agent OS.
+**Key principle:** Cross-process context is explicit (structured outputs), not implicit (shared conversation or memory). This aligns with the architecture's "loosely coupled through declared dependencies" (architecture.md, Layer 4). No system handles trust-aware context passing across process boundaries — this is Original to Ditto.
 
 ---
 
-## 9. Agent OS-Specific Context Architecture
+## 9. Ditto-Specific Context Architecture
 
 ### 9.1 Current State (What Exists)
 
-Agent OS already implements:
+Ditto already implements:
 - **Memory assembly handler** (`src/engine/harness-handlers/memory-assembly.ts`): Loads agent-scoped + process-scoped memories, sorts by reinforcement/confidence, truncates to char budget (default: 2000 tokens × 4 chars)
 - **Conditional tool inclusion** (`src/adapters/claude.ts`): `stepNeedsTools()` checks step input types before including tool schemas
 - **Role-based system prompts** (`src/adapters/claude.ts`): 10 role-specific prompts, composed with process/step context
@@ -551,11 +551,11 @@ Agent Harness Assembly: assemble(agentId, processId, stepId)
 
 ### 9.3 Memory Budget Allocation
 
-**Note:** The adaptive allocation idea ("trust-modulated context depth") is **Original to Agent OS** — no surveyed system adjusts context richness based on earned trust. The budget percentages below are illustrative, not sourced recommendations. Specific TTL values in Section 9.4 are also untested — they should be validated by measurement.
+**Note:** The adaptive allocation idea ("trust-modulated context depth") is **Original to Ditto** — no surveyed system adjusts context richness based on earned trust. The budget percentages below are illustrative, not sourced recommendations. Specific TTL values in Section 9.4 are also untested — they should be validated by measurement.
 
 **Prior art:** ADR-003 (line 104) already specifies refining memory sorting to `confidence * log(reinforcementCount + 1)` with recency decay for Phase 3. The memU salience scoring described in Section 4.2 validates this formula from a different source.
 
-Based on Letta's proportional model, adapted for Agent OS:
+Based on Letta's proportional model, adapted for Ditto:
 
 | Context component | Budget % | Rationale |
 |-------------------|----------|-----------|
@@ -568,7 +568,7 @@ Based on Letta's proportional model, adapted for Agent OS:
 
 **Adaptive allocation:** High-trust processes could shift budget from memory to task content (fewer corrections to remember). Low-trust processes shift toward memory (more learned patterns to enforce).
 
-### 9.4 Prompt Caching Strategy for Agent OS
+### 9.4 Prompt Caching Strategy for Ditto
 
 Given that process agents execute the same process definition repeatedly:
 
@@ -626,7 +626,7 @@ Add a dedicated context assembly stage to the harness pipeline (before memory-as
 |-------|-------------|------------|
 | Phase 4 (current) | Salience scoring in memory assembly + step-type context profiles + prompt caching in Claude adapter | memU formula + Letta proportions + Anthropic cache_control |
 | Phase 6 (integrations) | Deferred tool loading for integration tools | Mastra ToolSearchProcessor + Claude Agent SDK pattern |
-| Phase 8 (learning) | Trust-modulated context depth + budget-aware strategy | Original to Agent OS |
+| Phase 8 (learning) | Trust-modulated context depth + budget-aware strategy | Original to Ditto |
 | Phase 10 (web) | Cross-step context compression for UI conversation | Letta recursive summarization |
 
 **Pros:** Matches existing build phases, each addition is independently valuable
@@ -736,7 +736,7 @@ A lightweight classifier (Haiku, or even a fine-tuned small model like Qwen 1.7B
 | **OpenAI Agents SDK** | Handoffs switch instructions, models, and tools based on conversation state |
 | **Vercel AI SDK** | Dynamic model selection — first LLM call determines second call's model |
 | **Inngest AgentKit** | Per-agent model selection; Networks specify defaultModel; agents can override |
-| **Agent OS (current)** | Single model (Claude) hardcoded in adapter. Architecture supports adapter pattern but no per-step model routing |
+| **Ditto (current)** | Single model (Claude) hardcoded in adapter. Architecture supports adapter pattern but no per-step model routing |
 
 ### 12.8 Handoff Context Engineering
 
@@ -749,9 +749,9 @@ The primary failure mode in multi-agent systems is context loss at handoffs. Pro
 | **Narrative recasting** | Prior agent's messages re-cast as narrative context | Raw "assistant" messages from another agent |
 | **Minimal effective context** | Only what the next step needs; agent reaches for more via tools | Dumping everything "just in case" |
 
-### 12.9 Implications for Agent OS
+### 12.9 Implications for Ditto
 
-Agent OS's architecture already has the right primitives:
+Ditto's architecture already has the right primitives:
 
 1. **Process definitions assign executors per step** — extending this to model selection per step is natural
 2. **The adapter pattern** (`invoke()`, `status()`, `cancel()`) — adding a model parameter to the adapter is clean
@@ -764,7 +764,7 @@ Agent OS's architecture already has the right primitives:
 - The adapter interface should receive a model parameter, not assume Claude
 - Context handoff between steps should use structured process state (not conversation history)
 
-**What's Original to Agent OS:**
+**What's Original to Ditto:**
 - **Trust-modulated model routing** — trusted steps run on cheaper models because they've proven reliable; untrusted steps run on expensive models because quality matters more. No system ties model selection to earned trust.
 - **Process-declared model profile** — the process definition specifies which model tier each step needs, integrated with the context profile (Insight-033). No system combines per-step model selection with process-declared context shape.
 
@@ -792,8 +792,8 @@ Agent OS's architecture already has the right primitives:
 | Per-step model selection | Mastra Model Router, CrewAI, Inngest AgentKit | HIGH — every major framework supports this |
 | Structured schema handoffs | Anthropic multi-agent research, production patterns | HIGH — typed handoffs prevent context loss |
 | Orchestrator-worker with model split | Anthropic (Opus lead + Sonnet workers) | HIGH — 90.2% improvement, maps to process model |
-| Trust-modulated model routing | **Original to Agent OS** | — no system ties model selection to earned trust |
-| Process-declared model profile | **Original to Agent OS** | — no system combines per-step model with context shape |
+| Trust-modulated model routing | **Original to Ditto** | — no system ties model selection to earned trust |
+| Process-declared model profile | **Original to Ditto** | — no system combines per-step model with context shape |
 
 ---
 

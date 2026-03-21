@@ -22,7 +22,7 @@ These are not additional jobs. They are a separate axis — skills get **applied
 | **Define** | "The process should feel like X" | "This step is unnecessary" | "What if we approached it this way?" |
 | **Decide** | "This improvement doesn't match our standards" | "This proposal has a hidden assumption" | "There's a better option not listed" |
 
-Jobs are universal — every Agent OS user performs the same six jobs. Skills vary by person — one user's taste is different from another's, one user's domain expertise covers different ground.
+Jobs are universal — every Ditto user performs the same six jobs. Skills vary by person — one user's taste is different from another's, one user's domain expertise covers different ground.
 
 ## Implications
 

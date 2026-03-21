@@ -7,7 +7,7 @@
 
 ## Research Question
 
-What existing patterns can Agent OS build from for Phase 2 — harness middleware pipeline, review patterns, trust enforcement, parallel execution, feedback recording, and heartbeat rewrite?
+What existing patterns can Ditto build from for Phase 2 — harness middleware pipeline, review patterns, trust enforcement, parallel execution, feedback recording, and heartbeat rewrite?
 
 ## Sources Examined
 
@@ -32,7 +32,7 @@ What existing patterns can Agent OS build from for Phase 2 — harness middlewar
 | **Single-function agent assembly** | Open SWE | `agent/server.py` (`get_agent()`) | Composes sandbox + auth + repo + prompt + tools + middleware into runnable agent. Fresh per invocation. |
 | **Workflow lifecycle callbacks** | Mastra | `packages/core/src/workflows/execution-engine.ts` | `onFinish`/`onError` callbacks on workflow. No step-level middleware — the `ExecutionEngine` abstract class is the extensibility seam. |
 
-**Gap:** No source combines review patterns + trust tiers + feedback recording as composable pipeline. **Original to Agent OS.**
+**Gap:** No source combines review patterns + trust tiers + feedback recording as composable pipeline. **Original to Ditto.**
 
 ### 2. Review Patterns
 
@@ -46,7 +46,7 @@ What existing patterns can Agent OS build from for Phase 2 — harness middlewar
 
 **On adversarial review (revised):** antfarm's verifier is prompted to find issues and return `STATUS: retry` with `ISSUES:` output. Structurally maker-checker but prompting approaches adversarial. The gap between antfarm and architecture.md's "adversarial review" (line 219) is smaller than initially classified — adversarial is a prompting strategy on top of maker-checker structure.
 
-**Gaps:** Specification testing (validating against defined criteria programmatically) and ensemble consensus (multiple agents produce independently, compare) — **Original to Agent OS.**
+**Gaps:** Specification testing (validating against defined criteria programmatically) and ensemble consensus (multiple agents produce independently, compare) — **Original to Ditto.**
 
 ### 3. Trust Tier Enforcement
 
@@ -56,9 +56,9 @@ What existing patterns can Agent OS build from for Phase 2 — harness middlewar
 | **Scope-based pause/cancel** | Paperclip | `server/src/services/budgets.ts` `pauseAndCancelScopeForBudget()` | Hard stop pauses scope, cancels active runs, creates approval record. |
 | **Suspend/resume for HITL** | Mastra | `packages/core/src/workflows/step.ts`, `packages/core/src/workflows/handlers/step.ts` line ~341 | Step calls `suspend(payload?)`, engine snapshots state. Resume via `run.resume({ step, resumeData })`. Named labels for multi-point suspend. State persisted via `persistWorkflowSnapshot`/`loadWorkflowSnapshot`. |
 | **Waitpoint tokens** | Trigger.dev | `internal-packages/run-engine/src/engine/systems/waitpointSystem.ts`, `packages/trigger-sdk/src/v3/wait.ts` | Create token → suspend run (CRIU checkpoint) → complete via SDK, HTTP webhook, or React hook. Zero compute during wait. |
-| **Human step gate** | Current Agent OS | `src/engine/heartbeat.ts` lines 110-137 | Steps with `executor: "human"` pause the run. |
+| **Human step gate** | Current Ditto | `src/engine/heartbeat.ts` lines 110-137 | Steps with `executor: "human"` pause the run. |
 
-**Gap:** Graduated trust tiers (supervised/spot-checked/autonomous/critical) with percentage-based review sampling and earned trust — **Original to Agent OS.** Mastra suspend and Trigger.dev waitpoints provide the *mechanism* for pausing; neither implements the *policy* layer deciding when to pause.
+**Gap:** Graduated trust tiers (supervised/spot-checked/autonomous/critical) with percentage-based review sampling and earned trust — **Original to Ditto.** Mastra suspend and Trigger.dev waitpoints provide the *mechanism* for pausing; neither implements the *policy* layer deciding when to pause.
 
 ### 4. Parallel Execution
 
@@ -71,7 +71,7 @@ What existing patterns can Agent OS build from for Phase 2 — harness middlewar
 | **Batch triggering** | Trigger.dev | Docs: `docs/guides/ai-agents/overview.mdx` | `batch.triggerByTaskAndWait` for concurrent task execution. |
 | **Multi-agent network** | Inngest AgentKit | `packages/agent-kit/src/network.ts` | Router selects next agent, sequential by default. Tools within agents can use `step.run()` for concurrent operations. |
 
-**Gap:** Within-run `parallel_group` with `depends_on` resolution as a process-level construct — **Original to Agent OS.** Mastra's `.parallel()` is closest structural reference.
+**Gap:** Within-run `parallel_group` with `depends_on` resolution as a process-level construct — **Original to Ditto.** Mastra's `.parallel()` is closest structural reference.
 
 ### 5. Feedback Recording
 
@@ -82,7 +82,7 @@ What existing patterns can Agent OS build from for Phase 2 — harness middlewar
 | **Run events** | Paperclip | `heartbeatRunEvents` table | Per-run event stream: seq, eventType, stream, level, message. |
 | **Step memoization** | Inngest | `pkg/execution/state/opcode.go` | Every step result stored by hashed ID. Full execution history server-side. |
 
-**Gap:** Recording *harness decisions* specifically (review pattern applied, trust tier active, sample/auto-approve, human approve/edit/reject with implicit feedback from edits) — **Original to Agent OS.**
+**Gap:** Recording *harness decisions* specifically (review pattern applied, trust tier active, sample/auto-approve, human approve/edit/reject with implicit feedback from edits) — **Original to Ditto.**
 
 ### 6. Heartbeat Rewrite
 
@@ -121,7 +121,7 @@ Confirms Mastra, Trigger.dev, Inngest, Temporal should remain deferred for Phase
 | **Inngest** | Requires Inngest server. SSPL license. Architecturally different (replay vs snapshot). | Memoization concept for step result caching. AgentKit router pattern for future multi-agent. |
 | **Temporal** | Requires Java server. Overkill for dogfood. | Activity heartbeats concept if enterprise reliability needed. |
 
-## Gaps (Original to Agent OS)
+## Gaps (Original to Ditto)
 
 1. Composable harness pipeline combining review + trust + feedback
 2. Specification testing (validating against defined criteria)

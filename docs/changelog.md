@@ -1,4 +1,4 @@
-# Agent OS — Changelog
+# Ditto — Changelog
 
 Historical record of completed phases, research, design decisions, and retrospectives. For current state, see `docs/state.md`.
 
@@ -108,7 +108,7 @@ Build phasing: confidence (Phase 4), digest (Phase 5), alerts (Phase 8), importa
 ## Cognitive Model (ADR-013 — 2026-03-20)
 
 **ADR:** `docs/adrs/013-cognitive-model.md` — Accepted
-**Research:** `docs/research/human-cognition-models-for-agent-os.md` (8 areas, 7 frameworks, 3 cognitive architectures)
+**Research:** `docs/research/human-cognition-models-for-ditto.md` (8 areas, 7 frameworks, 3 cognitive architectures)
 **Insight absorbed:** 037 (cognition is a missing architectural dimension)
 
 Three mechanisms: cognitive mode (analytical/creative), enriched feedback vocabulary (tagged + gut rejection), insight escalation ladder. Four deferred: expertise, challenge, stakes, entity memory.

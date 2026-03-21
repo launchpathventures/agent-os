@@ -394,7 +394,7 @@ bot.command("newchat", async (ctx) => {
 bot.command("help", async (ctx) => {
   await ctx.reply(
     [
-      "Agent OS Dev Bot",
+      "Ditto Dev Bot",
       "━━━━━━━━━━━━━━━━",
       "",
       "Just type naturally — I'm Claude with full project context.",
@@ -588,7 +588,7 @@ async function sendStartupStatus(): Promise<void> {
 
   // Send welcome + instructions first
   const welcome = [
-    "📌 Agent OS — Your Workspace",
+    "📌 Ditto — Your Workspace",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
     "I'm Claude with full project context. Talk to me like you would at your desk — I remember our conversation.",

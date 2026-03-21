@@ -53,7 +53,7 @@ Three system agents running through the harness pipeline. `aos capture` auto-cla
 | LLM-based routing (process selection) | Inngest AgentKit `RoutingAgent` + Mastra Networks schema-driven routing | LLM receives process schemas, evaluates fit. Mode 2. |
 | Orchestrator-worker pattern | Anthropic multi-agent research | Lead agent manages lifecycle. Pass-through in 4c. |
 | Fallback to manual selection | Original | No surveyed system degrades gracefully from AI classification to manual. |
-| Auto-classification from free text | Original to Agent OS | No CLI does capture → classify → route from free text input. |
+| Auto-classification from free text | Original to Ditto | No CLI does capture → classify → route from free text input. |
 
 ## What Changes (Work Products)
 

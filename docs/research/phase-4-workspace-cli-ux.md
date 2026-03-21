@@ -32,7 +32,7 @@ The CLI is not a management console. It is a **workspace you check in on** — l
 
 The user thinks in actions, not entities. Not "manage my work items" but "what needs my attention?" Not "list processes" but "how are things going?"
 
-**Bad:** `agent-os work-item list --status waiting_human`
+**Bad:** `ditto work-item list --status waiting_human`
 **Good:** `aos status` — shows everything that matters right now
 
 ### 2. The Morning Check-In Pattern
@@ -76,7 +76,7 @@ Only surface:
 | **Capture** | `aos capture "<text>"` | Quick capture → classified → routed | Quick Capture |
 | **Decide** | `aos complete <id>` | Complete a human step. `aos approve <id>` with `--edit` | Improvement Card |
 
-**Root alias:** `aos` (short for Agent OS). Must feel fast.
+**Root alias:** `aos` (short for Ditto). Must feel fast.
 
 ---
 
@@ -294,7 +294,7 @@ Nadia sees Chen's process is healthy. The one correction was minor. She can focu
 | **Empty (nothing pending)** | "Nothing needs your attention right now. All N processes running normally." — One line. Not a dashboard of green checkmarks. |
 | **No processes** | "No processes set up yet. Run `aos sync` to load process definitions, or `aos capture` to start entering work." |
 | **Error (DB)** | "Couldn't connect to the database. Run `aos sync` to initialize." |
-| **First run** | "Welcome to Agent OS. Run `aos sync` to get started." |
+| **First run** | "Welcome to Ditto. Run `aos sync` to get started." |
 | **Confidence escalation (ADR-011)** | An autonomous process produced a low-confidence output → it appears in NEEDS YOUR ATTENTION despite the process normally running quietly: `#55 Review Invoice match uncertain — GreenPack $4,200 vs PO $3,800 / Confidence: low │ Process: invoice-recon (autonomous) │ Escalated: agent flagged uncertainty` |
 
 ### `aos review`
@@ -423,7 +423,7 @@ The user's mental model is: "I tell the system what I need. It figures out where
 
 ---
 
-## Gaps: Original to Agent OS
+## Gaps: Original to Ditto
 
 1. **Unified heterogeneous task surface in CLI** — No CLI surveyed shows review outputs, human action steps, and goal-decomposed tasks in the same listing. GitHub CLI comes closest with `gh status` but doesn't mix entity types in the action queue.
 

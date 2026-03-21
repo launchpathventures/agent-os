@@ -1,8 +1,8 @@
 /**
- * Agent OS — Claude Adapter
+ * Ditto — Claude Adapter
  *
  * Executes AI agent steps using the Anthropic Claude API.
- * This is the primary AI adapter for Agent OS.
+ * This is the primary AI adapter for Ditto.
  *
  * Follows the adapter pattern from Paperclip: invoke(), status(), cancel().
  * Each step gets a fresh context (ralph pattern) to avoid degradation.

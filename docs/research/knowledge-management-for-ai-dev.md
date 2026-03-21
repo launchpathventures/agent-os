@@ -7,9 +7,9 @@
 
 ---
 
-## Why This Matters for Agent OS
+## Why This Matters for Ditto
 
-Agent OS's development process has accumulated significant institutional knowledge:
+Ditto's development process has accumulated significant institutional knowledge:
 
 | Artifact | Count | Lines | Trend |
 |----------|-------|-------|-------|
@@ -37,7 +37,7 @@ These are partially implemented (briefs have `complete/`, insights have `archive
 
 ## Sources Examined
 
-### Internal Sources (Agent OS)
+### Internal Sources (Ditto)
 
 | Source | Why included |
 |--------|-------------|
@@ -153,7 +153,7 @@ Every knowledge management system separates two concerns:
 | **Current state (snapshot)** | What is true now? | Overwritten each session | Bounded |
 | **History (delta/changelog)** | What changed and when? | Appended each session | Unbounded |
 
-Agent OS's `state.md` conflates both. It contains "What's Working" (snapshot) and "Documenter Retrospective (2026-03-20 — Phase 4a Review Session)" (history). The history sections are valuable for understanding how we got here, but irrelevant for most tasks.
+Ditto's `state.md` conflates both. It contains "What's Working" (snapshot) and "Documenter Retrospective (2026-03-20 — Phase 4a Review Session)" (history). The history sections are valuable for understanding how we got here, but irrelevant for most tasks.
 
 ### 2.2 External Implementations
 
@@ -178,7 +178,7 @@ Agent OS's `state.md` conflates both. It contains "What's Working" (snapshot) an
 
 **Source**: Manus context engineering blog
 
-### 2.3 Current State of Agent OS state.md
+### 2.3 Current State of Ditto state.md
 
 A rough breakdown of the 601-line file:
 
@@ -233,9 +233,9 @@ Every project with 10+ ADRs follows the same pattern:
 
 **Source**: Backstage docs, Spotify engineering blog, Log4brains GitHub, GOV.UK ADR framework
 
-### 3.2 Agent OS ADR Status
+### 3.2 Ditto ADR Status
 
-Agent OS has 13 ADRs with no superseded chains and no generated index. The Decisions Made table in `state.md` serves as a manual index. This is adequate at 13 but will degrade. No ADR has been superseded yet, so the chain pattern hasn't been tested.
+Ditto has 13 ADRs with no superseded chains and no generated index. The Decisions Made table in `state.md` serves as a manual index. This is adequate at 13 but will degrade. No ADR has been superseded yet, so the chain pattern hasn't been tested.
 
 **Status**: The ADR template already includes `superseded by ADR-{number}` as a status option. The mechanism exists but hasn't been exercised — no ADR has been superseded yet. The gap is operational, not structural: no generated ADR index exists (the Decisions Made table in `state.md` serves as a manual index), and the superseded chain pattern is untested.
 
@@ -245,7 +245,7 @@ Agent OS has 13 ADRs with no superseded chains and no generated index. The Decis
 
 ### 4.1 The Decay Problem
 
-Agent OS has 26 research reports with no lifecycle management. Reports from Phase 2 (e.g., `phase-2-harness-patterns.md`) may contain patterns that were adopted, rejected, or superseded. A new session cannot distinguish current research from stale research without reading each report.
+Ditto has 26 research reports with no lifecycle management. Reports from Phase 2 (e.g., `phase-2-harness-patterns.md`) may contain patterns that were adopted, rejected, or superseded. A new session cannot distinguish current research from stale research without reading each report.
 
 ### 4.2 External Patterns
 
@@ -271,7 +271,7 @@ Agent OS has 26 research reports with no lifecycle management. Reports from Phas
 
 **Source**: Peter Hilton blog, ThoughtWorks fitness functions
 
-### 4.3 Research Report Categories for Agent OS
+### 4.3 Research Report Categories for Ditto
 
 Not all 26 reports have the same shelf life:
 
@@ -280,7 +280,7 @@ Not all 26 reports have the same shelf life:
 | **Phase-specific implementation research** | `phase-2-harness-patterns.md`, `phase-4a-research-validation.md` | Fast — absorbed into briefs + code | Archive after phase complete |
 | **Cross-cutting pattern research** | `context-and-token-efficiency.md`, `workspace-interaction-model.md` | Slow — informs multiple phases | Keep active, mark consumed sections |
 | **Landscape/evaluation research** | `mobile-interfaces-for-agent-platforms.md`, `runtime-composable-ui.md` | Medium — frameworks evolve | Add freshness date; flag after 3 months |
-| **Strategic/foundational research** | `process-discovery-from-organizational-data.md`, `human-cognition-models-for-agent-os.md` | Very slow — domain knowledge | Keep active until domain shifts |
+| **Strategic/foundational research** | `process-discovery-from-organizational-data.md`, `human-cognition-models-for-ditto.md` | Very slow — domain knowledge | Keep active until domain shifts |
 | **UX interaction specs** | `phase-3-trust-earning-ux.md`, `phase-4-workspace-cli-ux.md` | Fast — consumed by Designer/Architect | Archive after brief written |
 
 ---
@@ -293,13 +293,13 @@ Not all 26 reports have the same shelf life:
 
 ### 5.2 The Nonaka-Takeuchi Spiral
 
-The SECI model maps directly to Agent OS's insight lifecycle:
+The SECI model maps directly to Ditto's insight lifecycle:
 1. **Socialisation** (tacit → tacit): Human shares a design intuition during conversation
 2. **Externalisation** (tacit → explicit): Captured as an insight file in `docs/insights/`
 3. **Combination** (explicit → explicit): Absorbed into architecture.md or an ADR
 4. **Internalisation** (explicit → tacit): Becomes a shared assumption in CLAUDE.md principles
 
-The gap: Agent OS has stages 2 and 3 (capture and absorption) but doesn't explicitly track stage 4. An insight absorbed into architecture.md is "done" — but if the principle isn't also reflected in CLAUDE.md or the role skill contracts, it may not consistently influence behaviour.
+The gap: Ditto has stages 2 and 3 (capture and absorption) but doesn't explicitly track stage 4. An insight absorbed into architecture.md is "done" — but if the principle isn't also reflected in CLAUDE.md or the role skill contracts, it may not consistently influence behaviour.
 
 ### 5.3 Missing Status: Superseded
 
@@ -313,7 +313,7 @@ The insight template has `active`, `absorbed`, and `superseded` statuses. No ins
 
 Multiple sources converge on the same recommendation: CLAUDE.md should be 30-100 lines for most projects, with a hard ceiling of ~200 lines. Beyond 200 lines, adherence drops measurably.
 
-Agent OS's CLAUDE.md is currently well-structured (lean instructions, "read when relevant" tiering for design docs). But the documents it points to (`state.md`, `roadmap.md`) are where the bloat lives.
+Ditto's CLAUDE.md is currently well-structured (lean instructions, "read when relevant" tiering for design docs). But the documents it points to (`state.md`, `roadmap.md`) are where the bloat lives.
 
 ### 6.2 Role-Scoped Rules via `.claude/rules/`
 
@@ -335,7 +335,7 @@ This could replace some of what CLAUDE.md currently says under "Design Documents
 
 A more general formulation from the research: sections registered with **condition predicates** and **priority values**. At initialisation, predicates are evaluated against the runtime environment, surviving sections are sorted by priority, and joined into the final prompt.
 
-This is the programmatic version of what CLAUDE.md currently does with prose instructions ("read when relevant"). Agent OS's skill commands (`.claude/commands/dev-*.md`) already implement this partially — each role specifies its own required inputs.
+This is the programmatic version of what CLAUDE.md currently does with prose instructions ("read when relevant"). Ditto's skill commands (`.claude/commands/dev-*.md`) already implement this partially — each role specifies its own required inputs.
 
 **Source**: Tiered context loading article, `earezki.com`
 
@@ -375,7 +375,7 @@ Key findings from Factory.ai's compression evaluation:
 
 Manus's key insight: compression should always be **restorable**. A URL preserves access to web page content; a file path preserves access to document content. Context is shrunk without permanent information loss.
 
-Applied to Agent OS: a summary of Phase 2 retrospectives that includes the file paths to the full retrospectives is restorable compression. The AI can always read the full detail if needed.
+Applied to Ditto: a summary of Phase 2 retrospectives that includes the file paths to the full retrospectives is restorable compression. The AI can always read the full detail if needed.
 
 **Source**: `manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus`
 
@@ -418,7 +418,7 @@ From "Effective Context Engineering for AI Agents":
 
 ---
 
-## 9. Agent OS-Specific Analysis: Current vs. Optimal
+## 9. Ditto-Specific Analysis: Current vs. Optimal
 
 ### 9.1 Current Loading Pattern
 
@@ -558,9 +558,9 @@ This reduces drift risk (state always matches source of truth) and maintenance b
 
 ---
 
-## 11. Relevance to Agent OS Product (L5 Learning Layer)
+## 11. Relevance to Ditto Product (L5 Learning Layer)
 
-The patterns in this research directly inform Agent OS's own knowledge management:
+The patterns in this research directly inform Ditto's own knowledge management:
 
 | Project-level pattern | Product-level equivalent | Architecture layer |
 |----------------------|------------------------|-------------------|
@@ -571,7 +571,7 @@ The patterns in this research directly inform Agent OS's own knowledge managemen
 | Role-aware context loading | Step-type context profiles (ADR-012 Section 2) | L3 |
 | Restorable compression | Process outputs as references, not inline (ADR-012) | L2 |
 
-The meta-pattern: **Agent OS is already building the knowledge management system it needs for its own dev process.** The concentric rings pattern IS the stable-prefix/variable-suffix architecture (ADR-012). State splitting IS memory active/inactive lifecycle (ADR-003). Freshness tracking IS recency decay. The dev process should adopt the same patterns the product implements.
+The meta-pattern: **Ditto is already building the knowledge management system it needs for its own dev process.** The concentric rings pattern IS the stable-prefix/variable-suffix architecture (ADR-012). State splitting IS memory active/inactive lifecycle (ADR-003). Freshness tracking IS recency decay. The dev process should adopt the same patterns the product implements.
 
 ---
 
@@ -588,7 +588,7 @@ The meta-pattern: **Agent OS is already building the knowledge management system
 
 ## Provenance Summary
 
-| Pattern | Source | Applicability to Agent OS |
+| Pattern | Source | Applicability to Ditto |
 |---------|--------|--------------------------|
 | Concentric rings (index → summary → detail → archive) | OpenClaw workspace, Factory.ai, Anthropic guide | HIGH — directly addresses state.md bloat |
 | Snapshot vs delta separation | keepachangelog.com, OpenClaw HEARTBEAT.md, Manus todo.md | HIGH — state.md should be split |
@@ -598,7 +598,7 @@ The meta-pattern: **Agent OS is already building the knowledge management system
 | MEMORY.md as index + topic files | Claude Code pattern | Already in use — working well |
 | Restorable compression | Manus context engineering | HIGH — summaries with file-path links |
 | Anchored iterative summarisation | Factory.ai | MEDIUM — for compacting retrospectives |
-| PromptComposer (condition predicates + priorities) | Tiered context loading article | LOW for now — Agent OS skill commands already serve this role |
+| PromptComposer (condition predicates + priorities) | Tiered context loading article | LOW for now — Ditto skill commands already serve this role |
 | Living documentation fitness functions | ThoughtWorks, Adzic/Martraire | LOW for now — useful when automated doc validation is needed |
 | SECI knowledge spiral | Nonaka-Takeuchi | CONCEPTUAL — validates insight lifecycle pattern |
 

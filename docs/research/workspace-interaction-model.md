@@ -1,8 +1,8 @@
 # Research: Workspace Interaction Model — How Work Enters Agent Systems
 
 **Date:** 2026-03-20
-**Research question:** How should Agent OS model the workspace interaction — how work enters the system, how handoff/pull-in works, how goals/tasks relate to processes, human-in-the-loop as participant, and process graph as primary navigation?
-**Triggered by:** Insight-027 (Agent OS is a workspace, not an automation platform)
+**Research question:** How should Ditto model the workspace interaction — how work enters the system, how handoff/pull-in works, how goals/tasks relate to processes, human-in-the-loop as participant, and process graph as primary navigation?
+**Triggered by:** Insight-027 (Ditto is a workspace, not an automation platform)
 **Status:** Complete — pending review
 
 ---
@@ -117,7 +117,7 @@ Unstructured ←─────────────────────�
   Note          Chat msg    Idea       Issue   OKR     Workflow
   │                                                    │
   Quick Capture                                Process Definition
-  (Agent OS Primitive 12)                      (Agent OS Primitive 9)
+  (Ditto Primitive 12)                      (Ditto Primitive 9)
 ```
 
 **No system in the landscape handles the full spectrum.** Workspace products handle the left-to-middle well (tasks, goals, notes). Automation platforms handle the right well (processes, workflows). The gap is in the **middle** — turning ad-hoc inputs into structured processes over time.
@@ -132,7 +132,7 @@ Paperclip's work input model is relevant because it's the closest to "structured
 - Communication is via structured tickets, not chat — "clear owner, status, and thread"
 - The human is "the board of directors" with veto power
 
-Relevance to Agent OS: **Paperclip treats every work item as a structured ticket with goal ancestry.** Agent OS could adopt this — every input (question, task, goal) becomes a structured work item that carries context about WHY it exists.
+Relevance to Ditto: **Paperclip treats every work item as a structured ticket with goal ancestry.** Ditto could adopt this — every input (question, task, goal) becomes a structured work item that carries context about WHY it exists.
 
 Source: [Paperclip](https://paperclip.ing/), [GitHub](https://github.com/paperclipai/paperclip)
 
@@ -223,7 +223,7 @@ Sources: [Trigger.dev wait-for-token](https://trigger.dev/docs/wait-for-token), 
 - Webhook notification integration (Slack, Jira, ServiceNow)
 - Approver fills in defined fields → data flows to downstream blocks
 
-Key insight: **Sim Studio's HITL block generates a standalone approval UI per task.** This is relevant to Agent OS — each human action step could generate a task card with context + input fields.
+Key insight: **Sim Studio's HITL block generates a standalone approval UI per task.** This is relevant to Ditto — each human action step could generate a task card with context + input fields.
 
 Sources: [Sim Studio HITL block](https://docs.sim.ai/blocks/human-in-the-loop)
 
@@ -263,14 +263,14 @@ All five systems share the same fundamental pattern:
 5. RESUME — workflow continues with human's data
 ```
 
-For Agent OS, this maps to:
+For Ditto, this maps to:
 - **PAUSE** → process step with executor type `human`
 - **NOTIFY** → task appears in user's workspace (review queue or task list)
 - **WAIT** → heartbeat skips this process until human input received
 - **ACT** → human does the action and captures result (Quick Capture or task completion)
 - **RESUME** → heartbeat picks up and continues the process
 
-The key decision: **how does the human action task surface?** Sim Studio generates a portal. Trigger.dev generates a URL. Mastra relies on the application. Agent OS would surface it as a task in the workspace alongside review tasks — same queue, different type.
+The key decision: **how does the human action task surface?** Sim Studio generates a portal. Trigger.dev generates a URL. Mastra relies on the application. Ditto would surface it as a task in the workspace alongside review tasks — same queue, different type.
 
 ---
 
@@ -289,7 +289,7 @@ The key decision: **how does the human action task surface?** Sim Studio generat
 
 ### Paperclip's Goal Ancestry (Most Relevant Pattern)
 
-Paperclip's key innovation for Agent OS:
+Paperclip's key innovation for Ditto:
 
 ```
 Company Mission: "Build the #1 AI note-taking app to $1M MRR"
@@ -303,7 +303,7 @@ Company Mission: "Build the #1 AI note-taking app to $1M MRR"
 - Delegation flows up/down the org chart following goal hierarchy
 - Cross-team delegation routes to the best agent for the job
 
-Relevance to Agent OS: **Goal ancestry gives processes context.** If Agent OS tracks goals, and goals spawn tasks that are routed to processes, then every process execution inherits the goal context — "this quote is being generated because Rob's goal is 'quotes under 24 hours.'"
+Relevance to Ditto: **Goal ancestry gives processes context.** If Ditto tracks goals, and goals spawn tasks that are routed to processes, then every process execution inherits the goal context — "this quote is being generated because Rob's goal is 'quotes under 24 hours.'"
 
 ### Asana's Work Graph (Most Sophisticated)
 
@@ -316,7 +316,7 @@ The Work Graph is a typed relationship graph:
 
 AI Teammates receive Work Graph context when executing — they understand WHERE a task sits in the organisational strategy. This enables intelligent prioritisation: "this task blocks a project that's behind on a Q1 goal."
 
-Relevance to Agent OS: **The process graph (Primitive 14) should include goal hierarchy, not just process dependencies.** Goals sit above processes. A process serves a goal. The graph shows why each process exists.
+Relevance to Ditto: **The process graph (Primitive 14) should include goal hierarchy, not just process dependencies.** Goals sit above processes. A process serves a goal. The graph shows why each process exists.
 
 ---
 
@@ -343,7 +343,7 @@ Paperclip's org chart is the **primary navigation surface**:
 - Batch operations on the chart (select multiple → change model)
 - Swim-lane heartbeat timeline showing when agents work
 
-Relevance to Agent OS: **The process graph should be what Paperclip's org chart is — the primary way to see and navigate the system.** Not a secondary visualisation, but the home view. Show processes, their connections, their health, and what's waiting for human input.
+Relevance to Ditto: **The process graph should be what Paperclip's org chart is — the primary way to see and navigate the system.** Not a secondary visualisation, but the home view. Show processes, their connections, their health, and what's waiting for human input.
 
 ### Sim Studio's DAG Canvas
 
@@ -361,7 +361,7 @@ Key insight: **Execution state should be visible on the graph.** When a process 
 
 ### Does Any System Explicitly Support This?
 
-**No system explicitly models the lifecycle of work maturing from ad-hoc to automated.** This appears to be a genuine gap — and potentially original to Agent OS.
+**No system explicitly models the lifecycle of work maturing from ad-hoc to automated.** This appears to be a genuine gap — and potentially original to Ditto.
 
 What exists:
 
@@ -371,7 +371,7 @@ What exists:
 | **Monday.com** | AI Workflows can be built for recurring patterns | No learning from ad-hoc work |
 | **ClickUp** | Recurring tasks + automation recipes | Manual setup, no "the system noticed you do this regularly" |
 | **Asana** | Rules engine for automation | Manual rule creation |
-| **Agent OS (existing)** | Trust earning (supervised → autonomous) | Applies to process quality, not to work TYPE maturation |
+| **Ditto (existing)** | Trust earning (supervised → autonomous) | Applies to process quality, not to work TYPE maturation |
 
 ### Weak Forms in Existing Products
 
@@ -390,7 +390,7 @@ The pattern is emerging in industry discourse but not yet productised (source: [
 
 **No product explicitly tracks: "You did this 5 times manually. Want to make it a process?"** This lifecycle — ad-hoc work noticed, pattern proposed, process created, trust earned — is not productised anywhere.
 
-Relevance to Agent OS: This is a natural extension of the "edits as feedback" philosophy — applied to work INITIATION rather than work REVIEW. If Rob creates 5 similar tasks manually, the system could notice the pattern and propose formalising it as a process.
+Relevance to Ditto: This is a natural extension of the "edits as feedback" philosophy — applied to work INITIATION rather than work REVIEW. If Rob creates 5 similar tasks manually, the system could notice the pattern and propose formalising it as a process.
 
 ---
 
@@ -405,7 +405,7 @@ Dust.tt warrants separate analysis because it explicitly positions as "the AI op
 - **Layered permissions** — workspace admin → user → LLM → tool approval
 - **"Deep Dive" agents** — can perform extended research across connected sources
 
-Relevance to Agent OS: Dust's approach — embedding agents into existing tools rather than building a new workspace — represents one end of the spectrum. At the other end, Paperclip builds its own full UI. Agent OS must decide where on this spectrum to sit, given that its core value (structured processes, trust earning, governance) may require surfaces that existing tools don't provide.
+Relevance to Ditto: Dust's approach — embedding agents into existing tools rather than building a new workspace — represents one end of the spectrum. At the other end, Paperclip builds its own full UI. Ditto must decide where on this spectrum to sit, given that its core value (structured processes, trust earning, governance) may require surfaces that existing tools don't provide.
 
 **Maturity note on Paperclip:** Paperclip launched in early 2026 and gained 14.2K GitHub stars in its first week. It has a working React UI, org chart, and ticket system. However, it is primarily designed for "zero-human companies" (AI-only workforces), not human-agent collaboration. Its goal cascade and org chart patterns are well-implemented; its human interaction model is thin (board-of-directors oversight, not daily workspace).
 
@@ -415,7 +415,7 @@ Sources: [Dust product](https://dust.tt/home/product), [Dust MCP blog](https://b
 
 ## 8. Work Evolution Patterns — How Seeds Become Trees
 
-This section was added after the initial review based on a critical reframe: the magic of Agent OS is not task management or automation — it's that **a single input (question, goal, task) evolves through multiple processes, spawning new work as it goes.** The system orchestrates this evolution.
+This section was added after the initial review based on a critical reframe: the magic of Ditto is not task management or automation — it's that **a single input (question, goal, task) evolves through multiple processes, spawning new work as it goes.** The system orchestrates this evolution.
 
 Three systems demonstrate aspects of this pattern:
 
@@ -433,7 +433,7 @@ Manus takes a high-level goal and autonomously decomposes it into an execution p
 
 Performance: average task completion dropped from 15 minutes to under 4 minutes. 147 trillion tokens processed. 80 million virtual computers created.
 
-Relevance to Agent OS: Manus demonstrates that a single goal CAN evolve into complex multi-step, multi-agent work autonomously. But Manus is a black box — no trust tiers, no human review of intermediate steps, no governance, no process memory. It completes tasks; it doesn't build organisational capability. Agent OS's harness would wrap Manus-style decomposition with trust, review, and learning.
+Relevance to Ditto: Manus demonstrates that a single goal CAN evolve into complex multi-step, multi-agent work autonomously. But Manus is a black box — no trust tiers, no human review of intermediate steps, no governance, no process memory. It completes tasks; it doesn't build organisational capability. Ditto's harness would wrap Manus-style decomposition with trust, review, and learning.
 
 Sources: [Manus AI technical investigation](https://gist.github.com/renschni/4fbc70b31bad8dd57f3370239dccd58f), [Manus AI guide](https://www.baytechconsulting.com/blog/manus-ai-an-analytical-guide-to-the-autonomous-ai-agent-2025)
 
@@ -451,7 +451,7 @@ Claude Cowork (launched Jan 2026, updated Feb 2026) is Anthropic's enterprise pr
 
 The daily feel: work enters through plugins/slash commands (structured) or conversation (unstructured). Claude orchestrates across tools. The user guides and reviews. It's positioned as a "coworker" not a "tool."
 
-Relevance to Agent OS: Cowork demonstrates the **plugin-as-skill** model — a plugin is essentially a process definition (skills + connectors + sub-agents). The slash-command-triggers-form pattern is how structured work enters a fluid interface. However, Cowork has no persistent process memory, no trust earning, no self-improvement. Each session is largely independent. Agent OS's value is durability — the process gets better over time.
+Relevance to Ditto: Cowork demonstrates the **plugin-as-skill** model — a plugin is essentially a process definition (skills + connectors + sub-agents). The slash-command-triggers-form pattern is how structured work enters a fluid interface. However, Cowork has no persistent process memory, no trust earning, no self-improvement. Each session is largely independent. Ditto's value is durability — the process gets better over time.
 
 Sources: [Claude Cowork enterprise blog](https://claude.com/blog/cowork-plugins-across-enterprise), [Anthropic multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
 
@@ -470,13 +470,13 @@ This is the most detailed public documentation of the orchestrator-worker patter
 
 Key lesson: "Vague directives like 'research the semiconductor shortage' caused agents to perform identical searches." Explicit task boundaries and division of labour are critical.
 
-Relevance to Agent OS: This IS the orchestration pattern Agent OS needs internally. A goal enters → a lead process (orchestrator) decomposes it → sub-tasks are routed to specialised processes (workers) → results are synthesised → the human reviews the synthesis. The orchestrator-worker pattern maps directly to Agent OS's process model: the orchestrator is a meta-process, the workers are domain processes.
+Relevance to Ditto: This IS the orchestration pattern Ditto needs internally. A goal enters → a lead process (orchestrator) decomposes it → sub-tasks are routed to specialised processes (workers) → results are synthesised → the human reviews the synthesis. The orchestrator-worker pattern maps directly to Ditto's process model: the orchestrator is a meta-process, the workers are domain processes.
 
 Sources: [Anthropic multi-agent engineering blog](https://www.anthropic.com/engineering/multi-agent-research-system)
 
-### The Evolution Pattern — What Agent OS Uniquely Provides
+### The Evolution Pattern — What Ditto Uniquely Provides
 
-What none of these systems have — and what Agent OS could uniquely provide — is the **durable evolution of work through a governed system**:
+What none of these systems have — and what Ditto could uniquely provide — is the **durable evolution of work through a governed system**:
 
 ```
 SEED: "Henderson wants a bathroom quote"
@@ -503,15 +503,15 @@ No system does all of this today:
 - **Paperclip** does structure + governance but no fluid interaction, no evolution
 - **OpenClaw** does fluidity but no structure, no trust, no reliability
 
-Agent OS wraps the evolution in a harness — every step goes through trust gates, every human interaction is captured as feedback, every correction improves the system. The seed grows into a tree, and the tree gets stronger with every growth cycle.
+Ditto wraps the evolution in a harness — every step goes through trust gates, every human interaction is captured as feedback, every correction improves the system. The seed grows into a tree, and the tree gets stronger with every growth cycle.
 
 ---
 
-## Summary of Options for Agent OS
+## Summary of Options for Ditto
 
 ### Option A: Workspace-First (Notion/Asana Model)
 
-Build Agent OS as a workspace where users primarily enter work (goals, tasks, questions). Processes are internal skills. The primary interface is a task/goal management surface with agents as teammates.
+Build Ditto as a workspace where users primarily enter work (goals, tasks, questions). Processes are internal skills. The primary interface is a task/goal management surface with agents as teammates.
 
 - **Entry point:** User creates goals, tasks, captures notes
 - **Agent interaction:** Agents are workspace members, @mentionable, assigned to work
@@ -523,7 +523,7 @@ Build Agent OS as a workspace where users primarily enter work (goals, tasks, qu
 
 ### Option B: Structured Handoff (Paperclip Model)
 
-Build Agent OS around structured tickets/work items with goal ancestry. The primary interface is a ticket queue + process graph. Work enters as tickets, gets routed to processes.
+Build Ditto around structured tickets/work items with goal ancestry. The primary interface is a ticket queue + process graph. Work enters as tickets, gets routed to processes.
 
 - **Entry point:** User creates tickets with goal context
 - **Agent interaction:** Agents are workers in an org chart, processing tickets
@@ -570,7 +570,7 @@ The process graph (Primitive 14, enhanced) IS the primary interface. Everything 
 **Pros:** Unique. No other product leads with a live process graph. Matches the user's stated desire to "see the process structure and connections." Differentiating.
 **Cons:** Unfamiliar — users don't navigate via graph today. May work for Nadia/Jordan (systems thinkers) but overwhelm Rob/Lisa. Needs strong onboarding.
 
-### How Options Map to Agent OS's Three Modes (Analyze/Explore/Operate)
+### How Options Map to Ditto's Three Modes (Analyze/Explore/Operate)
 
 | Option | Analyze mode | Explore mode | Operate mode |
 |--------|-------------|-------------|-------------|
@@ -597,7 +597,7 @@ How workspace products decide what to surface is critical to the "daily brief" /
 | **ClickUp** | Inbox + AI Stand-ups | Assigned, due, blocked, AI summaries | Priority and snooze controls |
 | **Paperclip** | Dashboard + cost alerts | Budget warnings, task completions, approvals needed | Budget thresholds |
 
-Common pattern: all workspace products have an **inbox/notification center** that aggregates attention demands. Agent OS's Daily Brief (Primitive 1) serves this role, but may need to extend to a persistent inbox that captures both agent outputs needing review AND human action tasks from process steps.
+Common pattern: all workspace products have an **inbox/notification center** that aggregates attention demands. Ditto's Daily Brief (Primitive 1) serves this role, but may need to extend to a persistent inbox that captures both agent outputs needing review AND human action tasks from process steps.
 
 ---
 
@@ -605,7 +605,7 @@ Common pattern: all workspace products have an **inbox/notification center** tha
 
 ### The Question
 
-Should Agent OS's core orchestration capabilities (intake, routing, decomposition, improvement, trust evaluation) be implemented as code functions or as **processes with agents going through the same harness**?
+Should Ditto's core orchestration capabilities (intake, routing, decomposition, improvement, trust evaluation) be implemented as code functions or as **processes with agents going through the same harness**?
 
 ### What Existing Systems Do
 
@@ -620,7 +620,7 @@ Should Agent OS's core orchestration capabilities (intake, routing, decompositio
 
 **No system surveyed runs its own orchestration through its own governance model.** In every case, the orchestration layer is hardcoded infrastructure that doesn't earn trust, receive feedback, or improve through the same mechanisms as user-facing work.
 
-### What Agent OS Could Do Differently
+### What Ditto Could Do Differently
 
 ADR-008 already defines seven system agents. With the workspace reframe, these become **meta-processes** — processes that drive the framework itself:
 
@@ -636,13 +636,13 @@ ADR-008 already defines seven system agents. With the workspace reframe, these b
 
 The key property: **these meta-processes go through the same harness pipeline as user processes.** They start supervised (human sees every routing decision, every decomposition). They earn trust. They get corrected. They improve. The system that governs user work is itself governed by the same system.
 
-This is not productised by any system in the survey. It is original to Agent OS.
+This is not productised by any system in the survey. It is original to Ditto.
 
 ---
 
 ## 10. Build-From Assessment: Three Key Repositories
 
-Three open-source projects map to different layers of the Agent OS interaction model:
+Three open-source projects map to different layers of the Ditto interaction model:
 
 ### Mastra (`mastra-ai/mastra`) — Orchestration Engine
 
@@ -654,7 +654,7 @@ Three open-source projects map to different layers of the Agent OS interaction m
 - Integrates with Vercel AI SDK for frontend
 - Built-in evals and observability
 
-Relevance: **HIGH for Layer 2-3.** Meta-processes could run on Mastra's workflow engine. The suspend/resume pattern handles human action steps. The memory layers map to Agent OS's two-scope memory model. Already in landscape.md but underweighted given the workspace reframe.
+Relevance: **HIGH for Layer 2-3.** Meta-processes could run on Mastra's workflow engine. The suspend/resume pattern handles human action steps. The memory layers map to Ditto's two-scope memory model. Already in landscape.md but underweighted given the workspace reframe.
 
 Source: [Mastra GitHub](https://github.com/mastra-ai/mastra)
 
@@ -678,7 +678,7 @@ Source: [Vercel AI SDK GitHub](https://github.com/vercel/ai), [Multi-step genera
 - **OpenUI Lang** — compact language for LLM-generated UI (67% fewer tokens than JSON)
 - Progressive rendering — UI appears as LLM streams, not after completion
 - Component library constrained — LLM can only output components you've defined
-- Works with shadcn, Radix (Agent OS's planned stack)
+- Works with shadcn, Radix (Ditto's planned stack)
 - Near 0% malformed output
 
 Relevance: **MEDIUM-HIGH for Phase 10.** ADR-009 said "no ViewSpec protocol." OpenUI is lighter than a protocol — it's a streaming language for constrained component rendering. Relevant for: Output Viewer (Primitive 6) rendering different output types, Daily Brief composition, dynamic process card content. Makes the workspace feel alive through progressive rendering.
@@ -695,10 +695,10 @@ Source: [OpenUI GitHub](https://github.com/thesysdev/openui), [OpenUI docs](http
 ├─────────────────────────────────────────────────┤
 │  ORCHESTRATION LAYER (Layer 2-3)                 │
 │  Mastra (workflows, suspend/resume, memory)      │
-│  + Agent OS harness (trust, review, learning)    │
+│  + Ditto harness (trust, review, learning)    │
 ├─────────────────────────────────────────────────┤
 │  PROCESS LAYER (Layer 1)                         │
-│  Agent OS (process definitions, goal ancestry,   │
+│  Ditto (process definitions, goal ancestry,   │
 │  meta-processes, feedback capture, trust earning)│
 └─────────────────────────────────────────────────┘
 ```
@@ -707,10 +707,10 @@ Source: [OpenUI GitHub](https://github.com/thesysdev/openui), [OpenUI docs](http
 
 ## Gaps Where No Existing Solution Fits
 
-1. **Self-referential meta-process architecture** — no system runs its own orchestration through its own governance model. Original to Agent OS.
-2. **Reactive-to-repetitive lifecycle** — no product explicitly tracks work maturing from ad-hoc to automated. Original to Agent OS.
-3. **Trust earning on work inputs** — all surveyed systems apply trust to execution, not to the input/routing layer. Agent OS's trust model is unique.
-4. **Goal → process routing with harness** — no system routes goal-decomposed tasks through a trust-gated harness pipeline. Original to Agent OS.
+1. **Self-referential meta-process architecture** — no system runs its own orchestration through its own governance model. Original to Ditto.
+2. **Reactive-to-repetitive lifecycle** — no product explicitly tracks work maturing from ad-hoc to automated. Original to Ditto.
+3. **Trust earning on work inputs** — all surveyed systems apply trust to execution, not to the input/routing layer. Ditto's trust model is unique.
+4. **Goal → process routing with harness** — no system routes goal-decomposed tasks through a trust-gated harness pipeline. Original to Ditto.
 5. **Human action step + trust gate** — none of the HITL patterns integrate with a trust tier system. Original.
 6. **Process graph with goal hierarchy AND live execution state** — Paperclip shows org charts, Asana shows Work Graph, Sim Studio shows execution DAGs. No product combines all three.
 

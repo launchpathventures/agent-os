@@ -6,13 +6,13 @@
 
 ## Context
 
-Agent OS currently assumes processes are defined through conversational setup (Explore mode → Process Builder). The user describes their pain, the system asks questions, a process definition emerges. Research (Insight-016) identified that every organisation already has a digital footprint — emails, documents, calendars, financial records, messaging, service desk tickets — that encodes its real processes.
+Ditto currently assumes processes are defined through conversational setup (Explore mode → Process Builder). The user describes their pain, the system asks questions, a process definition emerges. Research (Insight-016) identified that every organisation already has a digital footprint — emails, documents, calendars, financial records, messaging, service desk tickets — that encodes its real processes.
 
-The question: should Agent OS discover processes from this data, and if so, where does this capability sit in the architecture and roadmap?
+The question: should Ditto discover processes from this data, and if so, where does this capability sit in the architecture and roadmap?
 
 ## Decision
 
-Process analysis/discovery is a **first-class mode** of Agent OS — not a feature or enhancement. Analyze sits alongside Explore and Operate as the third core mode. The architecture moves from two modes to three:
+Process analysis/discovery is a **first-class mode** of Ditto — not a feature or enhancement. Analyze sits alongside Explore and Operate as the third core mode. The architecture moves from two modes to three:
 
 - **Analyze** — connect to systems, understand how the org actually works, surface patterns, validate reality vs. design
 - **Explore** — define and refine processes, guided by evidence from Analyze or from a blank canvas
@@ -24,13 +24,13 @@ Analyze feeds both other modes and is invocable at any time — not just during 
 
 **1. Analyze is a first-class mode with its own Core Thesis section.**
 
-The architecture spec's Core Thesis gains "The Organisation's Data Already Encodes Its Processes" as a new subsection. The two-mode table (Explore/Operate) becomes a three-mode table. This is a thesis-level belief about how Agent OS works, not an implementation detail.
+The architecture spec's Core Thesis gains "The Organisation's Data Already Encodes Its Processes" as a new subsection. The two-mode table (Explore/Operate) becomes a three-mode table. This is a thesis-level belief about how Ditto works, not an implementation detail.
 
 **2. Layer 4 keeps the organizational data model — grounded in "shared organisational context."**
 
 Layer 4 already claims to provide "shared organisational context" but only operationalizes one mechanism (process dependency graph). The organizational data model is the second mechanism — a persistent, evolving understanding of how the organisation actually works, derived from connected data sources. Two graphs, two purposes:
 
-- **Process dependency graph** — operational, reactive, event-driven. How Agent OS processes relate to each other.
+- **Process dependency graph** — operational, reactive, event-driven. How Ditto processes relate to each other.
 - **Organizational data model** — analytical, evolving, evidence-based. How the organisation actually works based on connected data.
 
 The org data model is not just a discovery input. It enables validation (defined vs actual), gap detection (undiscovered processes), improvement evidence (bottlenecks, delays), and ongoing organizational awareness. It is fed by L2 (connectors), held in L4 (awareness), used by L5 (learning), and presented by L6 (human layer).
@@ -75,11 +75,11 @@ This tracks the genuine tension that Rob and Lisa may struggle to articulate pro
 |---------|--------|-------------|
 | Multi-agent process discovery pipeline | PKAI (Springer BISE 2025) | Informed by — preparation/socialization/externalization stages |
 | Hybrid narrative + data discovery | ClearWork | Informed by — interview + data approach |
-| Process mining from SaaS API data | Gap — enterprise tools use ERP logs | Original to Agent OS |
-| Evidence-informed conversational discovery | Gap — ClearWork interviews closest | Original to Agent OS |
-| Discovered processes → executable definitions with trust tiers | Gap | Original to Agent OS |
+| Process mining from SaaS API data | Gap — enterprise tools use ERP logs | Original to Ditto |
+| Evidence-informed conversational discovery | Gap — ClearWork interviews closest | Original to Ditto |
+| Discovered processes → executable definitions with trust tiers | Gap | Original to Ditto |
 | Organizational data model as persistent org understanding | Skan.ai "Digital Twin of Operations" concept | Informed by + Original — adapted for SMB data sources |
-| Continuous process gap detection | Gap | Original to Agent OS |
+| Continuous process gap detection | Gap | Original to Ditto |
 
 ## Open Questions (deferred to Phase 11 design)
 

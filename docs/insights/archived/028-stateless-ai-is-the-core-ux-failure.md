@@ -13,9 +13,9 @@ Human teammates don't work this way. A colleague's memory and contextual awarene
 
 This is not just a UX preference — it's the fundamental reason people don't trust AI with real work. If the system might forget everything, you can't hand off to it. Handoff requires confidence that context persists.
 
-## Why This Matters for Agent OS
+## Why This Matters for Ditto
 
-Agent OS already has architectural answers to this problem:
+Ditto already has architectural answers to this problem:
 - **Agent-scoped memory** — cross-cutting knowledge that travels with the agent
 - **Process-scoped memory** — correction patterns, quality criteria, learned rules
 - **Organisational data model** — persistent understanding of how the org works (ADR-006)
@@ -39,10 +39,10 @@ But these are internal mechanisms. The user doesn't FEEL them. The question is: 
 ## Implications
 
 - The Daily Brief is the primary surface for demonstrating memory — it should feel like a briefing from a chief of staff who knows everything, not a generated report
-- Agent OS should NEVER feel like "new chat." Every interaction should feel like continuing a conversation that's been running for weeks/months
+- Ditto should NEVER feel like "new chat." Every interaction should feel like continuing a conversation that's been running for weeks/months
 - The process graph should show history — not just current state, but how things evolved
 - Memory should be visible and inspectable — the user should be able to see what the system "knows" about them, their business, and their preferences
-- This is a competitive moat: if Agent OS demonstrably remembers and learns while competitors start fresh every session, the switching cost becomes the accumulated intelligence
+- This is a competitive moat: if Ditto demonstrably remembers and learns while competitors start fresh every session, the switching cost becomes the accumulated intelligence
 
 ## Relationship to Existing Architecture
 

@@ -1,11 +1,11 @@
 # ADR-005: Integration Architecture — Multi-Protocol, Multi-Purpose
 
 **Date:** 2026-03-19
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 
-Agent OS processes don't operate in isolation. Real-world processes need to read emails, access accounting software, post to communication channels, and sync with cloud storage. The architecture spec mentions integrations in three places — L1 process `Source`/`Destination`, L2 agent harness `Tools: authorised tools and MCP connections`, and the Technical Architecture adapters list (`HTTP`) — but never specifies how they work. The 12-phase roadmap has no phase for external integrations.
+Ditto processes don't operate in isolation. Real-world processes need to read emails, access accounting software, post to communication channels, and sync with cloud storage. The architecture spec mentions integrations in three places — L1 process `Source`/`Destination`, L2 agent harness `Tools: authorised tools and MCP connections`, and the Technical Architecture adapters list (`HTTP`) — but never specifies how they work. The 12-phase roadmap has no phase for external integrations.
 
 Research (`docs/research/external-integrations-architecture.md`) evaluated seven architectural options and found that:
 
@@ -13,7 +13,7 @@ Research (`docs/research/external-integrations-architecture.md`) evaluated seven
 
 2. External services offer **multiple protocols**: CLI (cheapest — 10-32x fewer tokens than MCP), MCP (structured schemas, scoped auth), and REST API (universal fallback). The right protocol depends on the service, not the purpose.
 
-3. No existing platform handles both purposes across all protocols while also enforcing trust tiers, capturing feedback, and brokering credentials — these are Original to Agent OS.
+3. No existing platform handles both purposes across all protocols while also enforcing trust tiers, capturing feedback, and brokering credentials — these are Original to Ditto.
 
 The forces at play:
 - **Composition over invention** — integration infrastructure (auth, retries, rate limits) already exists in Nango, Composio, MCP ecosystem
@@ -23,7 +23,7 @@ The forces at play:
 
 ## Decision
 
-Agent OS adopts a **multi-protocol, multi-purpose integration architecture** with the following design:
+Ditto adopts a **multi-protocol, multi-purpose integration architecture** with the following design:
 
 ### 1. Two integration purposes, architecturally separated
 

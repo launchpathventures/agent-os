@@ -7,7 +7,7 @@
 
 ## The Insight
 
-Agent OS manages two fundamentally different kinds of data:
+Ditto manages two fundamentally different kinds of data:
 
 | | Declarations | State |
 |---|---|---|

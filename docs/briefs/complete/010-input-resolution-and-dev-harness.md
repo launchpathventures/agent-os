@@ -103,7 +103,7 @@ The architecture spec (Layer 2) describes tools as "resolved from integration re
 ### DB Schema Enforcement
 
 9. [ ] `pnpm cli sync` ensures DB schema matches code schema before syncing process definitions — no manual migration needed
-10. [ ] A fresh clone with no `data/agent-os.db` can run `pnpm install && pnpm cli sync` and have a working database with all tables
+10. [ ] A fresh clone with no `data/ditto.db` can run `pnpm install && pnpm cli sync` and have a working database with all tables
 
 ### Dev Harness Fixes
 
@@ -144,7 +144,7 @@ The architecture spec (Layer 2) describes tools as "resolved from integration re
 
 ```bash
 # Fresh DB test
-rm -f data/agent-os.db*
+rm -f data/ditto.db*
 pnpm cli sync
 # Should succeed with no errors, DB created with all tables
 

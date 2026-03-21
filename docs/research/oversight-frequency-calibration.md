@@ -4,7 +4,7 @@ Research date: 2026-03-20
 
 ## Summary
 
-This research catalogues concrete mechanisms that real-world systems use to calibrate how often a human reviews, approves, or intervenes. The goal is to inform Agent OS's trust/oversight model with proven patterns, not theory.
+This research catalogues concrete mechanisms that real-world systems use to calibrate how often a human reviews, approves, or intervenes. The goal is to inform Ditto's trust/oversight model with proven patterns, not theory.
 
 ---
 
@@ -25,7 +25,7 @@ ISO 2859-1 is the international standard for acceptance sampling by attributes. 
 
 ### Switching rules (the trust mechanism)
 
-ISO 2859's most relevant feature for Agent OS is its **three-state switching system**:
+ISO 2859's most relevant feature for Ditto is its **three-state switching system**:
 
 | State | Entry criteria | Effect |
 |-------|---------------|--------|
@@ -36,7 +36,7 @@ ISO 2859's most relevant feature for Agent OS is its **three-state switching sys
 
 **Key insight:** The system doesn't just track pass/fail -- it tracks *streaks*. Trust is earned through consecutive successes and lost through clustered failures. This is a state machine with hysteresis (harder to earn reduced inspection than to lose it).
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 - AQL maps to **acceptable error rate per process importance tier**
 - Switching rules map to **trust state transitions** -- 10 consecutive clean runs to earn autonomy, 2-of-5 failures to tighten oversight
@@ -61,7 +61,7 @@ Skip-lot sampling (SkSP-2 per NIST) goes beyond reduced sampling to **skipping e
 
 **Key numbers:** Typical qualifying streak `i` = 10-15 consecutive lots. Typical fraction `f` = 1/2 to 1/5 (inspect every 2nd to every 5th lot).
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 This is the most direct analogue for "the agent has proven itself, so we only spot-check." The fraction `f` is the review sampling rate. A process with 20 consecutive clean runs might only get reviewed 1-in-5 times. One failure resets to 100% review.
 
@@ -91,7 +91,7 @@ The system is purely statistical. It doesn't decide review frequency upfront -- 
 - Which run rules are active (more rules = earlier detection but more false positives)
 - EWMA weighting parameter lambda (0.2 is typical balance)
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 Rather than reviewing every Nth process run, monitor a quality metric continuously and alert when the pattern suggests the process has degraded. This is "review on anomaly" rather than "review on schedule." The Western Electric rules provide a concrete, implementable set of trigger conditions.
 
@@ -115,7 +115,7 @@ Platforms like TikTok, YouTube, and Meta use a **three-band confidence model**:
 
 **Severity weighting:** Systems incorporate both severity of harm (type of violation) and expected reach (account's following) when deciding whether to auto-act or escalate. High-severity + high-reach content gets prioritized in human queues.
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 The three-band model maps directly: high-confidence routine outputs auto-approve, uncertain outputs get human review, clearly bad outputs get blocked. The severity x reach weighting maps to process importance x blast radius.
 
@@ -145,7 +145,7 @@ Anti-money laundering systems monitor every transaction against rules and ML mod
 
 Thresholds adjust continuously based on observed activity. Merchant-level monitoring uses fraud-to-sales ratios with three escalation tiers: early warning, standard, and excessive.
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 The tiered response model (block/review-now/review-later/approve) with risk scores is directly applicable. The 15-minute vs. batch review distinction maps to synchronous vs. asynchronous human review modes. The merchant-level monitoring (tracking quality at the process level, not just the individual output level) maps to per-process trust tracking.
 
@@ -173,7 +173,7 @@ Insurance uses Straight-Through Processing (STP) to auto-approve low-risk applic
 
 **Scale:** Leading markets achieve 75-90% STP rates for standard applications. The remaining 10-25% route to human underwriters.
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 This is the clearest "importance-based" routing model. Low-stakes, well-understood processes get high STP rates. Novel, high-stakes, or ambiguous cases always get human review. The validation checks (age in range, cross-document consistency, logical consistency, database lookups) map to automated pre-checks before a process output is released.
 
@@ -196,7 +196,7 @@ FDA 21 CFR 211.165 requires "appropriate laboratory testing" of each batch. But 
 
 **Adaptive frequency:** Variability estimates from process qualification provide the basis for establishing levels and frequency of routine sampling and monitoring. Monitoring can then be adjusted to a statistically appropriate and representative level -- meaning a well-validated process earns lower sampling rates.
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 Pharma demonstrates that even in the most regulated environments, sampling rates are not fixed -- they're calibrated to demonstrated process capability. A process that has been validated and is performing within capability limits earns reduced monitoring. This is the regulatory-grade version of skip-lot sampling.
 
@@ -229,7 +229,7 @@ The foundational taxonomy, ranging from full human control to full machine auton
 
 Six levels (0-5) with a critical distinction between "the human monitors" (L0-L2) and "the system monitors" (L3-L5). The key transition is at L3 where the system handles the fallback but must hand back to human when it reaches its limits.
 
-**Relevance to Agent OS:** The L3 transition -- where the system is responsible for knowing when it's out of its depth and escalating -- is exactly the pattern needed. The agent must self-assess confidence and escalate, not rely on the human to catch problems.
+**Relevance to Ditto:** The L3 transition -- where the system is responsible for knowing when it's out of its depth and escalating -- is exactly the pattern needed. The agent must self-assess confidence and escalate, not rely on the human to catch problems.
 
 ### NASA Autonomy Levels
 
@@ -239,7 +239,7 @@ E1 (ground-controlled), E2 (pre-planned onboard execution), E3 (adaptive onboard
 
 Research shows optimal operator-to-vehicle ratios of 1:2 to 1:4. Operators can supervise up to 10 UAVs but performance degrades significantly. Higher automation enables higher ratios but introduces complacency and loss of situation awareness.
 
-**Relevance to Agent OS:** A human overseeing multiple processes is the same problem as an operator supervising multiple drones. The ratio of processes-to-human depends on the autonomy level of each process. High-autonomy processes consume less attention budget.
+**Relevance to Ditto:** A human overseeing multiple processes is the same problem as an operator supervising multiple drones. The ratio of processes-to-human depends on the autonomy level of each process. High-autonomy processes consume less attention budget.
 
 Sources: [Sheridan & Verplank LOA](https://www.researchgate.net/figure/Levels-of-Automation-From-Sheridan-Verplank-1978_tbl1_235181550), [Human Control of AI](https://pmc.ncbi.nlm.nih.gov/articles/PMC12058881/), [Multi-UAV Control](https://pmc.ncbi.nlm.nih.gov/articles/PMC4878290/), [NASA DSA](https://www.nasa.gov/game-changing-development-projects/distributed-spacecraft-autonomy-dsa/)
 
@@ -269,7 +269,7 @@ Anthropic's research on Claude Code usage (published Feb 2026) analyzed millions
 - Research suggests routing only the most critical ~14.5% of decisions to humans while maintaining safety standards
 - 99.9th percentile turn duration nearly doubled (25min to 45min) between Oct 2025 and Jan 2026, reflecting growing trust
 
-### Mapping to Agent OS
+### Mapping to Ditto
 
 This is the only empirical data on how agent oversight frequency actually evolves in real systems. Key patterns:
 1. Trust is earned gradually through accumulated experience, not granted in steps
@@ -281,7 +281,7 @@ Sources: [Anthropic: Measuring AI Agent Autonomy](https://www.anthropic.com/rese
 
 ---
 
-## Synthesis: Patterns That Apply to Agent OS
+## Synthesis: Patterns That Apply to Ditto
 
 ### Three distinct calibration mechanisms emerge
 
@@ -333,7 +333,7 @@ A well-designed system would use all three:
 | ISO 2859 reduced inspection | Varies by AQL | ~30-50% of normal sample size | Earned through 10 consecutive lots |
 | Skip-lot sampling | 60-80% of lots skipped | 20-40% of lots inspected | Earned through qualifying streak |
 
-### The key insight for Agent OS
+### The key insight for Ditto
 
 No real system uses a single dial. They all combine:
 1. **Importance/severity classification** (what kind of thing is this?)

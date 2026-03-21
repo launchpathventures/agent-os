@@ -5,14 +5,14 @@
 
 ## Context
 
-Agent OS has six development roles, all engineering-oriented: PM, Researcher, Architect, Builder, Reviewer, Documenter. No role is explicitly constrained to think from the end-user's perspective — the non-technical person who will define, monitor, review, and improve processes.
+Ditto has six development roles, all engineering-oriented: PM, Researcher, Architect, Builder, Reviewer, Documenter. No role is explicitly constrained to think from the end-user's perspective — the non-technical person who will define, monitor, review, and improve processes.
 
 The Architect currently owns "what interfaces look like" as a subordinate clause, but this makes UX a secondary concern within a technical design role. Research (see `docs/research/ux-process-design-role.md`) found that:
 
 1. **Professional practice separates design and engineering** as distinct cognitive modes (Insight-010). Design starts with user desirability; engineering starts with technical feasibility. When blended, engineering dominates.
 2. **gstack** (our strongest design-aware source project) has four dedicated design skills that gate engineering work.
 3. **Dual-Track Agile** (industry gold standard) runs discovery (design) and delivery (engineering) as parallel tracks, not sequential phases.
-4. **Agent OS's core value proposition is heavily design-dependent**: 16 UI primitives, Explore → Operate transition, implicit feedback capture, progressive trust visibility. These are design problems.
+4. **Ditto's core value proposition is heavily design-dependent**: 16 UI primitives, Explore → Operate transition, implicit feedback capture, progressive trust visibility. These are design problems.
 
 The gap has two dimensions:
 - **Process Architecture (L1):** Does the process definition serve the user's mental model?
@@ -72,7 +72,7 @@ Add a mandatory **User Experience** section to `docs/briefs/000-template.md`:
 Which of the six human jobs does this work affect? (Orient, Review, Define, Delegate, Capture, Decide)
 - **Jobs affected:** {list, or "None — no user-facing changes"}
 - **Primitives involved:** {which of the 16 primitives, or "None"}
-- **Process-owner perspective:** {how does the person using Agent OS experience this change?}
+- **Process-owner perspective:** {how does the person using Ditto experience this change?}
 - **Interaction states:** {loading, empty, error, success, partial — for any UI-touching work}
 - **Designer input:** {reference to Designer's interaction spec, or "Not invoked — lightweight UX section only"}
 ```
@@ -124,8 +124,8 @@ Human: "I want to think about X"
 | Dedicated design skills | gstack `/design-consultation`, `/plan-design-review`, `/design-review` | Proven separation of design and engineering in agent-dev context |
 | Dual-track parallel (discovery + delivery) | Dual-Track Agile (Patton/Cagan) | Industry gold standard for design-engineering integration |
 | Design as cognitive mode separation | NN/g research, Insight-010 | Professional evidence that design and engineering are different orientations |
-| Conditional activation by phase | Original to Agent OS | No source project has phase-aware role activation |
-| Mandatory UX section in briefs | Original to Agent OS, inspired by gstack's interaction state requirements | Mechanical enforcement when Designer isn't invoked |
+| Conditional activation by phase | Original to Ditto | No source project has phase-aware role activation |
+| Mandatory UX section in briefs | Original to Ditto, inspired by gstack's interaction state requirements | Mechanical enforcement when Designer isn't invoked |
 
 ## Consequences
 

@@ -1,8 +1,8 @@
-# Agent OS — AI Agent Instructions
+# Ditto — AI Agent Instructions
 
 ## What This Project Is
 
-Agent OS is a harness creator for human-agent collaboration. It creates the evolving, orchestrating harness within which agents operate. Process is the primitive. The harness is the product. See `docs/vision.md` for the full picture.
+Ditto is a harness creator for human-agent collaboration. It creates the evolving, orchestrating harness within which agents operate. Process is the primitive. The harness is the product. See `docs/vision.md` for the full picture.
 
 ## Start Here
 
@@ -27,7 +27,7 @@ Read `docs/architecture.md` for the six-layer spec. Read `docs/human-layer.md` f
 
 - `pnpm` for package management
 - TypeScript strict mode
-- Every pattern must have provenance (source project) or be marked as "Original to Agent OS"
+- Every pattern must have provenance (source project) or be marked as "Original to Ditto"
 - ADRs in `docs/adrs/` for significant decisions
 
 ## Project Structure
@@ -37,7 +37,7 @@ docs/
   architecture.md     # Six-layer architecture spec (source of truth)
   human-layer.md      # Layer 6 detailed design (16 primitives, wireframes)
   landscape.md        # Building blocks — what to adopt vs build
-  vision.md           # Why Agent OS exists
+  vision.md           # Why Ditto exists
   roadmap.md          # Full capability map with phase tracking
   state.md            # Current state of play
   dictionary.md       # Canonical glossary (95+ entries)

@@ -13,7 +13,7 @@ Most non-coding domains lack this infrastructure. Quality is assessed by a human
 
 The solution is not to require humans to define quality criteria upfront. Most humans can't articulate what good looks like until they see bad. A good manager doesn't start by writing a quality specification — they set a rough direction, react to early outputs, and build the standard through feedback. The standard emerges from use.
 
-Agent OS should help humans **discover** quality criteria, not require them to define criteria in advance:
+Ditto should help humans **discover** quality criteria, not require them to define criteria in advance:
 
 1. Process starts with loose criteria ("report should be useful and concise")
 2. Agent produces output, human reacts (approve, edit, reject)

@@ -25,7 +25,7 @@ Agent tool use is architecturally different from integration steps: tools are in
 - Process I/O (triggers, sources, destinations — Brief 026)
 - Webhook infrastructure
 - Dynamic tool discovery (tools are declared in process definitions, not discovered at runtime)
-- MCP server hosting (Agent OS connects to existing MCP servers, doesn't run its own)
+- MCP server hosting (Ditto connects to existing MCP servers, doesn't run its own)
 
 ## Inputs
 

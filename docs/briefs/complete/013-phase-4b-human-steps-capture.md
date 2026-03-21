@@ -54,11 +54,11 @@ A process can include a `human` executor step that pauses, surfaces as an action
 | What | Source | Why this source |
 |------|--------|----------------|
 | Path-based suspend/resume | Mastra `packages/core/src/workflows/default.ts` | Serialize suspended step paths + results. Resume skips completed steps. |
-| Structured suspend payload | ADR-010 Section 4 | Instructions, context, input_fields, timeout. Original to Agent OS. |
+| Structured suspend payload | ADR-010 Section 4 | Instructions, context, input_fields, timeout. Original to Ditto. |
 | Interactive step completion | @clack/prompts `packages/prompts/src/group.ts` | Multi-step workflows with result propagation. |
-| Capture → classify (manual) | Original to Agent OS | No CLI does capture → classify → route from free text. |
-| Unified task surface | Original to Agent OS | No product unifies review + action + goal tasks. |
-| Pattern-detection notification | Original to Agent OS (lightweight) | Count corrections per field from existing feedback data. |
+| Capture → classify (manual) | Original to Ditto | No CLI does capture → classify → route from free text. |
+| Unified task surface | Original to Ditto | No product unifies review + action + goal tasks. |
+| Pattern-detection notification | Original to Ditto (lightweight) | Count corrections per field from existing feedback data. |
 
 ## What Changes (Work Products)
 

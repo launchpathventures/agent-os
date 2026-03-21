@@ -9,7 +9,7 @@
 
 The biggest barrier to AI value is not AI capability — it is the absence of structure around the interaction. Raw chat (Claude, ChatGPT, etc.) puts the entire cognitive burden on the user: figure out what to ask, how to frame it, what to do with the output, whether it's good, and what comes next. Most people can't do this well, so they use AI in a primitive, unsophisticated way — like a search engine with extra steps.
 
-Agent OS exists to provide the scaffolding that raw chat doesn't. Eight specific things are missing from raw chat that Agent OS addresses:
+Ditto exists to provide the scaffolding that raw chat doesn't. Eight specific things are missing from raw chat that Ditto addresses:
 
 1. **Loose structure** — process definitions give shape without rigidity. Work has form but isn't a rigid workflow.
 2. **Guidance** — meta-agents and meta-processes (intake-classifier, router, orchestrator, process-analyst) guide how work should be composed, evolve, and get turned into processes that produce outcomes. The user doesn't need to know what to do next.
@@ -25,13 +25,13 @@ The raw-chat problem and the oversight problem are two sides of the same coin: t
 ## Implications
 
 - Every feature should be evaluated against this lens: does it reduce the cognitive burden on the user, or increase it?
-- The onboarding experience is critical — if Agent OS feels like "another chat interface," it has failed. The process-analyst agent's guided conversation (Explore mode) is how the user first experiences the structure.
+- The onboarding experience is critical — if Ditto feels like "another chat interface," it has failed. The process-analyst agent's guided conversation (Explore mode) is how the user first experiences the structure.
 - "Obscuring the technical nature" is not a nice-to-have UX polish — it is a core architectural requirement. Technical concepts (agents, adapters, trust tiers, harness patterns) must never surface in the user-facing vocabulary. The dictionary should distinguish internal/technical terms from user-facing terms.
-- The meta-agents (ADR-008, ADR-010) are what provide the guidance layer. Without them, Agent OS is just a process engine. With them, it's a workspace that helps the user think about their work.
+- The meta-agents (ADR-008, ADR-010) are what provide the guidance layer. Without them, Ditto is just a process engine. With them, it's a workspace that helps the user think about their work.
 - This insight strengthens the case for the Daily Brief as the primary entry point — it tells the user what to focus on, reducing the "what should I do?" burden.
 
 ## Where It Should Land
 
-Architecture spec — as a design principle alongside "Process Is the Internal Primitive" and "The User's Job Is Handoff, Not Management." Could be framed as "Structure Is the Product" or "The Scaffolding Gap" — the insight that raw AI capability needs structural scaffolding to be useful, and Agent OS IS that scaffolding.
+Architecture spec — as a design principle alongside "Process Is the Internal Primitive" and "The User's Job Is Handoff, Not Management." Could be framed as "Structure Is the Product" or "The Scaffolding Gap" — the insight that raw AI capability needs structural scaffolding to be useful, and Ditto IS that scaffolding.
 
-Also informs: vision.md (why Agent OS exists), personas.md (the struggle is real for all four personas), human-layer.md (every primitive should reduce cognitive burden).
+Also informs: vision.md (why Ditto exists), personas.md (the struggle is real for all four personas), human-layer.md (every primitive should reduce cognitive burden).

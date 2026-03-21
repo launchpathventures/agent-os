@@ -191,7 +191,7 @@ export function shouldWarnContextSize(session: DevSession): boolean {
 
 export function formatStatus(session: DevSession): string {
   const lines: string[] = [];
-  lines.push(`📌 Agent OS Dev Pipeline`);
+  lines.push(`📌 Ditto Dev Pipeline`);
   lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
 
   const current = session.roles[session.currentRoleIndex];

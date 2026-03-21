@@ -1,5 +1,5 @@
 /**
- * Agent OS — Drizzle Kit Configuration (SQLite)
+ * Ditto — Drizzle Kit Configuration (SQLite)
  */
 
 import { defineConfig } from "drizzle-kit";
@@ -9,6 +9,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: "./data/agent-os.db",
+    url: "./data/ditto.db",
   },
 });

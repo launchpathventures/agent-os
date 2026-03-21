@@ -41,7 +41,7 @@ The QA research (`docs/research/qa-tester-role-in-dev-pipeline.md`) concluded: f
 ## Constraints
 
 - MUST use vitest (TypeScript-native, ESM, fast — standard for 2026 TypeScript projects)
-- MUST use a separate test database (not `data/agent-os.db`) — tests create/destroy their own DB
+- MUST use a separate test database (not `data/ditto.db`) — tests create/destroy their own DB
 - MUST NOT mock the database — tests use real SQLite via better-sqlite3 (the QA research + Phase 3 retro both validated: "mocked tests passed but prod migration failed")
 - MUST NOT require API keys to run — skip/mock any test that would call Claude
 - The Anthropic SDK client is constructed at import time in `review-pattern.ts` and `claude.ts`. Heartbeat tests transitively import these modules. Use vitest module mocks (`vi.mock`) for the Anthropic SDK to prevent import-time failures. This is NOT mocking the database — the "no mocks" constraint applies to SQLite, not to external API clients.
@@ -55,7 +55,7 @@ The QA research (`docs/research/qa-tester-role-in-dev-pipeline.md`) concluded: f
 |------|--------|----------------|
 | vitest as test runner | vitest.dev (Vite ecosystem) | TypeScript-native, ESM, fast, zero-config for TS projects. Standard choice 2026. |
 | Test-in-build-loop pattern | Aider (paul-gauthier/aider) | Auto-runs tests after edits. Research Option D — best fit for CLI project. |
-| Real DB, not mocks | Agent OS Phase 3 retro + QA research | "Mocked tests passed but prod migration failed." Integration tests must hit real SQLite. |
+| Real DB, not mocks | Ditto Phase 3 retro + QA research | "Mocked tests passed but prod migration failed." Integration tests must hit real SQLite. |
 | Co-located test files | vitest convention | `foo.ts` → `foo.test.ts` in same directory. Easy to find, easy to maintain. |
 
 ## What Changes (Work Products)
@@ -82,7 +82,7 @@ The QA research (`docs/research/qa-tester-role-in-dev-pipeline.md`) concluded: f
 ## Acceptance Criteria
 
 1. [ ] `pnpm test` runs vitest and exits cleanly (no hanging processes, no leftover DB files)
-2. [ ] Tests use a fresh in-memory or temp-file SQLite database (not `data/agent-os.db`)
+2. [ ] Tests use a fresh in-memory or temp-file SQLite database (not `data/ditto.db`)
 3. [ ] `process-loader.test.ts`: YAML with human step + input_fields parses correctly
 4. [ ] `process-loader.test.ts`: Circular dependency detection throws an error
 5. [ ] `trust-diff.test.ts`: Known edit pair produces correct severity classification (formatting < 0.1, correction 0.1-0.3, revision 0.3-0.6, rewrite > 0.6)

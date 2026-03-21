@@ -1,7 +1,7 @@
 # Research Report: Trust Visibility UX Patterns
 
 **Date:** 2026-03-19
-**Research question:** How do existing systems show trust/reputation/quality scores to users? What concrete UX patterns and data models can Agent OS build from?
+**Research question:** How do existing systems show trust/reputation/quality scores to users? What concrete UX patterns and data models can Ditto build from?
 **Status:** Complete — pending review
 
 ---
@@ -31,7 +31,7 @@ eBay's seller dashboard is the richest trust progression UX found. Key elements:
 - 12-month lookback for low-volume sellers
 - This means low-volume sellers need consistent performance over a longer period
 
-**UX pattern to extract:** The "projected rate" is powerful. It answers "if I keep doing what I'm doing, what happens next month?" Agent OS could show: "At current correction rate (12%), next evaluation would keep you at Spot-checked. To reach Autonomous, you need <5% correction rate sustained over 20 more runs."
+**UX pattern to extract:** The "projected rate" is powerful. It answers "if I keep doing what I'm doing, what happens next month?" Ditto could show: "At current correction rate (12%), next evaluation would keep you at Spot-checked. To reach Autonomous, you need <5% correction rate sustained over 20 more runs."
 
 **Data model required:**
 ```
@@ -79,7 +79,7 @@ Stack Overflow displays reputation as a single integer (visible on every post, p
 - "Next privilege" indicator shows how many points remain
 - Reputation history tab: chronological feed of every rep-changing event with links to the source (which answer got upvoted, which edit was approved)
 
-**UX pattern to extract:** The privilege ladder is the clearest "what can I do at the next level" pattern. Each threshold is concrete: at 2,000 you can edit without approval. Agent OS equivalent: "At Spot-checked, 30% of outputs are reviewed. At Autonomous, 0% are reviewed unless auto-downgrade triggers."
+**UX pattern to extract:** The privilege ladder is the clearest "what can I do at the next level" pattern. Each threshold is concrete: at 2,000 you can edit without approval. Ditto equivalent: "At Spot-checked, 30% of outputs are reviewed. At Autonomous, 0% are reviewed unless auto-downgrade triggers."
 
 **Data model required:**
 ```
@@ -124,7 +124,7 @@ Discourse uses 5 trust levels (TL0-TL4) with distinct UX characteristics:
 - All automatic requirements are configurable via site settings (searchable by `tl1`, `tl2`, `tl3` prefixes)
 - "Bootstrap mode" auto-promotes early adopters to TL1 to kickstart community
 
-**UX pattern to extract:** The deliberate choice NOT to show a progress bar is worth noting. Discourse prioritizes natural behavior over "gaming toward the next level." Agent OS should consider: do we want process operators to optimize for trust metrics, or do we want trust to emerge naturally? The answer may be "show progress to administrators but not to processes/agents."
+**UX pattern to extract:** The deliberate choice NOT to show a progress bar is worth noting. Discourse prioritizes natural behavior over "gaming toward the next level." Ditto should consider: do we want process operators to optimize for trust metrics, or do we want trust to emerge naturally? The answer may be "show progress to administrators but not to processes/agents."
 
 **Data model required:**
 ```
@@ -306,7 +306,7 @@ GitHub repository rulesets have three enforcement modes:
 
 **Rulesets also layer:** Multiple rulesets can apply to the same branches. The most restrictive combination wins. Collaborators can see which rules apply to a branch through the web UI, git client, and CLI.
 
-**UX pattern to extract:** This is directly applicable to trust tier changes. Before upgrading from Supervised to Spot-checked, Agent OS could show: "In the last 20 runs, if this process had been at Spot-checked, 6 runs would NOT have been reviewed. Of those 6, all were clean approvals — no corrections were missed." This is "evaluate mode for trust" — simulating what would have happened at a different tier.
+**UX pattern to extract:** This is directly applicable to trust tier changes. Before upgrading from Supervised to Spot-checked, Ditto could show: "In the last 20 runs, if this process had been at Spot-checked, 6 runs would NOT have been reviewed. Of those 6, all were clean approvals — no corrections were missed." This is "evaluate mode for trust" — simulating what would have happened at a different tier.
 
 **Data model required:**
 ```
@@ -336,7 +336,7 @@ Stripe's Connect platform has a capabilities model where connected accounts must
 
 **The preview pattern:** Stripe's API allows platforms to preview requirements BEFORE requesting a capability. This means the UI can show: "To accept card payments, you'll need to provide: business address, tax ID, bank account details, identity verification." The user sees the full cost of an upgrade before committing.
 
-**UX pattern to extract:** Agent OS could show: "To upgrade to Autonomous, these conditions must be met: [scorecard]. Additionally, auto-downgrade triggers will be set at: correction rate >30%, any rejection, significant input change. Are you comfortable with this?" This previews not just the benefits but the obligations of a higher trust tier.
+**UX pattern to extract:** Ditto could show: "To upgrade to Autonomous, these conditions must be met: [scorecard]. Additionally, auto-downgrade triggers will be set at: correction rate >30%, any rejection, significant input change. Are you comfortable with this?" This previews not just the benefits but the obligations of a higher trust tier.
 
 ---
 
@@ -414,7 +414,7 @@ Discourse provides two levels of trust control:
 - Admins can make promotion easier or harder for the whole community
 - "Bootstrap mode" exists for new communities — relaxes requirements temporarily
 
-**UX pattern to extract:** Agent OS Trust Control (Primitive 11) already captures this well. Key additions from Discourse: the ability to configure thresholds system-wide (not just per-process), and the concept of "bootstrap mode" where new processes have relaxed requirements.
+**UX pattern to extract:** Ditto Trust Control (Primitive 11) already captures this well. Key additions from Discourse: the ability to configure thresholds system-wide (not just per-process), and the concept of "bootstrap mode" where new processes have relaxed requirements.
 
 ### GitHub Organization Permission Management
 
@@ -428,15 +428,15 @@ GitHub's five-level role hierarchy (Read, Triage, Write, Maintain, Admin) demons
 - **Team-based assignment:** Roles assigned to teams, not just individuals
 - **Audit logging:** Permission changes are tracked in the org audit log (accessible to owners only)
 
-**UX pattern to extract:** The team-based assignment pattern is relevant. In Agent OS, trust might eventually be managed at the "process category" level (all invoice processes start at Supervised) with per-process overrides. The org-level defaults + per-entity overrides pattern is well-proven.
+**UX pattern to extract:** The team-based assignment pattern is relevant. In Ditto, trust might eventually be managed at the "process category" level (all invoice processes start at Supervised) with per-process overrides. The org-level defaults + per-entity overrides pattern is well-proven.
 
 ---
 
-## 6. Synthesis: Patterns for Agent OS Trust Visibility
+## 6. Synthesis: Patterns for Ditto Trust Visibility
 
 ### Pattern Catalog
 
-| # | Pattern | Source | Agent OS application |
+| # | Pattern | Source | Ditto application |
 |---|---------|--------|---------------------|
 | 1 | **Multi-metric status card** | eBay seller dashboard | Trust Control shows approval rate, correction rate, trend, projected status |
 | 2 | **Peer comparison** | eBay service metrics | Compare process performance against similar processes (same category/domain) |
@@ -457,7 +457,7 @@ GitHub's five-level role hierarchy (Read, Triage, Write, Maintain, Admin) demons
 | 17 | **System-wide threshold config** | Discourse admin | Configure trust requirements at org level, override per process |
 | 18 | **Bootstrap mode** | Discourse | Relaxed trust requirements for new deployments |
 
-### Recommended Data Model for Agent OS Trust Dashboard
+### Recommended Data Model for Ditto Trust Dashboard
 
 Combining the patterns above, the backend needs to serve these data structures:
 
@@ -562,11 +562,11 @@ interface TrustConfig {
 }
 ```
 
-### Key Design Decisions for Agent OS
+### Key Design Decisions for Ditto
 
 1. **Show progression or not?** Discourse deliberately hides progress bars. Stack Overflow shows them prominently. Recommendation: show progression to the human operator (who governs the process), but structure it as a scorecard ("4 of 5 conditions met") not a progress bar (which implies inevitability).
 
-2. **Evaluate mode before upgrade.** GitHub's rulesets evaluate mode is the strongest pattern found. Before any trust upgrade, Agent OS should simulate: "of the runs that WOULD have skipped review at the new tier, how many actually needed correction?" This gives the human concrete evidence for their decision.
+2. **Evaluate mode before upgrade.** GitHub's rulesets evaluate mode is the strongest pattern found. Before any trust upgrade, Ditto should simulate: "of the runs that WOULD have skipped review at the new tier, how many actually needed correction?" This gives the human concrete evidence for their decision.
 
 3. **Trust budget metaphor.** The SLO error budget metaphor translates directly: the process has a "trust budget" that corrections consume. When the budget is exhausted, auto-downgrade triggers. Show remaining budget as a percentage with a burn rate indicator.
 
@@ -576,7 +576,7 @@ interface TrustConfig {
 
 ---
 
-## 7. Relationship to Existing Agent OS Design
+## 7. Relationship to Existing Ditto Design
 
 The Trust Control primitive (Primitive 11 in `docs/human-layer.md`) already captures several of these patterns:
 - Earned data section (approval rate, correction rate, last 10 runs)
@@ -599,5 +599,5 @@ The Trust Control primitive (Primitive 11 in `docs/human-layer.md`) already capt
 No existing landscape evaluations need updating based on this research. The patterns discovered are UX conventions from established platforms, not new frameworks requiring evaluation.
 
 New pattern sources worth tracking:
-- Backstage Soundcheck / Cortex scorecards — for scorecard UI patterns if Agent OS builds a web dashboard
+- Backstage Soundcheck / Cortex scorecards — for scorecard UI patterns if Ditto builds a web dashboard
 - GitHub rulesets evaluate mode — for simulation-before-change patterns

@@ -2,22 +2,22 @@
 
 **Date:** 2026-03-20
 **Researcher:** Dev Researcher
-**Question:** Should Agent OS have a dedicated QA / Tester command skill in its development pipeline flow?
+**Question:** Should Ditto have a dedicated QA / Tester command skill in its development pipeline flow?
 **Status:** Complete
 
 ---
 
 ## Context
 
-The Agent OS dev process currently has seven roles: PM, Designer, Researcher, Architect, Builder, Reviewer, Documenter. The architecture spec references a QA agent role in the product's coding team (Layer 2), but the dev process that builds Agent OS itself has no explicit QA/tester skill.
+The Ditto dev process currently has seven roles: PM, Designer, Researcher, Architect, Builder, Reviewer, Documenter. The architecture spec references a QA agent role in the product's coding team (Layer 2), but the dev process that builds Ditto itself has no explicit QA/tester skill.
 
 This research investigates: what do existing projects do? Is QA a distinct concern from review? What patterns exist?
 
 ---
 
-## 1. Current State in Agent OS
+## 1. Current State in Ditto
 
-### Dev Process (how Agent OS gets built)
+### Dev Process (how Ditto gets built)
 
 Testing is currently distributed across two roles:
 
@@ -32,7 +32,7 @@ There is no role that:
 - Performs exploratory testing (trying to break things)
 - Verifies the smoke test section of the brief
 
-### Product Architecture (what Agent OS will orchestrate)
+### Product Architecture (what Ditto will orchestrate)
 
 The architecture spec defines QA as a distinct agent role in the coding team:
 
@@ -153,7 +153,7 @@ Qodo's blog on single vs multi-agent code review (qodo.ai/blog/single-agent-vs-m
 
 ---
 
-## 4. Current Coverage in Agent OS Dev Process
+## 4. Current Coverage in Ditto Dev Process
 
 Factual mapping of which QA activities are currently assigned to a role:
 
@@ -181,7 +181,7 @@ Both roles touch testing concerns. Neither role's primary contract is testing.
 
 ## 5. Product Architecture vs Dev Process Comparison
 
-The Agent OS product architecture defines these quality roles for the coding team:
+The Ditto product architecture defines these quality roles for the coding team:
 
 | Product role | Product responsibility | Dev process role |
 |-------------|----------------------|-----------------|
@@ -197,12 +197,12 @@ The product architecture separates QA from review as distinct agent roles. The d
 
 The following observations are surfaced for the Architect to evaluate, not as recommendations:
 
-**If a QA role were added**, the patterns suggest it would cover: running smoke tests, running the full test suite, writing tests for new code, and adversarial behavioral testing. gstack and agency-agents both place QA between builder output and architectural review. gstack's three QA tiers (Quick/Standard/Exhaustive) parallel Agent OS's trust tiers.
+**If a QA role were added**, the patterns suggest it would cover: running smoke tests, running the full test suite, writing tests for new code, and adversarial behavioral testing. gstack and agency-agents both place QA between builder output and architectural review. gstack's three QA tiers (Quick/Standard/Exhaustive) parallel Ditto's trust tiers.
 
 **If QA remains distributed**, the Builder's contract would need to be strengthened (explicitly require `pnpm test`, own smoke test execution) and the Reviewer's checklist point 11 would need to specify who verifies behavioral correctness.
 
 **Project-specific factors the Architect should weigh:**
-- Agent OS is currently CLI-only — browser-based QA (gstack's primary method) doesn't yet apply
+- Ditto is currently CLI-only — browser-based QA (gstack's primary method) doesn't yet apply
 - The CrewAI practitioner finding that LLM-based QA was unreliable suggests script-based testing may be more effective than an LLM "QA agent"
 - The project is solo-founder with conscious role-switching — each additional role adds cognitive overhead
 - The product's own architecture already defines QA as distinct from review, creating a potential dogfooding question
@@ -213,7 +213,7 @@ The following observations are surfaced for the Architect to evaluate, not as re
 
 For completeness, reasons the dev process might not need a separate QA skill:
 
-1. **Current project scale**: Agent OS is a solo-founder project. The Builder can run tests. Adding another role adds cognitive overhead for role-switching.
+1. **Current project scale**: Ditto is a solo-founder project. The Builder can run tests. Adding another role adds cognitive overhead for role-switching.
 2. **The Aider pattern works**: Integrating test-running into the Builder's loop (run tests, fix, repeat) may be simpler than a separate QA step.
 3. **CrewAI's lesson**: LLM-based QA agents were found unreliable in practice. Programmatic checks (scripts, test suites) may be more reliable than an LLM "trying to break things."
 4. **Builder already self-reviews**: The Builder contract includes self-review against acceptance criteria. Adding QA may be redundant if the Builder is disciplined.
@@ -246,7 +246,7 @@ For completeness, reasons the dev process might not need a separate QA skill:
 | Verify-fix loop integrated into builder | Aider (github.com/paul-gauthier/aider) | Auto-lint/test-after-edit feature documented at aider.chat |
 | Self-verify during coding | OpenAI Codex | openai.com/index/introducing-codex |
 | QA agent unreliability | CrewAI practitioner (Ondrej Popelka) | "CrewAI: Practical Lessons Learned" — ondrej-popelka.medium.com/crewai-practical-lessons-learned-b696baa67242 |
-| QA as separate agent in coding team | Agent OS architecture.md | Agent Roles table (line ~831), Process 1 step 4 |
+| QA as separate agent in coding team | Ditto architecture.md | Agent Roles table (line ~831), Process 1 step 4 |
 | Quality gate with dev↔QA retry | agency-agents | `specialized/agents-orchestrator.md` |
 | Browser-based behavioral testing | gstack | `/qa` skill — Chromium via Playwright |
 | AutoGen GroupChat with runner role | AutoGen (github.com/microsoft/autogen) | docs/notebooks/agentchat_groupchat |

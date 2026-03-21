@@ -29,7 +29,7 @@ Every process has three competing constraints that the user implicitly trades of
 
 The user sets their constraints; the system optimises within them. This mirrors the CPC (cost-per-click) model in advertising: higher bid = more platform optimisation on your behalf = less manual work. Lower bid = cheaper but requires more hands-on management.
 
-In Agent OS terms:
+In Ditto terms:
 
 | User wants | System does |
 |-----------|-------------|
@@ -54,7 +54,7 @@ Current architecture treats budget as a spending limit (Paperclip pattern: alert
 
 The self-improvement meta-process (Phase 9) already scans for quality improvements. Adding cost-per-outcome as a signal means it also scans for efficiency improvements: "This process delivers the same quality with Haiku as it did with Sonnet — suggest model downgrade."
 
-No existing system tracks cost-per-outcome or treats budget as a target for meta-process optimisation. Existing budget controls are guardrails (don't exceed), not goals (actively reduce). This is Original to Agent OS.
+No existing system tracks cost-per-outcome or treats budget as a target for meta-process optimisation. Existing budget controls are guardrails (don't exceed), not goals (actively reduce). This is Original to Ditto.
 
 ## The Interface Implication
 

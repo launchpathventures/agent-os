@@ -1,27 +1,27 @@
 # Research: Pre-Baked Agents, Process Templates, and Cold-Start Architecture
 
 **Date:** 2026-03-19
-**Research question:** Should Agent OS ship with core system agents and gold-standard process templates? What exists in the landscape? How does this relate to the cold-start problem and process analysis?
-**Triggered by:** User observation that Agent OS must be opinionated about process analysis and creation — agents should either have local access to gold-standard templates or embody them
+**Research question:** Should Ditto ship with core system agents and gold-standard process templates? What exists in the landscape? How does this relate to the cold-start problem and process analysis?
+**Triggered by:** User observation that Ditto must be opinionated about process analysis and creation — agents should either have local access to gold-standard templates or embody them
 **Status:** Complete — awaiting review
 
 ---
 
 ## Context
 
-Agent OS currently has:
+Ditto currently has:
 - 5 process YAML files in `processes/` — all for the coding domain (dogfood)
 - 10 agent roles in the Claude adapter — all coding-specific
 - A process discovery research report (`docs/research/process-discovery-from-organizational-data.md`) describing how to discover processes from existing org data
 - A process-driven skill orchestration report (`docs/research/process-driven-skill-orchestration.md`) showing the engine already drives execution automatically
 
-What Agent OS does NOT have:
+What Ditto does NOT have:
 - Any system agents that are part of the platform itself (not user-configured)
 - Any gold-standard process templates for non-coding domains
 - Any process taxonomy or classification engine
 - Any cold-start onboarding flow
 
-The user's question: shouldn't Agent OS ship with opinionated, best-in-class agents and process templates — some essential to the platform's own operation, others ready for user adaptation?
+The user's question: shouldn't Ditto ship with opinionated, best-in-class agents and process templates — some essential to the platform's own operation, others ready for user adaptation?
 
 ---
 
@@ -29,9 +29,9 @@ The user's question: shouldn't Agent OS ship with opinionated, best-in-class age
 
 The user identifies a critical distinction:
 
-### Category 1: System Agents (Essential to Agent OS Itself)
+### Category 1: System Agents (Essential to Ditto Itself)
 
-Agents that Agent OS needs to do what it does. These are not user-configured — they ARE the platform. They operate on the platform's behalf, governing, discovering, improving, and onboarding.
+Agents that Ditto needs to do what it does. These are not user-configured — they ARE the platform. They operate on the platform's behalf, governing, discovering, improving, and onboarding.
 
 ### Category 2: Domain Process Templates (Ready for User Adaptation)
 
@@ -58,7 +58,7 @@ Across all platforms researched, only one clear example of a true system agent e
 
 **Gap:** Governance across all platforms is implemented as dashboards and infrastructure, not as autonomous agents. No platform ships discovery agents, self-improvement agents, or onboarding agents that operate autonomously within their own product.
 
-### Finding 2: Agent OS Already Describes System Agents — But Hasn't Named Them
+### Finding 2: Ditto Already Describes System Agents — But Hasn't Named Them
 
 The architecture spec already describes several functions that are system agents in all but name:
 
@@ -72,7 +72,7 @@ The architecture spec already describes several functions that are system agents
 
 ### Finding 3: The Process Analysis Phase Implies Specific System Agents
 
-The user's observation about the process analysis phase reveals agents that must exist for Agent OS to function as described:
+The user's observation about the process analysis phase reveals agents that must exist for Ditto to function as described:
 
 **Analysis agents (cold-start and ongoing):**
 - **Process Discoverer** — connects to org data, identifies recurring patterns, classifies against industry standards
@@ -140,12 +140,12 @@ Every automation platform ships templates, but they're workflow-level, not proce
 
 **No AI-accessible version of any framework exists.** No project has built a JSON/API/knowledge-graph version of APQC, ITIL, or any standard process taxonomy. The closest is the D365 catalog on GitHub (Excel format, open source).
 
-### Finding 6: APQC Is the Most Viable Base for Agent OS Templates
+### Finding 6: APQC Is the Most Viable Base for Ditto Templates
 
 APQC stands out:
 - **Royalty-free license** (appears embeddable — license terms in download file)
 - **Cross-industry + 18 industry-specific versions** — covers all our personas
-- **5-level hierarchy** maps to Agent OS process definition structure
+- **5-level hierarchy** maps to Ditto process definition structure
 - **Machine-readable** (Excel, convertible to YAML/JSON)
 - **1,000+ processes** — comprehensive base knowledge
 
@@ -173,7 +173,7 @@ Every platform relies on the same pattern: browse templates, pick one, customize
 
 **Gap:** No platform has a discovery agent that interviews users about their work, connects to their existing tools, identifies what processes they already run, and recommends templates. The closest is ClearWork's hybrid approach (narrative + data), but it produces blueprints for RPA platforms, not executable process definitions.
 
-### Finding 8: Agent OS's Cold-Start Should Be Three-Layered
+### Finding 8: Ditto's Cold-Start Should Be Three-Layered
 
 Based on the landscape gaps, the cold-start problem has three layers that compose:
 
@@ -190,7 +190,7 @@ These layers compose: Discovery finds the patterns (C), the Analysis agent helps
 
 ---
 
-## Mapping to Agent OS Personas
+## Mapping to Ditto Personas
 
 ### What templates each persona needs at cold-start
 
@@ -275,7 +275,7 @@ The architecture spec already accommodates this:
 
 ---
 
-## What the Landscape Does NOT Have (Gaps / Original to Agent OS)
+## What the Landscape Does NOT Have (Gaps / Original to Ditto)
 
 1. **Process-level templates with governance declarations** — nobody ships templates that include quality criteria, trust configuration, feedback loops, and learning. Everyone ships workflow templates (trigger → action) or agent templates (role + tools).
 2. **System agents that operate the platform autonomously** — governance, discovery, improvement are all dashboards and infrastructure, not autonomous agents (except Microsoft's Red Teaming Agent).
@@ -299,11 +299,11 @@ The architecture spec already accommodates this:
 | Role-based starter kits for cold-start | Zapier | Established pattern |
 | CLI scaffolding for agent creation | CrewAI | Established pattern |
 | AI-guided process interview | ClearWork, PKAI (academic) | Emerging |
-| Gold-standard templates as executable process definitions with trust | Not established | Original to Agent OS |
-| System agents for governance, discovery, improvement | Not established (except Microsoft Red Teaming) | Original to Agent OS |
-| Cold-start via AI-driven process discovery from org data | Not established | Original to Agent OS |
-| Template library as dual-purpose: user browsable + agent training material | Not established | Original to Agent OS |
-| Industry taxonomy (APQC) converted to executable process templates | Not established | Original to Agent OS |
+| Gold-standard templates as executable process definitions with trust | Not established | Original to Ditto |
+| System agents for governance, discovery, improvement | Not established (except Microsoft Red Teaming) | Original to Ditto |
+| Cold-start via AI-driven process discovery from org data | Not established | Original to Ditto |
+| Template library as dual-purpose: user browsable + agent training material | Not established | Original to Ditto |
+| Industry taxonomy (APQC) converted to executable process templates | Not established | Original to Ditto |
 
 ---
 
@@ -318,7 +318,7 @@ The current `docs/landscape.md` does not include:
 - Microsoft AI Foundry Red Teaming Agent (only known system agent pattern)
 - ClearWork (hybrid AI-guided process discovery)
 
-If pre-baked agents and process templates become an Agent OS capability, the landscape should be updated to include these.
+If pre-baked agents and process templates become an Ditto capability, the landscape should be updated to include these.
 
 Sources:
 - [APQC Process Classification Framework](https://www.apqc.org/process-frameworks)

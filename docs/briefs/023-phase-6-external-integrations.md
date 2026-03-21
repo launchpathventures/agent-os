@@ -12,7 +12,7 @@
 
 ## Context
 
-Phase 5 proved the full work evolution cycle end-to-end. Three non-coding templates exist (invoice-follow-up, content-review, incident-response) but can't connect to external systems. Without integrations, Agent OS can only run the dev pipeline. Phase 6 is the gateway to the outcome-owner audience — connecting processes to email, accounting, communication, and storage services.
+Phase 5 proved the full work evolution cycle end-to-end. Three non-coding templates exist (invoice-follow-up, content-review, incident-response) but can't connect to external systems. Without integrations, Ditto can only run the dev pipeline. Phase 6 is the gateway to the outcome-owner audience — connecting processes to email, accounting, communication, and storage services.
 
 ADR-005 (proposed) defines the integration architecture: multi-protocol (CLI, MCP, REST), two-purpose (agent tool use, process I/O), brokered credentials, all calls traverse harness. Research (`docs/research/external-integrations-architecture.md`) evaluated 7 options and 6 patterns. The design is ready to build.
 

@@ -90,7 +90,7 @@ export const statusCommand = defineCommand({
         console.log(jsonOutput({ pending: [], processHealth: [], runningQuietly: [] }));
         return;
       }
-      console.log("Welcome to Agent OS. Run `pnpm cli sync` to get started.");
+      console.log("Welcome to Ditto. Run `pnpm cli sync` to get started.");
       return;
     }
 
@@ -221,7 +221,7 @@ export const statusCommand = defineCommand({
     }
 
     // Human-readable output (Designer spec)
-    console.log(`Agent OS \u2014 Status\n`);
+    console.log(`Ditto \u2014 Status\n`);
 
     // NEEDS YOUR ATTENTION section (AC-4)
     const totalPending = pendingItems.length + needsAttention.length;

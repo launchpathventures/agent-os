@@ -11,7 +11,7 @@ There is substantial and growing evidence that structured cognitive approaches i
 
 The field is converging on a key insight: **cognitive tools should be available, not mandated**. The MeMo framework (Guan et al., 2024) demonstrates that LLMs can autonomously select appropriate mental models when given a toolkit, achieving near-SOTA across diverse tasks without task-specific prompt engineering. The brain-inspired MAP architecture (Webb et al., 2025) shows that decomposing cognition into specialized modules — each handling a distinct cognitive function — dramatically outperforms monolithic approaches. CoALA (Sumers et al., 2024) provides the theoretical framework organizing this around memory types, action spaces, and decision cycles.
 
-The gap Agent OS would fill is clear: **nobody has built a practical system that composes cognitive tools dynamically based on task context within a process-driven harness**. Existing frameworks are either purely academic (CoALA, MAP), focused on prompt optimization (DSPy), or provide static role prompting (CrewAI, AutoGen). A system that manages cognitive posture — selecting thinking approaches, managing working memory, enabling metacognitive monitoring, and balancing structure with exploratory freedom — as a layer of the agent harness does not exist in production.
+The gap Ditto would fill is clear: **nobody has built a practical system that composes cognitive tools dynamically based on task context within a process-driven harness**. Existing frameworks are either purely academic (CoALA, MAP), focused on prompt optimization (DSPy), or provide static role prompting (CrewAI, AutoGen). A system that manages cognitive posture — selecting thinking approaches, managing working memory, enabling metacognitive monitoring, and balancing structure with exploratory freedom — as a layer of the agent harness does not exist in production.
 
 ## Evidence Base
 
@@ -19,61 +19,61 @@ The gap Agent OS would fill is clear: **nobody has built a practical system that
 
 **Chain-of-Thought Prompting (Wei et al., 2022)**
 Generating intermediate reasoning steps improves LLM performance on arithmetic, commonsense, and symbolic reasoning. Effect sizes: +10-15% on GSM8K for non-reasoning models. However, the Wharton Prompting Science Report (Meincke et al., 2025) shows CoT's value is decreasing: non-reasoning models gain 4-14%, reasoning models gain only 2-3% at 20-80% time cost penalty. CoT is now largely built into frontier models.
-*Agent OS mapping:* CoT is table stakes — the system should enable it but not force it. More important is knowing *when* to apply structured reasoning vs letting the model reason natively.
+*Ditto mapping:* CoT is table stakes — the system should enable it but not force it. More important is knowing *when* to apply structured reasoning vs letting the model reason natively.
 
 **Self-Consistency (Wang et al., 2022)**
 Sampling multiple reasoning paths and selecting the most consistent answer. Effect sizes: GSM8K +17.9%, SVAMP +11.0%, AQuA +12.2%, StrategyQA +6.4%, ARC-challenge +3.9%. One of the most robust improvements in the prompting literature.
-*Agent OS mapping:* High-stakes decisions in processes could use multi-path sampling with consistency voting. This is a cognitive tool the harness should offer, particularly for trust-sensitive steps.
+*Ditto mapping:* High-stakes decisions in processes could use multi-path sampling with consistency voting. This is a cognitive tool the harness should offer, particularly for trust-sensitive steps.
 
 **Reflexion (Shinn et al., 2023)**
 Self-reflecting agents that maintain verbal reflections in episodic memory and use them to improve subsequent attempts. GPT-4 + Reflexion achieved 88% pass@1 on HumanEval (vs ~67% without). Published at NeurIPS 2023.
-*Agent OS mapping:* Direct parallel to process step feedback loops. The harness already has feedback recording — extending it to structured self-reflection between process iterations is a natural fit.
+*Ditto mapping:* Direct parallel to process step feedback loops. The harness already has feedback recording — extending it to structured self-reflection between process iterations is a natural fit.
 
 **Tree-of-Thought / LATS (Yao et al., 2023; Zhou et al., 2024)**
 LATS (Language Agent Tree Search) unifies reasoning, acting, and planning using Monte Carlo Tree Search with LM-powered value functions and self-reflections. Achieved 92.7% pass@1 on HumanEval with GPT-4. Published at ICML 2024.
-*Agent OS mapping:* For complex planning steps in processes, tree search over reasoning paths could be offered as a cognitive strategy. The value function concept maps to the trust/confidence system.
+*Ditto mapping:* For complex planning steps in processes, tree search over reasoning paths could be offered as a cognitive strategy. The value function concept maps to the trust/confidence system.
 
 **Modular Agentic Planner / MAP (Webb et al., 2025)**
 Brain-inspired architecture decomposing planning into 6 specialized LLM modules (Actor, Monitor, Predictor, Evaluator, TaskDecomposer, Orchestrator), each inspired by distinct prefrontal cortex regions. Published in Nature Communications.
 Effect sizes: Tower of Hanoi 74% solved (vs 11% GPT-4 zero-shot), Graph Traversal 95-100%, StrategyQA 87.7%. Generated <1% invalid actions.
-*Agent OS mapping:* This is the strongest evidence for modular cognitive architecture. The Monitor (conflict detection), Predictor (state forecasting), and Evaluator (goal proximity) map directly to harness capabilities. The key insight is that specialization across cognitive functions dramatically outperforms generalist prompting for planning tasks.
+*Ditto mapping:* This is the strongest evidence for modular cognitive architecture. The Monitor (conflict detection), Predictor (state forecasting), and Evaluator (goal proximity) map directly to harness capabilities. The key insight is that specialization across cognitive functions dramatically outperforms generalist prompting for planning tasks.
 
 ### Promising Approaches (moderate evidence)
 
 **MeMo / Generalist Prompting via Mental Models (Guan et al., 2024)**
 Rather than prescribing specific prompting strategies per task, MeMo provides LLMs with a toolkit of mental models (first principles, inversion, analogy, abstraction, cause-effect) and lets the model autonomously select which to apply. Achieves near-SOTA on STEM, logical reasoning, and commonsense in zero-shot settings. Example: Computer Science tasks 61.3% vs 56.3% for CoT.
-*Agent OS mapping:* This is the strongest evidence for the "provide tools, don't prescribe" approach. The cognitive architecture should offer mental models as composable tools rather than mandating specific reasoning strategies.
+*Ditto mapping:* This is the strongest evidence for the "provide tools, don't prescribe" approach. The cognitive architecture should offer mental models as composable tools rather than mandating specific reasoning strategies.
 
 **Metacognition Module for Agents (Toy et al., 2024)**
 Added a metacognition module to generative agents that periodically self-evaluates progress, generates introspective questions, and stores "meta-memories" for future retrieval. Outperformed all other modules by 33% across believability, learning, goal achievement, cognitive performance, and survival metrics. Built on System 1/System 2 distinction.
-*Agent OS mapping:* Direct implementation pattern for process-level metacognition. Agents could periodically ask "am I making progress toward the process goal?" and adjust strategy. This is the intention-tracking mechanism the orchestrator needs.
+*Ditto mapping:* Direct implementation pattern for process-level metacognition. Agents could periodically ask "am I making progress toward the process goal?" and adjust strategy. This is the intention-tracking mechanism the orchestrator needs.
 
 **Cognitive Design Patterns for LLM Agents (Wray, Kirk & Laird, 2025)**
 Catalogs recurring cognitive patterns from Soar/ACT-R applicable to LLM agents: observe-decide-act, three-stage memory commitment (generate-select-commit with reconsideration), hierarchical decomposition, multiple memory types. Published at AGI 2025.
 Key gaps identified: LLMs lack reliable reconsideration (abandoning prior commitments), knowledge compilation (caching multi-step reasoning into compact forms), and deliberate episodic memory retrieval.
-*Agent OS mapping:* The reconsideration pattern is critical — agents need the ability to stop unproductive approaches and switch strategies. The harness should enable this as an executive function.
+*Ditto mapping:* The reconsideration pattern is critical — agents need the ability to stop unproductive approaches and switch strategies. The harness should enable this as an executive function.
 
 **Cognitive LLMs / LLM-ACTR (Wu et al., 2024-2025)**
 Hybrid neuro-symbolic architecture integrating ACT-R cognitive architecture with LLMs. Extracts ACT-R decision-making knowledge as latent neural representations and injects them into trainable LLM adapter layers. Shows improved task performance and grounded decision-making vs LLM-only baselines.
-*Agent OS mapping:* While Agent OS won't do adapter-layer injection, the pattern of informing LLMs with structured cognitive process knowledge (perception → memory → goal-setting → action) is directly applicable through prompting and context engineering.
+*Ditto mapping:* While Ditto won't do adapter-layer injection, the pattern of informing LLMs with structured cognitive process knowledge (perception → memory → goal-setting → action) is directly applicable through prompting and context engineering.
 
 **The Prompting Inversion (Bernstein et al., 2025)**
 Critical finding: constrained, rule-based prompting ("Sculpting") improves mid-tier models (GPT-4o: 97% vs 93%) but *hurts* frontier models (GPT-5: 94% vs 96.36%). Mechanism: "Guardrail-to-Handcuff" transition where constraints preventing common-sense errors in weaker models induce hyper-literalism in stronger ones.
-*Agent OS mapping:* The cognitive architecture must be model-capability-aware. Simpler prompts for more capable models, more scaffolding for less capable ones. This directly argues against one-size-fits-all cognitive framing.
+*Ditto mapping:* The cognitive architecture must be model-capability-aware. Simpler prompts for more capable models, more scaffolding for less capable ones. This directly argues against one-size-fits-all cognitive framing.
 
 ### Untested Hypotheses (theoretical basis only)
 
 **Dynamic Cognitive Posture Selection**
 No system currently selects a complete "cognitive posture" (combination of thinking approach, uncertainty handling, communication style, and metacognitive depth) based on task type and context. MeMo touches mental model selection; MAP touches module composition; but nobody combines these with communication style and metacognitive depth.
-*Agent OS mapping:* This is the novel territory. A cognitive posture = {reasoning strategy + uncertainty expression + monitoring depth + communication register}. The harness selects or adjusts this per process step.
+*Ditto mapping:* This is the novel territory. A cognitive posture = {reasoning strategy + uncertainty expression + monitoring depth + communication register}. The harness selects or adjusts this per process step.
 
 **Intention Tracking vs Task Tracking**
 While task tracking (is the task done?) is well-implemented, intention tracking (is this approach serving the original goal?) has only been explored in the metacognition paper (Toy et al., 2024). No production system distinguishes between these.
-*Agent OS mapping:* Process goals are intentions; step completions are tasks. The orchestrator needs both.
+*Ditto mapping:* Process goals are intentions; step completions are tasks. The orchestrator needs both.
 
 **Serendipitous Discovery in Structured Processes**
 Research on exploration-exploitation in LLMs (ExpLang, 2026) shows that diverse reasoning paths produce superior outcomes. Multi-agent systems exhibit emergent behaviors not explicitly programmed. But no framework systematically balances structured process execution with space for unexpected discoveries.
-*Agent OS mapping:* Some process steps should explicitly allow for exploratory reasoning. The cognitive architecture could flag "exploration-mode" steps where the agent has freedom to notice unexpected patterns.
+*Ditto mapping:* Some process steps should explicitly allow for exploratory reasoning. The cognitive architecture could flag "exploration-mode" steps where the agent has freedom to notice unexpected patterns.
 
 ## Executive Function in AI
 
@@ -113,7 +113,7 @@ Nobody has built a unified executive function layer for AI agents that:
 4. Compiles successful reasoning patterns for reuse
 5. Balances multiple competing goals
 
-This is the gap Agent OS can fill. The harness already has process steps, feedback recording, and trust tiers. Adding executive function means:
+This is the gap Ditto can fill. The harness already has process steps, feedback recording, and trust tiers. Adding executive function means:
 - **Working memory management** = context assembly per step (already partially built)
 - **Progress monitoring** = metacognitive checks between steps (new)
 - **Strategy switching** = process branching based on agent self-assessment (new)
@@ -148,7 +148,7 @@ The evidence converges on a clear design principle: **scaffolding, not prescript
 
 The MeMo finding is the clearest signal: give agents a *toolkit* of mental models and let them choose. The MAP finding adds: decompose cognition into *specialized modules* that collaborate. The Prompting Inversion adds: *adapt the level of structure to the model's capability*.
 
-**Design implication for Agent OS:** The cognitive architecture should be a layer that:
+**Design implication for Ditto:** The cognitive architecture should be a layer that:
 1. Offers cognitive tools (mental models, reflection prompts, uncertainty calibration)
 2. Manages cognitive infrastructure (working memory, context assembly, metacognitive monitoring)
 3. Sets cognitive context without mandating cognitive behavior (framing, not scripting)
@@ -161,7 +161,7 @@ The MeMo finding is the clearest signal: give agents a *toolkit* of mental model
 
 **DSPy (Stanford)**
 Programmatic prompt optimization that compiles high-level programs into optimized prompts. Supports ChainOfThought, ReAct, and custom modules. The GEPA optimizer (2025) adaptively evolves prompts using genetic algorithms with self-reflection. DSPy treats reasoning strategies as programmatic abstractions, not cognitive postures.
-*Composition opportunity:* DSPy's optimization loop could inform how Agent OS tunes cognitive parameters over time. The "compile" concept — turning declarative intent into optimized prompts — maps to process step preparation.
+*Composition opportunity:* DSPy's optimization loop could inform how Ditto tunes cognitive parameters over time. The "compile" concept — turning declarative intent into optimized prompts — maps to process step preparation.
 *Source:* https://github.com/stanfordnlp/dspy (MIT License)
 
 **LangGraph / LangChain**
@@ -170,7 +170,7 @@ Stateful agent framework with graph-based workflow orchestration. 24,800+ GitHub
 
 **CrewAI**
 Role-based multi-agent orchestration. 44,300+ GitHub stars. Assigns personas and tools to agents. Uses role prompting but not cognitive strategy selection — agents get a role description, not a thinking toolkit.
-*Composition opportunity:* Role decomposition patterns, but Agent OS needs to go beyond static roles to dynamic cognitive postures.
+*Composition opportunity:* Role decomposition patterns, but Ditto needs to go beyond static roles to dynamic cognitive postures.
 
 **AutoGen (Microsoft)**
 Multi-agent conversation framework. 200,000+ downloads in first 5 months. Focuses on agent-to-agent dialogue patterns. No cognitive architecture — agents are defined by system prompts and tools.
@@ -180,7 +180,7 @@ Multi-agent conversation framework. 200,000+ downloads in first 5 months. Focuse
 **ACE Framework (David Shapiro)**
 Six-layer cognitive architecture: Aspirational → Global Strategy → Agent Model → Executive Function → Cognitive Control → Task Prosecution. Top-down control with ethics/mission layer above all else. OSI-model inspired. Conceptual rather than production-ready.
 *Source:* https://github.com/daveshap/ACE_Framework
-*Composition opportunity:* The layered architecture concept maps well to Agent OS's own layer model. The Executive Function and Cognitive Control layers are directly relevant.
+*Composition opportunity:* The layered architecture concept maps well to Ditto's own layer model. The Executive Function and Cognitive Control layers are directly relevant.
 
 **Reflexion (Shinn et al.)**
 Self-reflecting agent framework with verbal reinforcement learning. Open source implementation.
@@ -230,7 +230,7 @@ AWS published a structured guide describing LLM-augmented cognition as "an LLM w
 
 6. **Exploration-exploitation management for agent reasoning.** No system deliberately manages the balance between structured reasoning and exploratory/creative thinking within process execution.
 
-### Where Agent OS Would Be Genuinely Novel
+### Where Ditto Would Be Genuinely Novel
 
 The combination of (1) process-driven cognitive architecture, (2) dynamic posture selection, and (3) executive function as a harness layer has no precedent. Individual components exist in research; the composition at the harness level does not.
 
@@ -252,11 +252,11 @@ The combination of (1) process-driven cognitive architecture, (2) dynamic postur
 
 6. **Cognitive posture selection based on task type.** The concept is theoretically grounded (MeMo, MAP) but nobody has tested it in a process-driven context. Start with coarse-grained postures (analytical vs creative vs evaluative) and measure.
 
-7. **Model-adaptive scaffolding depth.** The Prompting Inversion finding is compelling but from a single study. Test whether reducing cognitive scaffolding for more capable models improves Agent OS output quality.
+7. **Model-adaptive scaffolding depth.** The Prompting Inversion finding is compelling but from a single study. Test whether reducing cognitive scaffolding for more capable models improves Ditto output quality.
 
 8. **Strategy switching triggers.** When should an agent abandon its current approach? The Monitor pattern from MAP provides a mechanism, but the triggers (confidence thresholds? iteration counts? goal-distance estimates?) need empirical tuning.
 
-9. **Uncertainty communication calibration.** Steyvers & Peters (2025) show this matters for human-AI collaboration, but the right calibration for Agent OS's trust system needs testing.
+9. **Uncertainty communication calibration.** Steyvers & Peters (2025) show this matters for human-AI collaboration, but the right calibration for Ditto's trust system needs testing.
 
 ### Defer (insufficient evidence)
 

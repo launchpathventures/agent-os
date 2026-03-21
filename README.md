@@ -1,153 +1,84 @@
-# Agent OS
+# Ditto
 
-**Making agentic AI accessible and useful for everyone.**
-
-AI agents are powerful but unusable for most people. They require prompt engineering, workflow design, or developer skills. They can't be trusted without constant supervision. They don't learn from corrections. They don't remember what worked. And they reinvent their approach every time — the same prompt produces different outcomes, not because context shifted, but because nothing durable governs how the work gets done.
-
-Agent OS solves this. It's the structured layer between humans and AI that makes delegation reliable — balancing declarative process (consistent, governed, improving) with intuitive metacognition (adaptive, context-aware, intelligent). So anyone can hand off real work to agents and trust the results.
+**AI that gets better every time you work with it.**
 
 ---
 
+Every AI tool you've tried has the same problem: it doesn't stick.
+
+You correct the quote. Tomorrow, same mistake. You teach it your brand voice. Next week, it's forgotten. You set up an automation. It breaks the moment reality doesn't match the flowchart.
+
+**The problem isn't AI capability. It's that AI has no process, no memory, and no accountability.** It reinvents its approach every time. Nobody's built the layer that makes AI actually reliable.
+
+Ditto is that layer.
+
+---
+
+## What's Actually Different
+
+Not features. Fundamentals.
+
+**Nothing else earns trust.** Every AI tool is all-or-nothing: you supervise everything, or you hope for the best. Ditto starts supervised — you review every output. As the system proves reliable (tracked approval rates, correction rates, consistency), it suggests reducing oversight. You decide. Different processes earn trust independently. Quality drops? Oversight increases automatically. No other system does this.
+
+**Nothing else learns from what you naturally do.** You won't fill out feedback forms. Nobody does. So Ditto learns from your actual work. Edit an output — that's a lesson (the system diffs and stores the correction). Approve — that's confirmation. Reject — that's a correction. After three similar edits: "You always add the sustainability angle. Make this permanent?" One tap. The process improves without you teaching it explicitly. No other system captures feedback this way.
+
+**Nothing else thinks about how to think.** This is the biggest gap in AI today. Every agent framework gives agents tasks and tools. None gives agents the right *mindset* for each task, monitors whether their approach is working, or adapts when it isn't. Ditto does: research gets curiosity, review gets rigour, analysis gets precision. Agents have access to proven reasoning tools and the judgment to choose which to apply. When something isn't working, the system notices — and an honest "I'm not sure about this one" earns *more* trust, not less. No other system has a cognitive architecture for agents.
+
+**Nothing else makes AI work feel like working with a great team.** The morning brief summarises what happened overnight. The review queue shows only what needs your judgment. Autonomous processes run silently — no notifications when things are fine. One queue for everything, from your phone or your desk. The system stays quiet when things are working and tells you why when they're not.
+
+## What This Actually Feels Like
+
+**Week 1:** You describe what's eating your time — quoting, content review, invoice follow-up. The system helps you shape it into a process. You check every output. You correct a few things. The system learns.
+
+**Week 3:** Corrections are rare. The system shows you the data: "Last 20 outputs — 18 approved clean. Want to reduce oversight?" You accept. Now you review samples, not everything.
+
+**Month 2:** You add a second process. Then a third. One morning brief covers all of them. You're making decisions, not doing operations.
+
+**Month 3:** Most processes run on their own. You handle exceptions. The system proposes improvements backed by evidence. You decide. Your evenings are yours again.
+
+This isn't a pitch. It's a working engine — 5 build phases complete, 66 tests passing, 11 processes running, end-to-end work evolution verified.
+
 ## Who This Is For
 
-Agent OS is for **outcome owners** — people responsible for results who need reliable ways to get there. They might have a clear sense of the process, or they might just know what "good" looks like and need a system to help them define, refine, and improve the process over time.
+People who own outcomes — not technology.
 
-They're not prompt engineers, workflow designers, or developers. They're domain experts drowning in operational work:
+- The trades business owner who can't run the business AND do the work
+- The ecommerce director who wants to be strategic but spends all day reacting
+- The team lead who spends half their day reviewing things they've already taught people how to do
+- The technologist who can see 20 things that should be automated but can't build 20 solutions
 
-- A trades business owner who checks every quote personally because the last time he didn't, the wrong price went out
-- An ecommerce director who rewrites the same marketing content every week because AI output is "fine but not us"
-- A team lead who spends 3 hours every Monday reconciling invoices she knows a machine should handle
+You don't need to be a developer. You don't need to draw workflow diagrams. You don't need to write prompts. You just need to know what good looks like — the system helps you build everything else.
 
-Their problem isn't "I need AI." It's **"I need to stop doing this myself, but nothing I've tried is reliable enough to hand off."**
+---
 
-Agent OS makes handoff safe. One process at a time.
+## Building AI Agents? Read This.
 
-## Why This Exists
+The agent framework space has solved execution. It hasn't solved governance, trust, learning, or cognitive quality.
 
-Every time you give an AI the same task, it starts from scratch. No memory of what worked last time. No process to follow. No standards to meet. It reinvents the approach every time — and you re-check the same things every time. This is the fundamental problem: **AI without process is unreliable, and AI without memory is unlearning.**
+Everyone can build an agent that runs. Nobody has built an agent that earns trust, learns from corrections, and gets smarter about how it thinks. That's the gap. Here's what your agents are missing:
 
-On top of that, every agent platform has the same trust problem: **it's binary**. Either a human checks everything (expensive, doesn't scale) or the agent runs autonomously (risky, no governance). There's no middle ground. No way to earn trust progressively. No way for the system to learn from corrections without explicit feedback forms that nobody fills out.
+**A harness.** Not just prompts and tools — composable review patterns where agents check each other's work, trust tiers earned through track record, feedback loops that capture learning from natural human actions, and memory that persists across runs. Your agents run inside this. It makes them production-ready.
 
-Agent OS is the middle ground. Processes are durable — defined once, refined over time, executed consistently. The system learns from every correction. Trust is earned, not assumed.
+**A cognitive architecture.** The right mindset per task. Metacognitive monitoring ("is this approach working?"). Adaptive scaffolding that gives capable models freedom and supports weaker ones. Space for intuition — noticing what wasn't asked for. No agent framework has this. ([ADR-014](docs/adrs/014-agent-cognitive-architecture.md))
 
-## What Makes This Different
+**Executive function in the orchestrator.** Not "decompose goal → track tasks." An orchestrator that monitors whether the approach is converging on the intention, senses when to rethink, stops unproductive patterns, and surfaces structured learning from failures. The difference between a task tracker and a manager.
 
-Agent OS is not an agent framework. It's a **harness creator** — a living workspace where work evolves through governed processes. The harness is the product, not the agents.
+**Durable process.** Defined once, refined through corrections, executed consistently. Industry standards (APQC) as starting points. Templates with governance declarations. No reinventing the approach every run.
 
-### Progressive trust — not binary
+If you're building on OpenClaw, CrewAI, LangGraph, or AutoGen — Ditto isn't a replacement. It's the governed, trust-earning, learning harness that sits around your agents. Bring your own AI runtime. Ditto provides everything else.
 
-Every other platform is all-or-nothing: either you supervise everything or you let the agent run free. Agent OS has **four trust tiers** (supervised → spot-checked → autonomous → critical) that agents earn through track record. The system tracks approval rates, correction rates, and consistency over a sliding window. When an agent proves reliable, it *suggests* an upgrade — but never auto-promotes. When quality drops, trust auto-downgrades immediately. Different processes earn trust independently: you might trust the quoting agent but still supervise the invoicing agent.
+**Go deeper:**
+- [Agent Integration Guide](docs/agent-integration-guide.md) — **8 patterns your AI agents can adopt today.** Designed for machine reading. Drop it into your agent's context.
+- [Technical Overview](docs/TECHNICAL.md) — five engines, six-layer architecture, composition strategy
+- [Architecture Specification](docs/architecture.md) — the full design with provenance for every pattern
+- [ADR-014: Agent Cognitive Architecture](docs/adrs/014-agent-cognitive-architecture.md) — how agents think, not just execute
+- [Roadmap](docs/roadmap.md) — what's built, what's next, where to contribute
 
-### Agents check agents — before you see anything
+## Learn More
 
-Three composable review patterns run before output reaches a human: **maker-checker** (a second agent verifies), **adversarial** (an agent tries to find flaws), and **spec-testing** (output tested against quality criteria). These compose — a high-stakes process can use all three. Failed reviews trigger retry with the reviewer's feedback injected, so agents self-correct without human involvement.
-
-### Implicit feedback — no forms, no friction
-
-Humans won't fill out feedback forms. So the system learns from what they naturally do. An edit IS feedback (the system diffs and stores the correction). A rejection IS feedback (with optional reason). An approval IS feedback (reinforces the approach). Over time, the system detects patterns: "You consistently add the sustainability angle to product descriptions. Teach this?" The human taps yes. Learning without teaching.
-
-### Work evolves — not just executes
-
-A question becomes a task. A task spawns research. Research spawns a project. A goal decomposes into work items that route through multiple processes. The **goal-directed orchestrator** handles this evolution: it breaks goals into tasks, assigns them to processes, tracks completion, routes around paused items to continue independent work, and escalates when confidence is low. This is how real work happens — it grows and branches — and the system orchestrates it.
-
-### Human steps — not just AI
-
-Processes include real-world human actions, not just AI execution and review. A step can pause execution, create an action item with specific input fields, and wait for the human to complete their part. The orchestrator continues independent work while waiting. This models how work actually flows: some steps need a phone call, a site visit, or a judgment that only a human can make.
-
-### The system runs on itself
-
-The four system agents (intake classifier, router, trust evaluator, orchestrator) run through the same harness pipeline they govern — same trust tiers, same review patterns, same feedback capture. The development process (7 roles: PM, researcher, designer, architect, builder, reviewer, documenter) is a process definition that runs through the engine. Agent OS is its own first user.
-
-### Quiet oversight — not a noisy approval queue
-
-The system models how great managers actually work: periodic, trust-calibrated, exception-driven. As trust increases, oversight decreases. Autonomous processes run silently — no notifications unless something goes wrong. The morning brief summarises what happened overnight. The review queue shows only what needs human judgment. The goal is a quiet, reliable team — not a constant stream of approval requests.
-
-## Core Concepts
-
-**Agents are commodities. The harness is the product.** Claude, GPT, scripts, APIs — whatever comes next. The harness (review patterns, trust enforcement, memory, learning) is the unique value. Agents are pluggable. Processes are durable.
-
-**Process is the primitive.** Not tasks, not agents, not workflows. A process is a governance declaration: what inputs are acceptable, what quality looks like, what trust tier applies, what review patterns enforce quality. Users think in goals and tasks; processes are the system's learned skills for handling work.
-
-**Structure is what makes AI useful.** Raw AI chat is missing governance, memory, trust, continuity, quality assurance, and learning. Agent OS IS that structural scaffolding. The system does cognitive work; the human does judgment work.
-
-### How it works
-
-```
-Work enters naturally (goal, task, question, insight)
-  → Auto-classified and routed to the right process
-  → Goals decompose into tasks across multiple processes
-  → Steps execute (AI, script, or human action)
-  → Review patterns enforce quality (maker-checker, adversarial, spec-testing)
-  → Trust gate applies (supervised → spot-checked → autonomous)
-  → Feedback captured implicitly (edits, approvals, rejections → learning)
-  → Memory updated (what worked, what was corrected, what to remember)
-  → Orchestrator routes around pauses to continue independent work
-```
-
-## Architecture
-
-Six layers, each composable and independently evolvable:
-
-| Layer | Purpose | Key feature |
-|-------|---------|-------------|
-| **L1 Process** | Governance declarations in YAML | Steps, parallel groups, conditional routing, human steps, quality criteria |
-| **L2 Agent** | Executor abstraction | Bring your own AI — Claude, GPT, scripts, APIs. Role-based system prompts, tool use |
-| **L3 Harness** | Middleware pipeline | 6 composable handlers: memory → execution → review → routing → trust → feedback |
-| **L4 Awareness** | Event system | Pattern detection (e.g. "you keep correcting the same thing"), proactive notification |
-| **L5 Learning** | Feedback loop | Implicit capture, trust earning algorithm, correction-to-memory bridge |
-| **L6 Human** | Interaction surface | CLI today, web dashboard planned. Review queues, goal capture, trust controls |
-
-See [docs/architecture.md](docs/architecture.md) for the full specification.
-
-## Current Status
-
-The engine is functional through **Phase 5** (5 build phases complete). Key capabilities working:
-
-- 11 process definitions with parallel groups, conditional routing, and human steps
-- Goal-directed orchestrator — decomposes goals, routes around pauses, escalates on low confidence
-- Trust system — 4 tiers with deterministic sampling, sliding-window earning, automatic downgrade
-- Review patterns — maker-checker, adversarial, spec-testing with retry and feedback injection
-- Two-scope memory (agent + process) with salience sorting
-- Auto-classification capture with graceful fallback
-- 4 system agents running through the same harness they govern
-- 3 non-coding process templates (invoice follow-up, content review, incident response)
-- CLI with 12 commands
-- 66 integration tests (real SQLite, no mocks except the LLM layer)
-
-Currently dogfooding with its own development process — the 7-role dev pipeline runs through the engine.
-
-See [docs/state.md](docs/state.md) for current status and [docs/roadmap.md](docs/roadmap.md) for the full capability map.
-
-## Tech Stack
-
-TypeScript (strict) on Node.js. SQLite via Drizzle ORM + better-sqlite3. Anthropic SDK. CLI via citty + @clack/prompts. Vitest. YAML process definitions. Zod validation.
-
-## Project Structure
-
-```
-src/
-  adapters/       # Agent executors (Claude API, CLI subprocess, script)
-  cli/            # Commands and formatting
-  db/             # Schema and database
-  engine/         # Harness pipeline, heartbeat, process loader, system agents
-processes/        # Domain and system process definitions (YAML)
-templates/        # Non-coding process templates
-docs/
-  architecture.md # Full specification
-  vision.md       # Why this exists
-  personas.md     # Who we're building for
-  state.md        # Current project state
-  roadmap.md      # Capability map with status
-```
-
-## Development
-
-```bash
-pnpm install
-pnpm cli sync        # Initialize database
-pnpm test            # Run integration tests
-pnpm run type-check  # TypeScript strict mode
-```
+- [Vision](docs/vision.md) — why this exists
+- [Who We're Building For](docs/personas.md) — real stories, real problems
+- [Current State](docs/state.md) — what's working right now
 
 ## License
 

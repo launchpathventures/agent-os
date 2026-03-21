@@ -219,7 +219,7 @@ function contentToText(content: unknown): string {
 }
 
 function openInEditor(content: string): string {
-  const tmpFile = path.join(tmpdir(), `agent-os-edit-${Date.now()}.txt`);
+  const tmpFile = path.join(tmpdir(), `ditto-edit-${Date.now()}.txt`);
   fs.writeFileSync(tmpFile, content, "utf-8");
 
   const editor = process.env.EDITOR || "vi";

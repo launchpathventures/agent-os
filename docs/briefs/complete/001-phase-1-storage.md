@@ -40,7 +40,7 @@ Replace Postgres with SQLite so the engine runs with zero infrastructure setup. 
 ## Constraints
 
 - **Do not change the data model** — same tables, same columns, same relationships. Only change the dialect.
-- **Zero setup** — DB file auto-created at `data/agent-os.db` on first run. No migration commands needed for dogfood.
+- **Zero setup** — DB file auto-created at `data/ditto.db` on first run. No migration commands needed for dogfood.
 - **WAL mode** — Enable WAL pragma for performance (antfarm pattern).
 - **Agent identity fields** — Add to `agents` table: `ownerId`, `organisationId`, `permissions` (JSON), `provenance` (text). Nullable for now, present for governance readiness.
 - **Composition** — Use Drizzle (already in deps) + better-sqlite3 (new dep). Don't invent.
@@ -59,7 +59,7 @@ Replace Postgres with SQLite so the engine runs with zero infrastructure setup. 
 |------|--------|
 | `src/db/schema.ts` | Rewrite: `pgTable` → `sqliteTable`, `pgEnum` → text + TS unions, `uuid` → text + randomUUID, `jsonb` → text mode:'json', `timestamp` → integer (epoch ms). Add agent identity fields. |
 | `src/db/index.ts` | Rewrite: better-sqlite3 connection, WAL mode, auto-create data dir |
-| `drizzle.config.ts` | Update: dialect to `"sqlite"`, path to `./data/agent-os.db` |
+| `drizzle.config.ts` | Update: dialect to `"sqlite"`, path to `./data/ditto.db` |
 | `package.json` | Remove `postgres`, add `better-sqlite3` + `@types/better-sqlite3` |
 | `.gitignore` | Add `data/` |
 | `docs/adrs/001-sqlite.md` | Write ADR using template |
@@ -71,7 +71,7 @@ Replace Postgres with SQLite so the engine runs with zero infrastructure setup. 
 3. [ ] `pnpm cli status` displays processes from SQLite
 4. [ ] `pnpm run type-check` passes
 5. [ ] No Postgres references remain in code
-6. [ ] `data/agent-os.db` is auto-created and gitignored
+6. [ ] `data/ditto.db` is auto-created and gitignored
 7. [ ] ADR-001 is written with provenance
 
 ## Review Process

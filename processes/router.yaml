@@ -1,4 +1,4 @@
-# Agent OS — System Agent Process Definition
+# Ditto — System Agent Process Definition
 # Process: Router
 # LLM-based (Mode 2) process routing. Matches work items to domain processes.
 #

@@ -1,7 +1,7 @@
 # Insight-027: Nested Agent Harnesses (The Babushka Model)
 
 **Date:** 2026-03-19
-**Trigger:** Landscape research across 5 sources (agency-agents, Sim Studio, Open SWE, Deeplake/db9, "AI Agent OS" practitioner pattern) — all independently implement some version of nested operating contexts without naming the pattern
+**Trigger:** Landscape research across 5 sources (agency-agents, Sim Studio, Open SWE, Deeplake/db9, "AI Ditto" practitioner pattern) — all independently implement some version of nested operating contexts without naming the pattern
 **Layers affected:** L2 Agent, L3 Harness
 **Status:** absorbed into architecture.md (Layer 2) and landscape.md
 
@@ -9,14 +9,14 @@
 
 Every serious agent system in the landscape wraps its runtime in multiple layers of context, each with a distinct scope:
 
-1. **Platform harness** — cross-process governance, trust, dependency graph, learning (Agent OS itself)
+1. **Platform harness** — cross-process governance, trust, dependency graph, learning (Ditto itself)
 2. **Process harness** — review patterns, quality gates, escalation, process-scoped memory (our Layer 3)
 3. **Agent harness** — identity, capabilities, agent-scoped memory, tool permissions, budget (the missing piece in our Layer 2)
 4. **Runtime** — the actual LLM or script execution (our adapter pattern)
 
 Our architecture had layers 1, 2, and 4 but treated Layer 2 agents as stateless adapters (`invoke()` / `status()` / `cancel()`). The landscape shows agents need a persistent operating context — their own harness — that travels with them across process assignments.
 
-Open SWE's `get_agent()` function is the clearest reference: it assembles identity + repo context + tools + sandbox + middleware into a single operating context before handing off to the runtime. The "AI Agent OS" practitioner pattern achieves the same thing with folder structure: `agents.md` (identity) + `memory.md` (learning) + `skills/` (capabilities) + MCP config (tools).
+Open SWE's `get_agent()` function is the clearest reference: it assembles identity + repo context + tools + sandbox + middleware into a single operating context before handing off to the runtime. The "AI Ditto" practitioner pattern achieves the same thing with folder structure: `agents.md` (identity) + `memory.md` (learning) + `skills/` (capabilities) + MCP config (tools).
 
 The critical architectural insight is that **each layer can be swapped independently**. Different agent in the same process. Different process for the same agent. Different runtime for the same agent harness. This separation is what makes the harness composable rather than monolithic.
 

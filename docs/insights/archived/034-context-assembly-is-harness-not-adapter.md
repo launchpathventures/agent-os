@@ -9,9 +9,9 @@
 
 Context assembly (what goes into the prompt, how it's ordered, how it's budgeted) must live in the harness layer, not in the adapter. The adapter's job is format translation — mapping the assembled context to the model's API format. The harness's job is context engineering — deciding what information the agent needs.
 
-Currently Agent OS splits this responsibility: `memory-assembly.ts` (harness) assembles memory, but `claude.ts` (adapter) composes the system prompt and decides tool inclusion. This couples context decisions to Claude's API format.
+Currently Ditto splits this responsibility: `memory-assembly.ts` (harness) assembles memory, but `claude.ts` (adapter) composes the system prompt and decides tool inclusion. This couples context decisions to Claude's API format.
 
-If Agent OS supports multiple models (Claude, GPT, Gemini, open-source, scripts), each adapter would need to duplicate context assembly logic — or worse, each would make different context decisions, producing inconsistent agent behaviour across models.
+If Ditto supports multiple models (Claude, GPT, Gemini, open-source, scripts), each adapter would need to duplicate context assembly logic — or worse, each would make different context decisions, producing inconsistent agent behaviour across models.
 
 The fix: the harness assembles a **model-agnostic context object** (identity, memories, tools, task content, instructions). Each adapter maps this to its model's format (system prompt composition, tool schema format, caching strategy). Prompt caching becomes an adapter-level optimisation, not a harness-level concern.
 

@@ -66,6 +66,27 @@ export const feedbackRecorderHandler: HarnessHandler = {
       },
     });
 
+    // AC-8: Log integration calls with service, protocol, success/failure
+    if (context.stepDefinition.executor === "integration") {
+      const service = context.stepDefinition.config?.service as string | undefined;
+      const protocol = context.stepResult?.outputs?.protocol as string | undefined;
+      const hasError = context.stepError !== null || context.stepResult?.outputs?.error !== undefined;
+
+      await db.insert(schema.activities).values({
+        action: "integration.call",
+        actorType: "system",
+        entityType: "step_run",
+        entityId: context.stepRunId,
+        metadata: {
+          processRunId: context.processRun.id,
+          service: service || "unknown",
+          protocol: protocol || "unknown",
+          success: !hasError,
+          stepId: context.stepDefinition.id,
+        },
+      });
+    }
+
     return context;
   },
 };

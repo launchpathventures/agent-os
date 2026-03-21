@@ -18,7 +18,7 @@ The memory research (`docs/research/memory-systems.md`) examined 9 systems and f
 - No system implements process-scoped memory (knowledge belonging to a process, not an agent)
 - No system extracts correction patterns from edit diffs
 - No system gates memory by trust level
-- Mem0's scope filtering + reconciliation is the cleanest primitive for Agent OS's needs
+- Mem0's scope filtering + reconciliation is the cleanest primitive for Ditto's needs
 - At dogfood scale (<1K memories), SQLite without vectors is sufficient
 - Letta's `compile()` pattern maps to harness assembly
 
@@ -88,7 +88,7 @@ Provenance: memU's SQLite backend uses brute-force at small scale (`src/memu/dat
 
 ### 3. Harness manages memory, not the agent
 
-The harness (system) manages memory writes, not the agent. This follows from Agent OS's trust model: the harness is the governor.
+The harness (system) manages memory writes, not the agent. This follows from Ditto's trust model: the harness is the governor.
 
 - **Feedback → memory extraction:** When a human provides feedback (`edit` or `reject`), the harness extracts correction patterns via LLM (Mem0-style reconciliation: ADD/UPDATE/DELETE/NONE applied against existing memories for that scope). Edits provide rich signal (the diff shows exactly what changed). Rejections provide directional signal (what was wrong, even without a correction). Approvals create no memory — the absence of corrections is itself a signal, tracked by trust data, not memory. Provenance: Mem0 (`mem0/configs/prompts.py`, reconciliation prompt).
 
@@ -129,7 +129,7 @@ When a new agent is assigned to a process, it inherits all process-scoped memori
 
 Agent-scoped memories stay with the agent regardless of which process they serve.
 
-This is **Original to Agent OS** — no system in the research models process-owned learning.
+This is **Original to Ditto** — no system in the research models process-owned learning.
 
 ## Phased Implementation
 
@@ -173,7 +173,7 @@ This ADR describes the full memory architecture. Implementation is phased:
 | Reinforcement counting | memU `src/memu/database/models.py` | Repeated patterns strengthen rather than duplicate |
 | Memory assembly function | Letta `letta/schemas/memory.py` (`compile()`), Open SWE `agent/server.py` (`get_agent()`) | Single function composing context before invocation |
 | SQLite storage without vectors | ADR-001 (SQLite-first), memU SQLite backend, Claude Code (no vectors) | Consistent with dogfood constraints |
-| Process-scoped memory | **Original** — no existing system | Agent OS's process-first model requires process-owned learning |
+| Process-scoped memory | **Original** — no existing system | Ditto's process-first model requires process-owned learning |
 | Correction pattern extraction from diffs | **Original** — no existing system | Bridge between feedback (L5) and memory (L2) |
 
 ## Consequences

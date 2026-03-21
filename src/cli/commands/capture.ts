@@ -11,7 +11,7 @@
  *    d. Run orchestrator → trigger process run
  *    e. If any step has low confidence → fall back to interactive @clack/prompts
  *
- * Provenance: Original to Agent OS — no CLI does capture → classify → route from free text.
+ * Provenance: Original to Ditto — no CLI does capture → classify → route from free text.
  */
 
 import { defineCommand } from "citty";

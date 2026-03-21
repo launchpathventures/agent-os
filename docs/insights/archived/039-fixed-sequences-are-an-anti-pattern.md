@@ -1,7 +1,7 @@
 # Insight-039: Fixed Sequences Are an Anti-Pattern — Processes Must Support Conditional Flow
 
 **Date:** 2026-03-20
-**Trigger:** Dev pipeline orchestrator hardcoded PM → Researcher → Designer → Architect → Builder → Reviewer → Documenter as a fixed 7-step sequence. In practice, the PM's first output often recommends skipping 2-3 roles. The pipeline forced the human through every step anyway — identical to the "noisy approval queue" anti-pattern Agent OS exists to solve.
+**Trigger:** Dev pipeline orchestrator hardcoded PM → Researcher → Designer → Architect → Builder → Reviewer → Documenter as a fixed 7-step sequence. In practice, the PM's first output often recommends skipping 2-3 roles. The pipeline forced the human through every step anyway — identical to the "noisy approval queue" anti-pattern Ditto exists to solve.
 **Layers affected:** L1 Process, L2 Agent, L3 Harness, L6 Human
 **Status:** absorbed — conditional routing (`route_to`, `default_next`, `retry_on_failure`) delivered in Brief 016b, absorbed into architecture.md L1
 
@@ -9,7 +9,7 @@
 
 A process definition that specifies steps in a fixed sequence is a workflow, not a process. Real work has conditional flow — the output of one step determines which step comes next. The dev pipeline proved this immediately: the PM role frequently recommends "brief exists, skip to builder" or "no designer needed for infrastructure work." A fixed sequence ignores these recommendations and forces unnecessary work.
 
-This matters for Agent OS at every level:
+This matters for Ditto at every level:
 
 1. **Process definitions (L1)** — YAML step sequences currently imply linear execution. They need conditional routing: "if PM recommends skipping researcher, go to architect." The `depends_on` mechanism handles parallel groups but not conditional skipping.
 

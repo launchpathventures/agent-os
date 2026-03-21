@@ -14,7 +14,7 @@
 
 Phase 1 delivered SQLite storage and process definitions. The engine can load YAML processes, create runs, and execute steps sequentially. But the heartbeat auto-approves everything (line 165 of `src/engine/heartbeat.ts`), there's no harness between agent output and human review, no trust enforcement, no parallel execution, and no memory persistence.
 
-Phase 2 builds the **core differentiator** — the harness layer that makes Agent OS more than an orchestrator. The harness is a middleware pipeline that wraps every step execution with review patterns, trust-based gating, and feedback recording. Every harness decision is captured from day one, building the data foundation for Phase 3 (Trust Earning) and Phase 5 (Learning).
+Phase 2 builds the **core differentiator** — the harness layer that makes Ditto more than an orchestrator. The harness is a middleware pipeline that wraps every step execution with review patterns, trust-based gating, and feedback recording. Every harness decision is captured from day one, building the data foundation for Phase 3 (Trust Earning) and Phase 5 (Learning).
 
 Research is complete (`docs/research/phase-2-harness-patterns.md`, `docs/research/memory-systems.md`). Memory architecture is decided (ADR-003). This brief turns those findings into buildable work.
 

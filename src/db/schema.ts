@@ -1,5 +1,5 @@
 /**
- * Agent OS — Core Database Schema (SQLite via Drizzle)
+ * Ditto — Core Database Schema (SQLite via Drizzle)
  *
  * The data model for the six-layer architecture.
  * Process is the primitive — everything else serves processes.
@@ -51,6 +51,7 @@ export const stepExecutorValues = [
   "rules",
   "human",
   "handoff",
+  "integration",
 ] as const;
 export type StepExecutor = (typeof stepExecutorValues)[number];
 
@@ -106,7 +107,7 @@ export type ImprovementStatus = (typeof improvementStatusValues)[number];
 // Layer 1: Process Layer
 // ============================================================
 
-/** Process definitions — the atomic unit of Agent OS */
+/** Process definitions — the atomic unit of Ditto */
 export const processes = sqliteTable("processes", {
   id: text("id")
     .primaryKey()
@@ -292,6 +293,12 @@ export const stepRuns = sqliteTable("step_runs", {
 
   // Confidence level (ADR-011: categorical high/medium/low)
   confidenceLevel: text("confidence_level").$type<"high" | "medium" | "low">(),
+
+  // Integration tracking (Brief 024 — which service/protocol was used per step)
+  // Populated by the step-execution harness handler after integration steps complete.
+  // TODO: Wire population in step-execution handler when Brief 025 adds tool use context.
+  integrationService: text("integration_service"),
+  integrationProtocol: text("integration_protocol"),
 
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
@@ -577,7 +584,7 @@ export const trustSuggestions = sqliteTable("trust_suggestions", {
 });
 
 // ============================================================
-// Work Items — universal unit of work entering Agent OS (ADR-010)
+// Work Items — universal unit of work entering Ditto (ADR-010)
 // ============================================================
 
 export const workItemTypeValues = [
@@ -608,7 +615,7 @@ export const workItemSourceValues = [
 export type WorkItemSource = (typeof workItemSourceValues)[number];
 
 /**
- * Work items — the universal unit of work entering Agent OS.
+ * Work items — the universal unit of work entering Ditto.
  * Every input (question, task, goal, insight, outcome) becomes a work item.
  * Provenance: ADR-010, Paperclip goal ancestry pattern.
  */

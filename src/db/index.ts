@@ -1,5 +1,5 @@
 /**
- * Agent OS — Database Connection (SQLite via better-sqlite3)
+ * Ditto — Database Connection (SQLite via better-sqlite3)
  *
  * Zero-setup: auto-creates data/ directory and DB file on first run.
  * WAL mode for performance (antfarm pattern).
@@ -15,7 +15,7 @@ import fs from "fs";
 import { execFileSync } from "child_process";
 import * as schema from "./schema";
 
-const DB_PATH = path.join(process.cwd(), "data", "agent-os.db");
+const DB_PATH = path.join(process.cwd(), "data", "ditto.db");
 
 // Auto-create data directory
 const dataDir = path.dirname(DB_PATH);

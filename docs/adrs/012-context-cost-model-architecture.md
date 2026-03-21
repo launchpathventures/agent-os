@@ -108,7 +108,7 @@ Each adapter maps the context object to its model's API format:
 - **OpenAI adapter:** Maps to `system` + `messages` + `functions` (automatic prefix caching)
 - **Script adapter:** Ignores identity/memory/tools, uses only `taskContent`
 
-**Why this separation matters:** Context decisions (what to include, how to budget, how to order) are process-specific and model-agnostic. Format decisions (how to encode for the API) are model-specific. Mixing them couples Agent OS to Claude.
+**Why this separation matters:** Context decisions (what to include, how to budget, how to order) are process-specific and model-agnostic. Format decisions (how to encode for the API) are model-specific. Mixing them couples Ditto to Claude.
 
 **Prompt caching** is an adapter-level optimisation. The harness provides `cacheHints.stablePrefixEnd` — the adapter uses this to place `cache_control` breakpoints (Anthropic) or structure prefixes for automatic caching (OpenAI/Google). The harness doesn't know about caching mechanics; the adapter doesn't decide what content to include.
 
@@ -154,7 +154,7 @@ const modelMap = {
 
 This indirection means: (a) model names change without updating process definitions, (b) swapping providers requires one config change, (c) model tiers are meaningful to non-technical users.
 
-**Trust-modulated model routing (Original to Agent OS):** The trust-evaluator can recommend model tier downgrades when data supports it. If a step running on `reasoning` tier achieves consistent quality (low correction rate, high approval rate over N runs), the system suggests downgrading to `balanced`. Human approves. If quality degrades after downgrade, auto-revert to previous tier (same mechanism as trust tier downgrades in ADR-007).
+**Trust-modulated model routing (Original to Ditto):** The trust-evaluator can recommend model tier downgrades when data supports it. If a step running on `reasoning` tier achieves consistent quality (low correction rate, high approval rate over N runs), the system suggests downgrading to `balanced`. Human approves. If quality degrades after downgrade, auto-revert to previous tier (same mechanism as trust tier downgrades in ADR-007).
 
 ### 4. Cost-per-outcome is the fourth feedback signal
 
@@ -304,7 +304,7 @@ Process definition structure gains `Context` and `Budget` sections (see Decision
 - **Easier:** Users understand the tradeoff (importance, budget, attention) without understanding the underlying complexity.
 - **Harder:** The adapter interface is a breaking change — existing `claude.ts` must be refactored. Schedule for Phase 4 where the CLI is being rewritten anyway.
 - **Harder:** Cost tracking adds fields to `stepRuns` and computation logic. But token usage is already returned by every API call — it's just not stored.
-- **New constraint:** Model tier abstraction means Agent OS can't expose model-specific features (e.g., Claude's extended thinking) through the tier system. Model-specific capabilities should be adapter-level features, not tier-level.
+- **New constraint:** Model tier abstraction means Ditto can't expose model-specific features (e.g., Claude's extended thinking) through the tier system. Model-specific capabilities should be adapter-level features, not tier-level.
 - **New constraint:** Trust-modulated model routing requires sufficient run history before making recommendations. Grace period logic from ADR-007 applies.
 - **New constraint (security):** When routing to a third-party adapter (Phase 6+), the `AdapterContext` may carry sensitive business data in memories or task inputs. The harness must sanitise or redact sensitive content before passing to non-trusted adapters. The `InvocationPlan.securityFlags` field supports this: when `thirdPartyAdapter=true` AND `sensitiveMemoriesPresent=true`, the harness should strip memory content or apply redaction rules. This extends the brokered credentials pattern (architecture.md cross-cutting integrations) from credentials to content. Detailed redaction rules deferred to Phase 6.
 - **New constraint (context overflow):** When a process's declared context profile (`memory: high`, `tools: high`, `history: high`) exceeds the model's context window — especially on a `fast` tier model with a smaller window — the harness must clamp allocations proportionally. Hints sum to priorities, not hard percentages. The harness allocates identity + task content first (non-negotiable), then distributes remaining budget according to hint priorities. If the window is too small for meaningful allocation, the harness should surface a warning ("this process needs a larger model for its context requirements") rather than silently truncating.

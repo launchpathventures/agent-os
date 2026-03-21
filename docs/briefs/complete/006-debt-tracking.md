@@ -18,7 +18,7 @@ This was triggered directly during Phase 2b: the reviewer flagged real issues, t
 
 ### Information Architecture Principle
 
-Agent OS already has a clear split between two knowledge systems:
+Ditto already has a clear split between two knowledge systems:
 
 | System | What | Examples | Why |
 |--------|------|----------|-----|
@@ -59,10 +59,10 @@ After this work: every conscious compromise has a markdown file in `docs/debts/`
 
 | What | Source | Why this source |
 |------|--------|----------------|
-| Markdown with frontmatter lifecycle | Agent OS insights system (`docs/insights/`) | Proven pattern in this project — numbered files, YAML frontmatter, status tracking |
-| Numbered file convention | Agent OS ADRs (`docs/adrs/`) | `NNN-slug.md` naming already established |
-| Re-entry conditions | Roadmap's "Re-entry condition" pattern for deferred phases | Agent OS already uses this pattern for deferred infrastructure |
-| CLI folder scanning | Agent OS process loader (`src/engine/process-loader.ts`) | Reads a folder, parses YAML, reports status — same pattern |
+| Markdown with frontmatter lifecycle | Ditto insights system (`docs/insights/`) | Proven pattern in this project — numbered files, YAML frontmatter, status tracking |
+| Numbered file convention | Ditto ADRs (`docs/adrs/`) | `NNN-slug.md` naming already established |
+| Re-entry conditions | Roadmap's "Re-entry condition" pattern for deferred phases | Ditto already uses this pattern for deferred infrastructure |
+| CLI folder scanning | Ditto process loader (`src/engine/process-loader.ts`) | Reads a folder, parses YAML, reports status — same pattern |
 
 ## What Changes (Work Products)
 

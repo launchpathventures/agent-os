@@ -33,7 +33,7 @@ And notice **how learning actually works:**
 4. **Context triggers recall.** They don't load all their knowledge at the start of each session. Seeing a vendor name, an unusual amount, or a specific format triggers relevant memories.
 5. **Trust earns autonomy.** A new hire gets every invoice checked. After six months of clean work, they're spot-checked. The manager doesn't re-check their entire history each week — the *absence* of corrections is itself a signal.
 
-This is the model Agent OS should follow. The harness is the manager. The agent is the employee. Memory is how the employee improves between sessions without the manager having to re-teach every lesson.
+This is the model Ditto should follow. The harness is the manager. The agent is the employee. Memory is how the employee improves between sessions without the manager having to re-teach every lesson.
 
 ---
 
@@ -47,7 +47,7 @@ Seven systems across the memory landscape, plus four projects from the Phase 2 r
 | Mem0 (mem0ai/mem0) | Memory framework | LLM-driven extraction/reconciliation, scope filtering |
 | Letta (letta-ai/letta) | Agent framework with memory | OS-inspired tiered memory, agent-managed, context budget |
 | Graphiti (getzep/graphiti) | Knowledge graph | Temporal edges, bi-temporal schemas |
-| Claude Code | Dev tool with memory | File-based, pragmatic, what Agent OS uses today |
+| Claude Code | Dev tool with memory | File-based, pragmatic, what Ditto uses today |
 | ralph (snarktank/ralph) | Phase 2 source | Three-tier state persistence across sessions |
 | antfarm (snarktank/antfarm) | Phase 2 source | SQLite state persistence across pipeline runs |
 | compound-product (snarktank/compound-product) | Phase 2 source | Performance tracking for self-improvement |
@@ -191,15 +191,15 @@ Mem0's audit trail pattern: it uses `SQLiteManager` alongside the vector store t
 
 ### Partial Trust-Gating of Memory Access
 
-No system implements trust-aware memory in Agent OS's sense (graduated access based on earned trust). However, partial analogues exist:
+No system implements trust-aware memory in Ditto's sense (graduated access based on earned trust). However, partial analogues exist:
 
-| System | Mechanism | How it gates | Difference from Agent OS |
+| System | Mechanism | How it gates | Difference from Ditto |
 |--------|-----------|-------------|--------------------------|
 | Letta | Read-only blocks | Some core memory blocks cannot be modified by the agent | Gates write access, not read access. Binary, not graduated. |
 | Mem0 | Scope filtering | Agent memories are separate from user memories | Scope separation, not trust-based access |
 | antfarm | Role-based permissions | `verification` role strips write access | Tool permissions, not memory permissions |
 
-None gate memory *retrieval* by trust level. An autonomous agent and a supervised agent see the same memories. The concept of injecting *more* or *less* memory based on earned trust is **Original to Agent OS.**
+None gate memory *retrieval* by trust level. An autonomous agent and a supervised agent see the same memories. The concept of injecting *more* or *less* memory based on earned trust is **Original to Ditto.**
 
 ---
 
@@ -294,7 +294,7 @@ The taxonomies cluster along different axes — no two systems use the same cate
 - System-managed vs agent-managed vs human-managed
 - Found in: Letta (agent-managed), Claude Code (human writes CLAUDE.md, Claude writes auto memory)
 
-Agent OS's architecture defines a fourth axis not found in any system: **scope** (agent-scoped vs process-scoped). This is the process-first distinction — knowledge belongs to the process or the agent, not just the user or session.
+Ditto's architecture defines a fourth axis not found in any system: **scope** (agent-scoped vs process-scoped). This is the process-first distinction — knowledge belongs to the process or the agent, not just the user or session.
 
 ---
 
@@ -330,7 +330,7 @@ The architecture spec describes "Resumable sessions across heartbeats for contex
 
 ## 8. Correction Pattern Persistence
 
-This is the area with the **least existing solution**. None of the systems have a dedicated mechanism for learning from human edits/corrections as Agent OS envisions it.
+This is the area with the **least existing solution**. None of the systems have a dedicated mechanism for learning from human edits/corrections as Ditto envisions it.
 
 | System | Approach | Gap |
 |--------|----------|-----|
@@ -340,7 +340,7 @@ This is the area with the **least existing solution**. None of the systems have 
 | Claude Code | Human edits CLAUDE.md or asks Claude to remember | Manual, not extracted from diffs |
 | memU | Reinforcement counting for recurring themes | Statistical patterns, not correction intent |
 
-### What Exists in Agent OS's Schema (Implemented)
+### What Exists in Ditto's Schema (Implemented)
 
 The `feedback` table in `src/db/schema.ts` (lines 298-322) has fields designed for this:
 - `type`: approve/edit/reject/escalate/auto_approve
@@ -359,11 +359,11 @@ These fields exist in the schema but have no extraction mechanism — no code po
 3. **Statistical (memU):** Count similar corrections. 3+ of the same type → surface as candidate pattern
 4. **compound-product style:** Performance analysis identifies recurring issues → proposes process changes
 
-Correction pattern persistence is **Original to Agent OS**. The extraction mechanism is the genuine design gap.
+Correction pattern persistence is **Original to Ditto**. The extraction mechanism is the genuine design gap.
 
 ---
 
-## 9. Gaps — What's Original to Agent OS
+## 9. Gaps — What's Original to Ditto
 
 | Capability | Closest analogue | Why it's still original |
 |-----------|-----------------|----------------------|
@@ -383,11 +383,11 @@ Correction pattern persistence is **Original to Agent OS**. The extraction mecha
 
 3. **Should process-scoped memories transfer when a new agent is assigned?** The architecture implies yes (memories belong to the process). This is like a new hire inheriting the team's playbook — they get the institutional knowledge, not the personal preferences of their predecessor.
 
-4. **Is temporal invalidation (Graphiti) worth the complexity?** Agent OS already has an `activities` table for audit. The human analogy: you remember current rules, not the history of every rule change. But you can look it up in the policy log if needed.
+4. **Is temporal invalidation (Graphiti) worth the complexity?** Ditto already has an `activities` table for audit. The human analogy: you remember current rules, not the history of every rule change. But you can look it up in the policy log if needed.
 
 5. **How does memory bridge to the learning layer (L5)?** The `feedback` table captures raw corrections. Memory stores learned patterns. The bridge — extraction, validation, reinforcement — is undesigned. In human terms: feedback is the correction, memory is the internalised rule, and the bridge is reflection.
 
-6. **Does Agent OS need a `memory` table?** The architecture spec describes one (scope_type + scope_id), but the current schema doesn't have it. The feedback table captures corrections. The activities table captures events. What additional memory artifact needs its own table?
+6. **Does Ditto need a `memory` table?** The architecture spec describes one (scope_type + scope_id), but the current schema doesn't have it. The feedback table captures corrections. The activities table captures events. What additional memory artifact needs its own table?
 
 ---
 

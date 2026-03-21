@@ -1,13 +1,13 @@
 # Insight-014: A Single Process Must Be Valuable
 
 **Date:** 2026-03-19
-**Trigger:** User direction during persona definition — "the goal is for Agent OS to be useful with a single process outcome as much as an organisational chart of processes"
+**Trigger:** User direction during persona definition — "the goal is for Ditto to be useful with a single process outcome as much as an organisational chart of processes"
 **Layers affected:** L1 Process, L6 Human, product strategy
 **Status:** active
 
 ## The Insight
 
-Agent OS must deliver clear, complete value from a single process. The product cannot require a portfolio of processes before the user sees the benefit. One process — quote generation, report formatting, content review, reference checking — running reliably with progressive trust should justify the product on its own.
+Ditto must deliver clear, complete value from a single process. The product cannot require a portfolio of processes before the user sees the benefit. One process — quote generation, report formatting, content review, reference checking — running reliably with progressive trust should justify the product on its own.
 
 This is a hard constraint, not a nice-to-have. It shapes:
 - **Onboarding:** starts with one process, not "set up your organisation"

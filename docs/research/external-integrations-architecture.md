@@ -1,20 +1,20 @@
 # Research: External Integrations Architecture
 
 **Date:** 2026-03-19
-**Question:** What architectural approach should Agent OS take for integrating with external systems (email, communication channels, Google Drive, web, accounting software, etc.)?
+**Question:** What architectural approach should Ditto take for integrating with external systems (email, communication channels, Google Drive, web, accounting software, etc.)?
 **Status:** Complete — awaiting review
 
 ---
 
 ## Context
 
-Agent OS processes don't operate in isolation. A process like "invoice reconciliation" needs to read emails, access accounting software (Xero, QuickBooks), and write to Google Sheets. A "customer onboarding" process needs CRM access, email sending, and document generation. The architecture spec (Layer 2) already declares `Tools: authorised tools and MCP connections for this agent` in the agent harness, but doesn't specify how those tools connect to external systems.
+Ditto processes don't operate in isolation. A process like "invoice reconciliation" needs to read emails, access accounting software (Xero, QuickBooks), and write to Google Sheets. A "customer onboarding" process needs CRM access, email sending, and document generation. The architecture spec (Layer 2) already declares `Tools: authorised tools and MCP connections for this agent` in the agent harness, but doesn't specify how those tools connect to external systems.
 
-This research maps the landscape of integration approaches and identifies seven architectural options for Agent OS.
+This research maps the landscape of integration approaches and identifies seven architectural options for Ditto.
 
 ---
 
-## The Integration Surface in Agent OS
+## The Integration Surface in Ditto
 
 Integrations touch multiple layers of the architecture:
 
@@ -58,14 +58,14 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Google has announced official MCP servers for all Google Cloud and Workspace services
 - Community MCP servers exist for Gmail, Google Drive, Slack, GitHub, Notion, and hundreds more
 - MCP servers handle auth internally and expose tools via the standardised protocol
-- MCP is already referenced in Agent OS architecture (Layer 2 agent harness: "Tools: authorised tools and MCP connections")
+- MCP is already referenced in Ditto architecture (Layer 2 agent harness: "Tools: authorised tools and MCP connections")
 
 **Google Workspace MCP** — github.com/aaronsb/google-workspace-mcp
 - Authenticated access to Gmail, Calendar, Drive via single MCP server
 - 100+ tools exposed through standardised interface
 - OAuth 2.1 authentication
 
-**Relevance to Agent OS:** MCP is the natural fit for **agent tool use** — the pattern where an agent needs to interact with an external system during step execution. It's already in our architecture spec. The ecosystem is maturing rapidly with official provider support.
+**Relevance to Ditto:** MCP is the natural fit for **agent tool use** — the pattern where an agent needs to interact with an external system during step execution. It's already in our architecture spec. The ecosystem is maturing rapidly with official provider support.
 
 #### Agent-Native Integration Platforms
 
@@ -79,7 +79,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Framework-agnostic: works with OpenAI, Anthropic, LangChain, CrewAI, Mastra
 - Key pattern: "brokered credentials" — Composio executes the API call on the agent's behalf, tokens never reach agent runtime
 
-**Relevance to Agent OS:** HIGH for reducing integration build effort. Composio could serve as the integration infrastructure beneath our adapter/tool layer. The "brokered credentials" pattern aligns with our trust model — agents don't handle sensitive credentials directly. Trade-off: cloud dependency for a platform that values self-containment.
+**Relevance to Ditto:** HIGH for reducing integration build effort. Composio could serve as the integration infrastructure beneath our adapter/tool layer. The "brokered credentials" pattern aligns with our trust model — agents don't handle sensitive credentials directly. Trade-off: cloud dependency for a platform that values self-containment.
 
 #### Unified API / Integration Infrastructure
 
@@ -94,7 +94,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Supports both AI tool calling and scheduled data syncs on same platform
 - **Code-first** — you define integrations as typed TypeScript functions, not visual workflows
 
-**Relevance to Agent OS:** HIGH for both agent tool use and process I/O. Nango's code-first TypeScript approach aligns with Agent OS's composition principle. Self-hostable. The "syncs + actions" model maps to our two integration modes (process I/O = syncs, agent tool use = actions). Elastic License is source-available but not truly open source (can't offer as managed service). Infrastructure overhead: needs its own server/database.
+**Relevance to Ditto:** HIGH for both agent tool use and process I/O. Nango's code-first TypeScript approach aligns with Ditto's composition principle. Self-hostable. The "syncs + actions" model maps to our two integration modes (process I/O = syncs, agent tool use = actions). Elastic License is source-available but not truly open source (can't offer as managed service). Infrastructure overhead: needs its own server/database.
 
 **Merge** — merge.dev
 - Unified API across 6 categories: HRIS, ATS, CRM, accounting, ticketing, file storage
@@ -103,7 +103,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Cloud-only, not self-hostable
 - Category-focused: strong where categories exist, no coverage outside them
 
-**Relevance to Agent OS:** MEDIUM — useful for specific categories (accounting, CRM) but limited scope. Cloud-only conflicts with self-containment preference.
+**Relevance to Ditto:** MEDIUM — useful for specific categories (accounting, CRM) but limited scope. Cloud-only conflicts with self-containment preference.
 
 #### Workflow Automation / iPaaS
 
@@ -115,7 +115,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Self-hosted with one-line npm or Docker command
 - MCP server available for connecting AI assistants to n8n
 
-**Relevance to Agent OS:** MEDIUM for process I/O (triggers, output delivery). n8n's event-driven model maps to process triggers and output destinations. Could serve as the "plumbing" for connecting processes to external systems. Risk: architectural overlap — n8n is itself a workflow engine, which competes with Agent OS's process engine rather than complementing it.
+**Relevance to Ditto:** MEDIUM for process I/O (triggers, output delivery). n8n's event-driven model maps to process triggers and output destinations. Could serve as the "plumbing" for connecting processes to external systems. Risk: architectural overlap — n8n is itself a workflow engine, which competes with Ditto's process engine rather than complementing it.
 
 **Mastra** — github.com/mastra-ai/mastra (already in landscape.md)
 - Auto-generated, type-safe API clients for third-party services
@@ -123,7 +123,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Can serve as tools for agents or workflow steps
 - Auth handled per-integration
 
-**Relevance to Agent OS:** Already evaluated in landscape.md for workflow/harness. Integrations are a secondary feature, not the primary value proposition. Less mature integration coverage than dedicated platforms.
+**Relevance to Ditto:** Already evaluated in landscape.md for workflow/harness. Integrations are a secondary feature, not the primary value proposition. Less mature integration coverage than dedicated platforms.
 
 #### Credential Management
 
@@ -134,7 +134,7 @@ These are architecturally different. Agent tool use happens inside a step execut
 - Token lifecycle management: refresh rotation, automatic invalidation
 - Current standard: OAuth 2.1 with mandatory PKCE
 
-**Relevance to Agent OS:** Critical for trust model. Agents operating at any trust tier should not handle raw credentials. This maps directly to the agent harness permissions layer — the harness should broker all external access, not pass credentials to the adapter.
+**Relevance to Ditto:** Critical for trust model. Agents operating at any trust tier should not handle raw credentials. This maps directly to the agent harness permissions layer — the harness should broker all external access, not pass credentials to the adapter.
 
 ---
 
@@ -150,8 +150,8 @@ OpenClaw (163k stars, open-source) is the most relevant reference for how a popu
 
 3. **Channels** — Messaging integrations (WhatsApp, Slack, Discord, Telegram, etc.) using adapter libraries. 50+ channel integrations. These are the process I/O layer — how agents receive and respond to external messages.
 
-**Key patterns for Agent OS:**
-- Skills-as-progressive-disclosure: load capabilities on demand, not upfront (validates our architecture spec's skills concept and Insight from "AI Agent OS" practitioner pattern)
+**Key patterns for Ditto:**
+- Skills-as-progressive-disclosure: load capabilities on demand, not upfront (validates our architecture spec's skills concept and Insight from "AI Ditto" practitioner pattern)
 - MCP as the tool execution backbone, with skills as the instruction layer on top
 - Channel adapters as a separate concern from tool adapters
 - Composio used as an MCP aggregator for enterprise integrations (one `MCP_URL` environment variable gives access to an aggregated tool catalog with token-scoped access control)
@@ -200,13 +200,13 @@ Google released the Workspace CLI (March 2026) — a unified command-line tool f
 - **Auth** — OAuth (interactive), service accounts, pre-obtained tokens, encrypted credential storage (AES-256-GCM with OS keyring)
 - **License:** Apache-2.0 | **Language:** Rust core, JS/TS agent skills
 
-**Why this matters for Agent OS:** Google is shipping both a CLI and an MCP server for the same APIs, letting consumers choose their integration path. The CLI path is dramatically cheaper in tokens and already familiar to LLMs from training data.
+**Why this matters for Ditto:** Google is shipping both a CLI and an MCP server for the same APIs, letting consumers choose their integration path. The CLI path is dramatically cheaper in tokens and already familiar to LLMs from training data.
 
 **Source:** [Google Workspace CLI GitHub](https://github.com/googleworkspace/cli), [VentureBeat announcement](https://venturebeat.com/orchestration/google-workspace-cli-brings-gmail-docs-sheets-and-more-into-a-common)
 
 ### Xero MCP Server (Official)
 
-Xero has released an official MCP server (github.com/XeroAPI/xero-mcp-server) providing standardised access to accounting features: invoices, payments, bank transactions, manual journals, reports, contacts, and payroll. OAuth2 authentication. This is notable because accounting software — a key Agent OS integration target — now has a first-party MCP server.
+Xero has released an official MCP server (github.com/XeroAPI/xero-mcp-server) providing standardised access to accounting features: invoices, payments, bank transactions, manual journals, reports, contacts, and payroll. OAuth2 authentication. This is notable because accounting software — a key Ditto integration target — now has a first-party MCP server.
 
 **Source:** [Xero MCP Server GitHub](https://github.com/XeroAPI/xero-mcp-server), [Xero Developer Blog](https://devblog.xero.com/xero-introduces-new-model-context-protocol-server-for-smarter-accounting-4d195ccaeda5)
 
@@ -248,11 +248,11 @@ The landscape reveals that external services are increasingly offering **multipl
 | Slack | — | Community MCP servers | Slack API |
 | AWS | `aws` CLI | Community MCP | AWS SDK |
 
-**Implication for Agent OS:** The integration architecture should not assume a single protocol. Different services will be accessed via different interfaces depending on what exists and what is most efficient. The architecture needs to accommodate CLI execution, MCP tool calls, and direct API calls — potentially all within the same process.
+**Implication for Ditto:** The integration architecture should not assume a single protocol. Different services will be accessed via different interfaces depending on what exists and what is most efficient. The architecture needs to accommodate CLI execution, MCP tool calls, and direct API calls — potentially all within the same process.
 
 ---
 
-## Seven Architectural Options for Agent OS
+## Seven Architectural Options for Ditto
 
 ### Option A: MCP-Native
 
@@ -293,7 +293,7 @@ Agent Harness (L2)
 
 ### Option B: Integration Platform as Infrastructure (Nango/Composio)
 
-**How it works:** Use a dedicated integration platform (Nango or Composio) as the integration infrastructure layer. Agent OS delegates all external API calls to the platform, which handles auth, execution, retries, and rate limiting.
+**How it works:** Use a dedicated integration platform (Nango or Composio) as the integration infrastructure layer. Ditto delegates all external API calls to the platform, which handles auth, execution, retries, and rate limiting.
 
 **Architecture:**
 ```
@@ -393,11 +393,11 @@ Agent Harness (L2)
 
 ### Option E: Delegate to Workflow Engine (n8n)
 
-**How it works:** Use n8n (or similar workflow automation tool) as the integration layer. Agent OS processes trigger n8n workflows for all external system interactions. n8n handles auth, connectors, and execution.
+**How it works:** Use n8n (or similar workflow automation tool) as the integration layer. Ditto processes trigger n8n workflows for all external system interactions. n8n handles auth, connectors, and execution.
 
 **Architecture:**
 ```
-Agent OS Process → triggers n8n workflow → n8n handles external API calls → returns result
+Ditto Process → triggers n8n workflow → n8n handles external API calls → returns result
 ```
 
 **Pros:**
@@ -408,7 +408,7 @@ Agent OS Process → triggers n8n workflow → n8n handles external API calls �
 
 **Cons:**
 - Architectural overlap: n8n is itself a workflow engine, creating a "workflow engine calling a workflow engine" pattern
-- Loose coupling means Agent OS loses visibility into integration execution (harness can't wrap n8n steps)
+- Loose coupling means Ditto loses visibility into integration execution (harness can't wrap n8n steps)
 - Trust, review, and feedback patterns can't apply to n8n's internal execution
 - n8n's fair-code license has usage restrictions
 - Adds significant infrastructure (n8n server, its own database)
@@ -580,9 +580,9 @@ These map to existing architecture concepts: agent permissions (L2), harness rev
 
 ## Gaps Where No Existing Solution Fits
 
-1. **Trust-aware integration access** — No platform gates external API calls based on an agent's earned trust level. This is Original to Agent OS.
-2. **Integration feedback capture** — No platform captures whether an external action's result was correct (e.g., "the invoice was posted to the wrong account") as a feedback signal. Original to Agent OS.
-3. **Process-scoped integration permissions** — Existing platforms scope credentials per-user or per-app, not per-process. Agent OS needs per-process, per-agent scoping. Original to Agent OS.
+1. **Trust-aware integration access** — No platform gates external API calls based on an agent's earned trust level. This is Original to Ditto.
+2. **Integration feedback capture** — No platform captures whether an external action's result was correct (e.g., "the invoice was posted to the wrong account") as a feedback signal. Original to Ditto.
+3. **Process-scoped integration permissions** — Existing platforms scope credentials per-user or per-app, not per-process. Ditto needs per-process, per-agent scoping. Original to Ditto.
 4. **Integration as declaration** — Expressing external system connections as part of process definitions (Insight-007: declarations vs state) rather than as runtime configuration. Partially addressed by Nango's git-tracked TypeScript integrations.
 
 ---

@@ -1,6 +1,6 @@
-# Agent OS — Process Definition
+# Ditto — Process Definition
 # Process: Dev Pipeline
-# The Agent OS development process — from triage to shipped code.
+# The Ditto development process — from triage to shipped code.
 #
 # Runs the 7 dev roles on the real engine with conditional routing.
 # First process to exercise cli-agent executor and route_to fields.
@@ -13,7 +13,7 @@ version: 1
 status: active
 
 description: >
-  The Agent OS development pipeline. PM triages, researcher scouts,
+  The Ditto development pipeline. PM triages, researcher scouts,
   designer specs UX, architect writes briefs, builder implements,
   reviewer checks, documenter wraps up. Routing decisions determine
   which roles execute based on output signals.
@@ -33,7 +33,7 @@ inputs:
     type: repository
     source: git
     required: true
-    description: The Agent OS repository
+    description: The Ditto repository
 
 steps:
   - id: pm-triage

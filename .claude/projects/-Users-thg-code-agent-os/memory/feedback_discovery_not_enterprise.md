@@ -4,7 +4,7 @@ description: Process discovery must focus on ingesting readily available data (e
 type: feedback
 ---
 
-Agent OS is not being built for enterprise out of the box. Enterprise process mining (Celonis, SAP Signavio) is useful context but not the approach. The priority is a practical means of ingesting readily available information from tools every organisation already uses: email, calendar, documents, knowledge base, Slack/Teams messages, service desk.
+Ditto is not being built for enterprise out of the box. Enterprise process mining (Celonis, SAP Signavio) is useful context but not the approach. The priority is a practical means of ingesting readily available information from tools every organisation already uses: email, calendar, documents, knowledge base, Slack/Teams messages, service desk.
 
 **Why:** Our personas (Rob, Lisa, Jordan, Nadia) don't have SAP or Oracle — they have Gmail, Xero, Shopify, Slack, and Google Drive. The discovery capability must be grounded in these tools, not enterprise event logs.
 

@@ -5,9 +5,9 @@
 
 ## Context
 
-Agent OS's trust tiers (ADR-007) determine **how often** a human reviews process outputs — supervised reviews everything, spot-checked samples ~20%, autonomous reviews exceptions only. But trust tiers don't determine **in what form** the human is pulled in. Today, every output that reaches the human arrives as an individual item in the Review Queue — approve, edit, or reject.
+Ditto's trust tiers (ADR-007) determine **how often** a human reviews process outputs — supervised reviews everything, spot-checked samples ~20%, autonomous reviews exceptions only. But trust tiers don't determine **in what form** the human is pulled in. Today, every output that reaches the human arrives as an individual item in the Review Queue — approve, edit, or reject.
 
-The concern: even with trust tiers, a workspace running 10+ processes could feel like a noisy approval queue rather than a quietly productive team. The user's aspiration — expressed directly — is for Agent OS to feel like a real-world manager overseeing a reliable team: periodic check-ins calibrated to importance and trust, not a stream of individual approvals. The last thing Agent OS should be is noisy, overwhelming, or unnecessarily busy.
+The concern: even with trust tiers, a workspace running 10+ processes could feel like a noisy approval queue rather than a quietly productive team. The user's aspiration — expressed directly — is for Ditto to feel like a real-world manager overseeing a reliable team: periodic check-ins calibrated to importance and trust, not a stream of individual approvals. The last thing Ditto should be is noisy, overwhelming, or unnecessarily busy.
 
 Research (`docs/research/autonomous-oversight-patterns.md`) surveyed patterns across content moderation, ISO quality control, management science, autonomous vehicles, and agent platforms. It identified a missing architectural concept: the **attention model** — when, how, and in what form the system pulls the human in.
 

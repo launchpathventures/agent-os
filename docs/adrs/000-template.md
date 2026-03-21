@@ -18,9 +18,9 @@ Where does this pattern come from?
 - **Source project:** {project name} ({github URL})
 - **Source files:** {specific file paths in the source project}
 - **What we took:** {specific pattern, approach, or code adapted}
-- **What we changed:** {how we adapted it for Agent OS}
+- **What we changed:** {how we adapted it for Ditto}
 
-If this is original to Agent OS, state: "Original — no existing framework implements this."
+If this is original to Ditto, state: "Original — no existing framework implements this."
 
 ## Consequences
 

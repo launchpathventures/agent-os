@@ -9,7 +9,7 @@
 
 ## Research Question
 
-Is there a composition opportunity for QMD (Query Markup Documents) and/or Obsidian within Agent OS? If so, where does it fit in the architecture?
+Is there a composition opportunity for QMD (Query Markup Documents) and/or Obsidian within Ditto? If so, where does it fit in the architecture?
 
 ## Sources Examined
 
@@ -18,8 +18,8 @@ Is there a composition opportunity for QMD (Query Markup Documents) and/or Obsid
 | QMD (github.com/tobi/qmd) | Search engine | Technical architecture, API surface, dependencies, maturity |
 | OpenClaw memory masterclass (velvetshark.com) | Practitioner guide | OpenClaw's 4-layer memory model, compaction limitations, file-first principle |
 | Obsidian+Claude Code second brain (dontsleeponai.com) | Practitioner guide | Vault-first protocol, multi-bot coordination, session safety hooks |
-| Agent OS docs/architecture.md | Internal | Integration architecture (ADR-005), memory model (ADR-003), knowledge lifecycle (Insight-042) |
-| Agent OS docs/research/memory-systems.md | Internal | Existing memory landscape analysis |
+| Ditto docs/architecture.md | Internal | Integration architecture (ADR-005), memory model (ADR-003), knowledge lifecycle (Insight-042) |
+| Ditto docs/research/memory-systems.md | Internal | Existing memory landscape analysis |
 
 ---
 
@@ -42,18 +42,18 @@ All processing is local — no cloud dependency.
 3. **MCP server** — stdio or HTTP daemon mode, exposes `query`, `get`, `multi_get`, `status` tools
 
 **Dependencies:**
-- `better-sqlite3` ^12.4.5 (Agent OS uses ^11.9.1 — compatible family)
+- `better-sqlite3` ^12.4.5 (Ditto uses ^11.9.1 — compatible family)
 - `node-llama-cpp` ^3.17.1 — **heavy dependency**: downloads GGUF models (~100MB-1GB), runs local LLM inference for embeddings and re-ranking
 - `sqlite-vec` ^0.1.7-alpha.2 — vector extension for SQLite (**alpha quality**)
 - `@modelcontextprotocol/sdk` ^1.25.1 — MCP protocol support
 - `zod` 4.2.1, `yaml` ^2.8.2, `fast-glob` ^3.3.0
-- Requires Node ≥22.0.0 (Agent OS is on v22.22.0 — compatible)
+- Requires Node ≥22.0.0 (Ditto is on v22.22.0 — compatible)
 
 **Configuration:** YAML file defining collections (paths + glob patterns + ignore rules) with hierarchical context descriptions that improve search relevance.
 
 ---
 
-## 2. Agent OS Knowledge Corpus (Current State)
+## 2. Ditto Knowledge Corpus (Current State)
 
 | Category | Files | Lines (approx) | Character |
 |----------|-------|-----------------|-----------|
@@ -76,7 +76,7 @@ All processing is local — no cloud dependency.
 
 ### Option A: QMD as an Integration Target (Analyze Mode)
 
-**What:** Register QMD as an integration in the integration registry (ADR-005). Agent OS connects to a user's Obsidian vault (or any markdown knowledge base) via QMD's MCP server. Agents in Analyze mode search org knowledge through it.
+**What:** Register QMD as an integration in the integration registry (ADR-005). Ditto connects to a user's Obsidian vault (or any markdown knowledge base) via QMD's MCP server. Agents in Analyze mode search org knowledge through it.
 
 **Integration pattern:**
 ```yaml
@@ -89,13 +89,13 @@ interfaces:
 preferred: mcp
 ```
 
-**What Agent OS gets:** Access to user's existing markdown knowledge without building a custom indexer. "Connect your Obsidian vault" becomes an onboarding data source alongside email, calendar, etc.
+**What Ditto gets:** Access to user's existing markdown knowledge without building a custom indexer. "Connect your Obsidian vault" becomes an onboarding data source alongside email, calendar, etc.
 
 **Pros:**
 - Zero custom code — standard MCP integration via existing architecture
-- Composition over invention — QMD handles search, Agent OS handles governance
+- Composition over invention — QMD handles search, Ditto handles governance
 - Users keep their existing knowledge system
-- Lightweight — QMD runs as a separate process, no dependency in Agent OS
+- Lightweight — QMD runs as a separate process, no dependency in Ditto
 
 **Cons:**
 - Only helps Obsidian/markdown users (though markdown is broadly used)
@@ -104,21 +104,21 @@ preferred: mcp
 
 **Effort:** Minimal — an integration registry entry. Standard MCP client code (needed for other integrations anyway).
 
-### Option B: QMD as Search Engine for Agent OS's Own Knowledge Base (Insight-042)
+### Option B: QMD as Search Engine for Ditto's Own Knowledge Base (Insight-042)
 
-**What:** Use QMD to index and search Agent OS's `docs/` corpus. The knowledge-manager system agent (Insight-042) uses QMD for retrieval — finding relevant research, insights, ADRs, and briefs without needing to be told which files to read.
+**What:** Use QMD to index and search Ditto's `docs/` corpus. The knowledge-manager system agent (Insight-042) uses QMD for retrieval — finding relevant research, insights, ADRs, and briefs without needing to be told which files to read.
 
 **Two sub-options for integration mode:**
 
 **B1: MCP server mode (recommended path)**
-QMD runs as a separate process (`qmd mcp --http --daemon`). Agent OS agents query it via MCP during step execution — a standard agent tool use pattern per ADR-005.
+QMD runs as a separate process (`qmd mcp --http --daemon`). Ditto agents query it via MCP during step execution — a standard agent tool use pattern per ADR-005.
 
 ```yaml
-# QMD config for Agent OS knowledge base
+# QMD config for Ditto knowledge base
 collections:
   - path: ./docs/research
     context:
-      "/": "Deep technical research reports on frameworks, patterns, and approaches evaluated for Agent OS"
+      "/": "Deep technical research reports on frameworks, patterns, and approaches evaluated for Ditto"
   - path: ./docs/insights
     context:
       "/": "Design discoveries and provisional principles that emerged during building"
@@ -135,18 +135,18 @@ collections:
 
 - Clean separation — QMD is a sidecar, not a dependency
 - Aligns with ADR-005 integration architecture
-- Agent OS doesn't import node-llama-cpp or sqlite-vec
+- Ditto doesn't import node-llama-cpp or sqlite-vec
 - QMD daemon keeps models loaded in VRAM for fast queries
 
 **B2: SDK mode (tighter integration)**
 Import `@tobilu/qmd` as a library. Use QMD's `createStore()` and `search()` directly in the memory-assembly handler or a new knowledge-retrieval handler.
 
-- Tighter coupling — brings node-llama-cpp into Agent OS's process
+- Tighter coupling — brings node-llama-cpp into Ditto's process
 - Heavier binary footprint (~100MB-1GB for GGUF models)
 - More control over search behavior
 - No separate process to manage
 
-**What Agent OS gets:**
+**What Ditto gets:**
 - Agents can search the knowledge base semantically ("what do we know about trust progression?") instead of reading specific files
 - The knowledge-manager system agent gets retrieval for freshness audits, contradiction detection, gap analysis
 - Research reports, insights, and ADRs become discoverable rather than requiring explicit file paths in skill commands
@@ -156,7 +156,7 @@ Import `@tobilu/qmd` as a library. Use QMD's `createStore()` and `search()` dire
 - Addresses a real upcoming need (Insight-042) via composition rather than invention
 - Same stack: TypeScript, SQLite, vitest, MIT
 - MCP mode keeps dependency isolated
-- Hierarchical context (collection + path level) maps to Agent OS's knowledge categories
+- Hierarchical context (collection + path level) maps to Ditto's knowledge categories
 - BM25-only mode works without embeddings for fast keyword search
 
 **Cons:**
@@ -174,7 +174,7 @@ Import `@tobilu/qmd` as a library. Use QMD's `createStore()` and `search()` dire
 
 **Assessment: Does not fit.** ADR-003 deliberately chose structured, schema-enforced, queryable memory (SQLite with scope_type + scope_id) over file-based approaches. The memory-systems research explicitly identified limitations of file-based memory: "no query capability, no multi-agent coordination, no schema enforcement." Adding QMD here reintroduces those problems.
 
-Memory assembly is a solved design in Agent OS. Knowledge retrieval is not the same problem — it's about searching accumulated institutional knowledge (research, decisions, principles), not about retrieving agent/process memories. Option C confuses the two.
+Memory assembly is a solved design in Ditto. Knowledge retrieval is not the same problem — it's about searching accumulated institutional knowledge (research, decisions, principles), not about retrieving agent/process memories. Option C confuses the two.
 
 ---
 
@@ -182,10 +182,10 @@ Memory assembly is a solved design in Agent OS. Knowledge retrieval is not the s
 
 | Alternative | How it works | Pros | Cons |
 |-------------|-------------|------|------|
-| **BM25 over existing SQLite** | Add FTS5 full-text search to Agent OS's better-sqlite3. Index docs/ content in a new table. | No new dependency. Already have better-sqlite3. Fast keyword search. | No semantic search. Must build indexing, query expansion, result ranking. Reinvents what QMD already does. |
+| **BM25 over existing SQLite** | Add FTS5 full-text search to Ditto's better-sqlite3. Index docs/ content in a new table. | No new dependency. Already have better-sqlite3. Fast keyword search. | No semantic search. Must build indexing, query expansion, result ranking. Reinvents what QMD already does. |
 | **Grep/Glob (current approach)** | Agents read specific files they're told about via skill commands. | Zero overhead. Works today. | No discovery. Doesn't scale. Breaks for knowledge-manager agent. |
-| **Anthropic API embeddings** | Use Claude's embedding model for vector search. Store vectors in Agent OS's SQLite. | High quality embeddings. No local model dependency. | Costs money per query. Not local-first. Requires API key. Against the "subscription-based" direction of CLI adapter. |
-| **sqlite-vec directly** | Add sqlite-vec to Agent OS's SQLite. Build custom embedding + search pipeline. | Full control. No QMD dependency. | Must build embedding pipeline, query expansion, ranking. sqlite-vec is alpha. Still needs an embedding model (local or API). |
+| **Anthropic API embeddings** | Use Claude's embedding model for vector search. Store vectors in Ditto's SQLite. | High quality embeddings. No local model dependency. | Costs money per query. Not local-first. Requires API key. Against the "subscription-based" direction of CLI adapter. |
+| **sqlite-vec directly** | Add sqlite-vec to Ditto's SQLite. Build custom embedding + search pipeline. | Full control. No QMD dependency. | Must build embedding pipeline, query expansion, ranking. sqlite-vec is alpha. Still needs an embedding model (local or API). |
 | **QMD via MCP** | Run QMD as sidecar MCP server. | Complete solution. Local-first. Hybrid search. Already has MCP interface. | Young project. Alpha deps. Operational complexity. |
 
 ---
@@ -208,13 +208,13 @@ The velvetshark.com article reveals OpenClaw's memory architecture in detail —
 
 **Bootstrap file limits:** 20K chars per file, 150K chars aggregate. Large knowledge bases must be accessed via search (Track A: local hybrid search, Track B: QMD backend).
 
-**Agent OS comparison:** Agent OS's memory architecture (ADR-003) solves the compaction problem structurally — memories are extracted, reconciled, and stored in SQLite with scope filtering and salience scoring. The harness manages persistence (feedback-to-memory bridge), not the user. OpenClaw's approach puts cognitive load on the user; Agent OS's approach puts it on the harness. This validates our design direction.
+**Ditto comparison:** Ditto's memory architecture (ADR-003) solves the compaction problem structurally — memories are extracted, reconciled, and stored in SQLite with scope filtering and salience scoring. The harness manages persistence (feedback-to-memory bridge), not the user. OpenClaw's approach puts cognitive load on the user; Ditto's approach puts it on the harness. This validates our design direction.
 
 **Landscape.md gap:** OpenClaw's entry currently mentions only "skills-as-progressive-disclosure, skills wrapping MCP servers, channel adapters." The memory model and its limitations are not documented. Worth flagging to the Documenter.
 
 ### Obsidian+Claude Code "Second Brain" Pattern
 
-Another instance of the "AI Agent OS practitioner pattern" already in landscape.md. Adds:
+Another instance of the "AI Ditto practitioner pattern" already in landscape.md. Adds:
 
 - **Vault-first protocol:** 5-step search order (Topics → Sessions → Conversations → Semantic → External) — a manual version of memory assembly
 - **Multi-bot coordination:** Multiple OpenClaw instances share one Obsidian vault for knowledge transfer — relevant to Layer 4 shared organizational context
@@ -239,8 +239,8 @@ This is not a new pattern category — it's additional evidence that people are 
 | Option | Fit | When | Effort |
 |--------|-----|------|--------|
 | **A: Integration target** (user's Obsidian vault via MCP) | Standard — just another integration | Phase 6+ (Analyze mode) | Minimal |
-| **B1: Knowledge search via MCP** (Agent OS's own docs/) | Genuine composition opportunity | After Insight-042 (knowledge-manager agent) | Medium |
-| **B2: Knowledge search via SDK** (library import) | Over-coupled — brings heavy deps into Agent OS process | Not recommended | High |
+| **B1: Knowledge search via MCP** (Ditto's own docs/) | Genuine composition opportunity | After Insight-042 (knowledge-manager agent) | Medium |
+| **B2: Knowledge search via SDK** (library import) | Over-coupled — brings heavy deps into Ditto process | Not recommended | High |
 | **C: Memory assembly augmentation** | Does not fit — fights ADR-003 | Never | N/A |
 
 **Risk factors for QMD adoption:**
@@ -255,7 +255,7 @@ This is not a new pattern category — it's additional evidence that people are 
 
 ## 8. Gaps and Open Questions
 
-1. **QMD's search quality at Agent OS's corpus size** — untested. The corpus may be too small for semantic search to add value over keyword search (BM25 alone might suffice).
+1. **QMD's search quality at Ditto's corpus size** — untested. The corpus may be too small for semantic search to add value over keyword search (BM25 alone might suffice).
 2. **Model download UX** — QMD requires downloading GGUF models on first use. What's the experience for dev-pipeline users? For end users?
 3. **QMD stability** — 11 releases in 5 weeks with breaking changes. Is the API stable enough to depend on?
 4. **BM25-only mode viability** — QMD supports lexical-only search (no models needed). Is this sufficient for the knowledge-manager use case, avoiding the heavy node-llama-cpp dependency?

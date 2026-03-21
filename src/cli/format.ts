@@ -1,5 +1,5 @@
 /**
- * Agent OS — CLI Format Utilities
+ * Ditto — CLI Format Utilities
  *
  * Shared formatting for consistent CLI output.
  * Pattern: GitHub CLI Exporter interface for --json support.

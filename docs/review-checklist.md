@@ -1,6 +1,6 @@
 # Architecture Review Checklist
 
-Use this checklist to review every piece of work against the Agent OS architecture. This is the harness on our own build process.
+Use this checklist to review every piece of work against the Ditto architecture. This is the harness on our own build process.
 
 ## How to Use
 
@@ -21,7 +21,7 @@ Does this change map to a specific layer in the architecture? Which one(s)?
 ### 2. Provenance
 Is there a source project for this pattern? Is the ADR written?
 - Every adopted pattern must cite: project name, file path, what we took
-- Every original pattern must be explicitly marked as "original to Agent OS"
+- Every original pattern must be explicitly marked as "original to Ditto"
 - If no provenance exists, FLAG it
 
 ### 3. Composition Check

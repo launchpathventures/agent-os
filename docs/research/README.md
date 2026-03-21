@@ -6,7 +6,7 @@ Reports in `docs/research/`. Detailed pattern analysis feeding architectural dec
 |--------|-------|------|--------|-------------|
 | `knowledge-management-for-ai-dev.md` | Knowledge lifecycle, context tiering, state splitting for AI-dev | 2026-03-20 | Active | Pending — Architect to design meta-process |
 | `context-and-token-efficiency.md` | Context assembly, caching, compression, model routing (30+ sources) | 2026-03-20 | Active | ADR-012 |
-| `human-cognition-models-for-agent-os.md` | Cognitive science for work oversight (7 frameworks, 3 architectures) | 2026-03-20 | Active | ADR-013 |
+| `human-cognition-models-for-ditto.md` | Cognitive science for work oversight (7 frameworks, 3 architectures) | 2026-03-20 | Active | ADR-013 |
 | `autonomous-oversight-patterns.md` | Confidence routing, batch/digest, management by exception | 2026-03-20 | Active | ADR-011 |
 | `workspace-interaction-model.md` | 14 systems: work input, HITL, work evolution, meta-processes | 2026-03-20 | Active | ADR-010 |
 | `phase-4-composition-sweep.md` | 7 projects: agent assembly, routing, HITL, middleware, CLI | 2026-03-20 | Active | Briefs 011-016 |

@@ -1,7 +1,7 @@
 # Research: Process Discovery from Organizational Data
 
 **Date:** 2026-03-19
-**Research question:** How might Agent OS discover, analyze, and operationalize processes from an organisation's existing data (emails, documents, Slack messages, calendars, process documents, software, financial data) — rather than requiring users to manually describe processes?
+**Research question:** How might Ditto discover, analyze, and operationalize processes from an organisation's existing data (emails, documents, Slack messages, calendars, process documents, software, financial data) — rather than requiring users to manually describe processes?
 **Triggered by:** User observation that every organisation already has artifacts that reveal its real processes
 **Status:** Complete — awaiting Architect
 
@@ -9,7 +9,7 @@
 
 ## Context
 
-Agent OS currently assumes processes are defined through conversational setup (Explore mode → Process Builder). The user describes their pain, the system asks questions, and a process definition emerges. This works but places the burden of articulation on the human.
+Ditto currently assumes processes are defined through conversational setup (Explore mode → Process Builder). The user describes their pain, the system asks questions, and a process definition emerges. This works but places the burden of articulation on the human.
 
 The research question inverts this: what if the system could examine an organisation's existing digital footprint — emails, documents, Slack messages, calendars, financial records, CRM data, project tools — and surface the processes that already exist? The human's role shifts from "describe your process" to "confirm, correct, and refine what we found."
 
@@ -35,7 +35,7 @@ Research reveals three distinct approaches, each operating on different data and
 | **Microsoft Power Automate Process Mining** | Acquired Minit; integrated into Power Platform | System event logs | Microsoft ecosystem integration, accessible pricing | Limited to Microsoft-connected systems |
 | **ProcessMind** | AI-powered process mining | System logs + user activity | Fast setup, AI-driven analysis | Newer entrant, less enterprise depth |
 
-**Relevance to Agent OS:** LOW for our personas. Rob, Lisa, Nadia, and Jordan don't have SAP or Oracle. Their "systems" are Gmail, Xero, Shopify, Slack, and spreadsheets. System-level process mining requires structured event logs that SMBs typically don't produce at the resolution needed.
+**Relevance to Ditto:** LOW for our personas. Rob, Lisa, Nadia, and Jordan don't have SAP or Oracle. Their "systems" are Gmail, Xero, Shopify, Slack, and spreadsheets. System-level process mining requires structured event logs that SMBs typically don't produce at the resolution needed.
 
 ### Layer 2: Task Mining (Desktop Activity Capture)
 
@@ -50,7 +50,7 @@ Research reveals three distinct approaches, each operating on different data and
 | **Skan.ai** | Computer vision observes desktop activity → creates "Digital Twin of Operations" | Computer vision on user desktops | Works with any application including legacy/mainframes, no API needed | Work graphs require interpretation, manual translation to automation |
 | **KYP.ai** | Real-time activity capture → AI-powered insights → process intelligence | Desktop/browser monitoring | Fast insights (days vs months), Everest Group Leader in Task Mining 2025 | Activity monitoring raises privacy concerns |
 
-**Relevance to Agent OS:** MEDIUM. Task mining captures the *how* — what applications people use, in what order, for how long. This is valuable for understanding where time goes. But it's surveillance-adjacent (desktop agents recording user activity), which conflicts with our personas' expectations. Rob isn't going to install a desktop agent on his laptop. Jordan might for an enterprise initiative, but it's a hard sell for SMBs.
+**Relevance to Ditto:** MEDIUM. Task mining captures the *how* — what applications people use, in what order, for how long. This is valuable for understanding where time goes. But it's surveillance-adjacent (desktop agents recording user activity), which conflicts with our personas' expectations. Rob isn't going to install a desktop agent on his laptop. Jordan might for an enterprise initiative, but it's a hard sell for SMBs.
 
 ### Layer 3: Narrative + Data Discovery (AI-Guided Elicitation)
 
@@ -63,7 +63,7 @@ Research reveals three distinct approaches, each operating on different data and
 | **Glean** | Enterprise knowledge graph across all apps → AI search + agents | Email, Slack, documents, calendar, CRM, project tools — 100+ connectors | Unified search across all organizational data, enterprise-grade | Not purpose-built for process discovery (search-first), enterprise pricing |
 | **PKAI** (academic) | Multi-agent LLM system for process knowledge acquisition | Documents, interviews, domain knowledge | 19 design requirements for LLM-based process discovery, academically validated | Research prototype (Python), not production-ready |
 
-**Relevance to Agent OS:** HIGH. This is the approach most aligned with our personas and architecture. It doesn't require desktop surveillance. It works with data that already exists (emails, documents, Slack, calendar). It uses conversation (which maps to Explore mode) supplemented by evidence from organizational data.
+**Relevance to Ditto:** HIGH. This is the approach most aligned with our personas and architecture. It doesn't require desktop surveillance. It works with data that already exists (emails, documents, Slack, calendar). It uses conversation (which maps to Explore mode) supplemented by evidence from organizational data.
 
 ---
 
@@ -82,7 +82,7 @@ The most relevant academic work is "Large Language Models for Process Knowledge 
 
 **Limitation:** Unsuitable for strategic reasoning about modeling perspectives or granularity levels — these require human judgment.
 
-**Implication for Agent OS:** The preparation → socialization → externalization pipeline maps directly to a potential Agent OS discovery flow: (1) connect data sources and analyze, (2) guided conversation with evidence, (3) produce process definitions.
+**Implication for Ditto:** The preparation → socialization → externalization pipeline maps directly to a potential Ditto discovery flow: (1) connect data sources and analyze, (2) guided conversation with evidence, (3) produce process definitions.
 
 ---
 
@@ -102,7 +102,7 @@ This is the "industry standards as base knowledge" principle from the architectu
 
 ---
 
-## Five Discovery Approaches Mapped to Agent OS
+## Five Discovery Approaches Mapped to Ditto
 
 ### Approach 1: Communication Pattern Analysis
 
@@ -183,7 +183,7 @@ This is the "industry standards as base knowledge" principle from the architectu
 
 ## Practical Data Ingestion: The Readily Available Sources
 
-Agent OS is not being built for enterprise. The question isn't "how do Celonis and SAP mine processes?" — it's **"what data can we practically suck in from the tools every organisation already uses, and what does it tell us?"**
+Ditto is not being built for enterprise. The question isn't "how do Celonis and SAP mine processes?" — it's **"what data can we practically suck in from the tools every organisation already uses, and what does it tell us?"**
 
 Every organisation — a sole trader, a 10-person trades business, a 50-person ecommerce company — already has some combination of these readily available data sources:
 
@@ -244,31 +244,31 @@ This is a suggested analysis order, not a user-facing priority. The user connect
 
 **Model:** Connect to enterprise systems → extract event logs → mine processes → visualize → optimize.
 **Assumption:** The organisation has large ERP/CRM systems with structured logs.
-**Gap for Agent OS personas:** Our users don't have enterprise systems. They have Gmail, Xero, Shopify, Slack, and spreadsheets.
+**Gap for Ditto personas:** Our users don't have enterprise systems. They have Gmail, Xero, Shopify, Slack, and spreadsheets.
 
 ### The Surveillance Approach (Skan.ai, KYP.ai, Mimica)
 
 **Model:** Install desktop agents → record user activity → AI infers processes from behaviour.
 **Assumption:** The organisation will accept desktop monitoring of employee activity.
-**Gap for Agent OS personas:** Privacy concerns, especially for SMBs. Rob isn't installing a desktop agent. The approach also captures *how* but not *why* — it sees clicks but not business intent.
+**Gap for Ditto personas:** Privacy concerns, especially for SMBs. Rob isn't installing a desktop agent. The approach also captures *how* but not *why* — it sees clicks but not business intent.
 
 ### The Hybrid Approach (ClearWork)
 
 **Model:** AI-guided interviews + browser extension activity capture + document analysis.
 **Assumption:** Stakeholders will participate in structured interviews; some browser monitoring accepted.
-**Gap for Agent OS personas:** Still requires formal "discovery project" mindset. Closer to consulting engagement than product experience.
+**Gap for Ditto personas:** Still requires formal "discovery project" mindset. Closer to consulting engagement than product experience.
 
 ### The Knowledge Graph Approach (Glean)
 
 **Model:** Connect to all apps → build enterprise knowledge graph → search + AI agents across all data.
 **Assumption:** Enterprise scale with 100+ app connections.
-**Gap for Agent OS personas:** Not process-focused — it's a search/knowledge platform. Doesn't produce process definitions. Enterprise pricing.
+**Gap for Ditto personas:** Not process-focused — it's a search/knowledge platform. Doesn't produce process definitions. Enterprise pricing.
 
 ### The Academic Approach (PKAI)
 
 **Model:** Multi-agent LLM system: preparation (analyze docs) → socialization (interview) → externalization (formalize).
 **Assumption:** Research context with willing participants.
-**Gap for Agent OS personas:** Not production software. Python-based. But the three-stage pipeline is a valuable architectural pattern.
+**Gap for Ditto personas:** Not production software. Python-based. But the three-stage pipeline is a valuable architectural pattern.
 
 ---
 
@@ -288,7 +288,7 @@ The closest is **ClearWork's hybrid approach** (narrative + data), but it produc
 
 ---
 
-## Architectural Mapping to Agent OS
+## Architectural Mapping to Ditto
 
 ### Where Process Discovery Fits in the Six Layers
 
@@ -383,16 +383,16 @@ Output:  Live process, ready for trust earning
 | Enterprise knowledge graph | Glean | Established enterprise |
 | Multi-agent LLM process knowledge acquisition (PKAI) | Springer BISE 2025 paper | Academic research |
 | APQC Process Classification Framework | APQC (since 1992) | Industry standard |
-| Process discovery from SaaS API data | Not established — typically enterprise ERP | Gap / Original to Agent OS |
-| Evidence-informed conversational discovery | Not established — ClearWork interviews are closest | Gap / Original to Agent OS |
-| Discovered processes → executable definitions with trust tiers | Not established | Original to Agent OS |
-| Continuous discovery (ongoing, not one-time audit) | Not established | Original to Agent OS |
+| Process discovery from SaaS API data | Not established — typically enterprise ERP | Gap / Original to Ditto |
+| Evidence-informed conversational discovery | Not established — ClearWork interviews are closest | Gap / Original to Ditto |
+| Discovered processes → executable definitions with trust tiers | Not established | Original to Ditto |
+| Continuous discovery (ongoing, not one-time audit) | Not established | Original to Ditto |
 
 ---
 
 ## Landscape Flag
 
-The current `docs/landscape.md` does not include process mining, process discovery, or process intelligence tools. If process discovery becomes an Agent OS capability, the landscape should be updated to include:
+The current `docs/landscape.md` does not include process mining, process discovery, or process intelligence tools. If process discovery becomes an Ditto capability, the landscape should be updated to include:
 - Celonis (enterprise process mining — context, not adoption)
 - Mimica (task mining — pattern reference)
 - ClearWork (hybrid discovery — closest approach)

@@ -24,7 +24,7 @@
 | `--json` / `--quiet` flags | Machine-readable output section | ✓ Specified |
 | TTY-awareness | Progressive disclosure section | ✓ Specified |
 | Empty states | Interaction states: "Nothing needs your attention" | ✓ Specified |
-| First run state | Interaction states: "Welcome to Agent OS" | ✓ Specified |
+| First run state | Interaction states: "Welcome to Ditto" | ✓ Specified |
 
 **Designer recommendation for Builder:** Proceed. The spec is implementation-ready for 4a.
 

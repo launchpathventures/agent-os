@@ -1,4 +1,4 @@
-# Agent OS — System Agent Process Definition
+# Ditto — System Agent Process Definition
 # Process: Orchestrator
 # Goal-directed orchestrator (Brief 021). Decomposes goals into tasks
 # using process step lists as blueprints. Routes around trust gate pauses.

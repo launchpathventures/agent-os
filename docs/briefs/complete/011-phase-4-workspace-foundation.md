@@ -83,10 +83,10 @@ Phase 4 has ~36 acceptance criteria across 4 subsystems. Per Insight-004, this s
 | Multi-source tool gathering | Mastra `packages/core/src/agent/agent.ts` | 7 tool sources merged at invocation. Composition sweep. |
 | Orchestrator-worker decomposition | Anthropic multi-agent research | Lead agent decomposes, subagents execute. ADR-010 adopted this. |
 | Lifecycle hooks | Inngest AgentKit `packages/agent-kit/src/agent.ts` | onStart/onResponse/onFinish for injection. Composition sweep. |
-| Work item taxonomy (5 types) | Original to Agent OS | No project has question/task/goal/insight/outcome with lifecycle rules. |
-| Meta-processes through own harness | Original to Agent OS | No project governs its own routing through trust pipeline. |
-| Unified task surface (3 types) | Original to Agent OS | No product unifies review + action + goal tasks. |
-| Trust-governed routing | Original to Agent OS | Routing decisions earning trust is not implemented anywhere. |
+| Work item taxonomy (5 types) | Original to Ditto | No project has question/task/goal/insight/outcome with lifecycle rules. |
+| Meta-processes through own harness | Original to Ditto | No project governs its own routing through trust pipeline. |
+| Unified task surface (3 types) | Original to Ditto | No product unifies review + action + goal tasks. |
+| Trust-governed routing | Original to Ditto | Routing decisions earning trust is not implemented anywhere. |
 
 ## User Experience
 

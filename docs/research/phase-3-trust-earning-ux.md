@@ -344,7 +344,7 @@ The current design has no team-level trust aggregation. Nadia sees individual Pr
 
 ### Gap 4: No Peer/Cross-Process Comparison
 
-The eBay research found peer comparison valuable ("your defect rate vs similar sellers"). Agent OS could compare: "Your quoting process correction rate (12%) is lower than average for similar processes (18%)."
+The eBay research found peer comparison valuable ("your defect rate vs similar sellers"). Ditto could compare: "Your quoting process correction rate (12%) is lower than average for similar processes (18%)."
 
 **Recommendation:** Defer to Phase 9. Not enough data or processes during dogfood to make this meaningful.
 

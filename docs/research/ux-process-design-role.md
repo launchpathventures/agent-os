@@ -1,14 +1,14 @@
 # Research: UX & Process Design Role in the Dev Flow
 
 **Date:** 2026-03-19
-**Question:** Does Agent OS need a dedicated UX/Process Design role in its development flow? Where would it sit?
+**Question:** Does Ditto need a dedicated UX/Process Design role in its development flow? Where would it sit?
 **Status:** Complete — reviewed and revised
 
 ---
 
 ## The Gap
 
-Agent OS has six dev roles, all engineering-oriented:
+Ditto has six dev roles, all engineering-oriented:
 
 | Role | Thinks about |
 |------|-------------|
@@ -21,7 +21,7 @@ Agent OS has six dev roles, all engineering-oriented:
 
 **What's missing:** No role is explicitly constrained to think from the **end-user's perspective** — the non-technical person who will define, monitor, review, and improve processes. The Architect currently owns "what interfaces look like" (per its skill definition), but this is a secondary concern folded into technical design, not a primary lens.
 
-Agent OS's core value proposition is heavily UX/process-design-dependent:
+Ditto's core value proposition is heavily UX/process-design-dependent:
 - 16 universal UI primitives (human-layer.md)
 - Explore → Operate transition (conversation crystallising into process)
 - "Everyone will be a manager and delegator" (design for non-managers)
@@ -81,25 +81,25 @@ Beyond agent-dev source projects, professional product teams have established pa
 
 Two parallel tracks run continuously: a **discovery track** (generating and validating product ideas) and a **delivery track** (building validated ideas into software). Designers and engineers participate in both tracks. There is no single handoff moment — design review happens continuously. Discovery feeds the delivery backlog; delivery feedback loops back into discovery.
 
-**Relevance to Agent OS:** This maps naturally to parallel research tracks (Option B below). The discovery track is UX/process research; the delivery track is technical research → architecture → build.
+**Relevance to Ditto:** This maps naturally to parallel research tracks (Option B below). The discovery track is UX/process research; the delivery track is technical research → architecture → build.
 
 ### Pattern 2: Design Ahead (one-sprint lead)
 
 Designers work one sprint ahead of developers. Design for Sprint N+1 is finalised during Sprint N. Design review happens at sprint boundaries.
 
-**Relevance to Agent OS:** Less applicable — Agent OS doesn't use sprints. But the principle of "design decisions are settled before engineering begins" matches gstack's ordering.
+**Relevance to Ditto:** Less applicable — Ditto doesn't use sprints. But the principle of "design decisions are settled before engineering begins" matches gstack's ordering.
 
 ### Pattern 3: Design Critique Rituals (Spotify model)
 
 Weekly cross-disciplinary design syncs where the entire team reviews UX direction. Not a phase-gate but a continuous ritual layered on top of whatever methodology the team uses. Shopify uses a similar pattern with WIP pull requests for early directional feedback.
 
-**Relevance to Agent OS:** Could map to a lightweight design gate that runs periodically or on significant changes, rather than on every task.
+**Relevance to Ditto:** Could map to a lightweight design gate that runs periodically or on significant changes, rather than on every task.
 
 ### Pattern 4: Design Systems as Codified Decisions
 
 Design systems (Material Design, Apple HIG, Atlassian) function as **pre-made design decisions** that reduce the need for per-feature design review. They establish constraints upfront (spacing, typography, component behaviour) so engineers can make design-consistent choices without designer involvement on every ticket. Design review then focuses on **novel interactions and strategic UX questions** rather than visual consistency.
 
-**Relevance to Agent OS:** `human-layer.md` + the 16 primitives function as Agent OS's design system. If the design system is sufficiently detailed, many design decisions are pre-made — the design role only needs to activate for novel interactions, not every ticket.
+**Relevance to Ditto:** `human-layer.md` + the 16 primitives function as Ditto's design system. If the design system is sufficiently detailed, many design decisions are pre-made — the design role only needs to activate for novel interactions, not every ticket.
 
 ### Key Finding from Professional Practice
 
@@ -134,7 +134,7 @@ The design role (whatever form it takes) needs a reference to review against. `d
 
 ---
 
-## Where UX/Design Thinking Currently Lives in Agent OS
+## Where UX/Design Thinking Currently Lives in Ditto
 
 | Location | What it covers | Gap |
 |----------|---------------|-----|
@@ -352,7 +352,7 @@ Not a standalone option — this is a **modifier** applied to any of Options A-D
 
 ## Professional Practice Summary
 
-| Pattern | When design input happens | Agent OS analogue |
+| Pattern | When design input happens | Ditto analogue |
 |---------|--------------------------|-------------------|
 | **Dual-Track Agile** (gold standard) | Continuously — discovery and delivery in parallel | Option A+B Hybrid or Option B |
 | **Design Ahead** | One phase ahead of engineering | Option A (Designer before Architect) |
@@ -394,7 +394,7 @@ A `/dev-designer` skill should be aware of which surface it's designing for. The
 2. If separate, should it sit **before the Architect** (shaping requirements) or **after** (reviewing designs), or **both** (research input + review gate)?
 3. The hybrid A+B option gives the Designer both research and design authority. Does this violate the Researcher/Architect separation principle, or is it acceptable because the separation is along a different axis (user perspective vs technical perspective)?
 4. Should Option E (conditional trigger) be the default, with the understanding that Phase 9+ will need the full design role while Phase 2-5 can be lighter?
-5. Does Agent OS's dev process need to mirror the pattern it's building — i.e., if the platform has separate design and engineering governance, should the dev process that builds it also separate them?
+5. Does Ditto's dev process need to mirror the pattern it's building — i.e., if the platform has separate design and engineering governance, should the dev process that builds it also separate them?
 6. Is human-layer.md sufficient for current phases, or does it need to be expanded (interaction states, accessibility, CLI UX) before a design role can review against it?
 
 ---

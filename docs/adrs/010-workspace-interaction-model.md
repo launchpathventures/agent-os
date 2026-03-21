@@ -7,7 +7,7 @@
 
 ### The Problem
 
-Agent OS's current interaction model frames the user experience as "define processes → review outputs → earn trust." This is the interaction model of an automation platform (Zapier, n8n) with a trust layer. The architecture spec's Core Thesis correctly states "the chat interface is the wrong metaphor for business processes," but then replaces it with a factory metaphor that is equally wrong for how people actually work.
+Ditto's current interaction model frames the user experience as "define processes → review outputs → earn trust." This is the interaction model of an automation platform (Zapier, n8n) with a trust layer. The architecture spec's Core Thesis correctly states "the chat interface is the wrong metaphor for business processes," but then replaces it with a factory metaphor that is equally wrong for how people actually work.
 
 Real work doesn't start with "I need to define a process." It starts with:
 
@@ -21,9 +21,9 @@ These are **work inputs.** Processes are the system's learned capabilities for h
 
 ### Forces
 
-1. **Every new AI interaction feels stateless.** The user's biggest fear is that the system doesn't remember what happened, who they are, or what needs to be done. Human teammates' memory persists and evolves. Agent OS must feel like that. (Insight-028)
+1. **Every new AI interaction feels stateless.** The user's biggest fear is that the system doesn't remember what happened, who they are, or what needs to be done. Human teammates' memory persists and evolves. Ditto must feel like that. (Insight-028)
 
-2. **The system must feel like a workspace, not a dashboard.** The user works IN Agent OS daily — it's a living environment, not something they check occasionally. Disaster would be feeling like Monday.com, Linear, or Notion. (Insight-027)
+2. **The system must feel like a workspace, not a dashboard.** The user works IN Ditto daily — it's a living environment, not something they check occasionally. Disaster would be feeling like Monday.com, Linear, or Notion. (Insight-027)
 
 3. **A single input should evolve through multiple processes.** "Henderson wants a bathroom quote" → quoting process drafts quote → notices restricted access → spawns human action step → Rob confirms from truck → quote finalised → follow-up process activates → system notices bathroom trend → proposes process improvement. The seed grows into a tree. No human organised this.
 
@@ -31,7 +31,7 @@ These are **work inputs.** Processes are the system's learned capabilities for h
 
 5. **Core agents and meta-processes must drive the framework.** The orchestration layer isn't just code — it's processes running agents through the same harness. The system runs ON itself. This is what makes it alive. (ADR-008 already defines seven system agents; this ADR extends them with workspace-specific roles.)
 
-6. **Agent OS sits between OpenClaw (fluid, unstructured) and Paperclip (structured, governed).** It must combine OpenClaw's fluidity with Paperclip's structure, adding trust/harness/governance that neither has.
+6. **Ditto sits between OpenClaw (fluid, unstructured) and Paperclip (structured, governed).** It must combine OpenClaw's fluidity with Paperclip's structure, adding trust/harness/governance that neither has.
 
 ### Research Inputs
 
@@ -48,7 +48,7 @@ The Core Thesis in architecture.md gains a new section:
 
 **The User's Job Is Handoff, Not Management**
 
-The ultimate purpose of Agent OS is handoff. The human hands off work to the system and gets pulled back in only when required. Two kinds of work exist:
+The ultimate purpose of Ditto is handoff. The human hands off work to the system and gets pulled back in only when required. Two kinds of work exist:
 
 | Kind | Character | Entry | Example |
 |------|-----------|-------|---------|
@@ -61,7 +61,7 @@ Both need processes. The difference is how they enter. The compound effect is th
 
 ### 2. Define the Work Item as a first-class object
 
-A **work item** is the universal unit of work entering Agent OS. Every input — question, task, goal, insight, outcome — becomes a work item with a lifecycle.
+A **work item** is the universal unit of work entering Ditto. Every input — question, task, goal, insight, outcome — becomes a work item with a lifecycle.
 
 ```
 Work Item
@@ -92,7 +92,7 @@ Work Item
 
 **Goal ancestry:** Every work item can carry a chain of parent goals, inspired by Paperclip's goal ancestry pattern. When a quoting process executes a task, it knows the task exists because Rob's goal is "quotes under 24 hours." This context travels through the harness — agents see WHY they're working, not just WHAT.
 
-Provenance: Work item concept — Paperclip tickets with goal ancestry (`paperclipai/paperclip /packages/db/src/schema/goals.ts`, `/packages/db/src/schema/issues.ts`). Goal decomposition — Manus AI Planner module. Work item taxonomy (question/task/goal/insight/outcome) — Original to Agent OS.
+Provenance: Work item concept — Paperclip tickets with goal ancestry (`paperclipai/paperclip /packages/db/src/schema/goals.ts`, `/packages/db/src/schema/issues.ts`). Goal decomposition — Manus AI Planner module. Work item taxonomy (question/task/goal/insight/outcome) — Original to Ditto.
 
 ### 3. Add three new system agents to ADR-008's seven
 
@@ -112,7 +112,7 @@ These three, combined with ADR-008's seven, form the **meta-process layer** — 
 
 **Router vs process-analyst (ADR-008):** The process-analyst helps users *create and formalise* new processes via conversation (Phase 11). The router *dispatches work items to existing* processes (Phase 4). They are complementary — the router assumes processes already exist; the process-analyst creates them. Over time, the router's inability to find a matching process may trigger the process-analyst to suggest creating one.
 
-Provenance: Orchestrator-worker pattern — Anthropic multi-agent research system (`anthropic.com/engineering/multi-agent-research-system`). Intake classification — Original to Agent OS. Router as separate concern — Vercel AI SDK tool routing pattern (`vercel/ai`). System agents through same harness — Original to Agent OS.
+Provenance: Orchestrator-worker pattern — Anthropic multi-agent research system (`anthropic.com/engineering/multi-agent-research-system`). Intake classification — Original to Ditto. Router as separate concern — Vercel AI SDK tool routing pattern (`vercel/ai`). System agents through same harness — Original to Ditto.
 
 ### 4. Define the human step executor
 
@@ -147,7 +147,7 @@ The user's task list becomes a unified surface of:
 
 All three types are work items. All three surface in the same place.
 
-Provenance: Suspend/resume — Mastra (`mastra-ai/mastra /packages/core/src/workflows/`) suspend/resume with snapshot preservation. Waitpoint token — Trigger.dev (`triggerdotdev/trigger.dev`) wait.forToken pattern. HITL block — Sim Studio (`simstudioai/sim /packages/api/src/tools/humanInTheLoop/`) approval portal concept. Unified task surface — Original to Agent OS.
+Provenance: Suspend/resume — Mastra (`mastra-ai/mastra /packages/core/src/workflows/`) suspend/resume with snapshot preservation. Waitpoint token — Trigger.dev (`triggerdotdev/trigger.dev`) wait.forToken pattern. HITL block — Sim Studio (`simstudioai/sim /packages/api/src/tools/humanInTheLoop/`) approval portal concept. Unified task surface — Original to Ditto.
 
 ### 5. Define the conversation layer as pervasive
 
@@ -173,7 +173,7 @@ This means the user never needs to navigate to a specific screen to do work. The
 
 **Cross-reference:** The intake-classifier and router will eventually consume the organizational data model (ADR-006, Layer 4) to route work more intelligently. This dependency is noted but not required for Phase 4.
 
-Provenance: Pervasive conversation across modes — Original to Agent OS (no surveyed product provides conversation that spans structured operating modes with trust-governed routing). Plugin/skill model inspiration — Claude Cowork (`claude.com/blog/cowork-plugins-across-enterprise`). Streaming generative UI for results — Vercel AI SDK (`vercel/ai`) multi-step tool use with React components. Classification + routing — Original to Agent OS (no system routes through a trust-governed harness).
+Provenance: Pervasive conversation across modes — Original to Ditto (no surveyed product provides conversation that spans structured operating modes with trust-governed routing). Plugin/skill model inspiration — Claude Cowork (`claude.com/blog/cowork-plugins-across-enterprise`). Streaming generative UI for results — Vercel AI SDK (`vercel/ai`) multi-step tool use with React components. Classification + routing — Original to Ditto (no system routes through a trust-governed harness).
 
 ### 6. Daily Brief demonstrates accumulated memory
 
@@ -192,7 +192,7 @@ The brief must feel like a briefing from a chief of staff who knows everything �
 - Be proactive: "Henderson hasn't responded to the quote sent Tuesday. The follow-up process will send a reminder tomorrow unless you'd prefer to call."
 - Demonstrate continuity: never feel like "new chat"
 
-Provenance: Daily Brief concept — architecture.md Primitive 1. Memory-as-UX — Original to Agent OS (Insight-028). Chief-of-staff metaphor — Original.
+Provenance: Daily Brief concept — architecture.md Primitive 1. Memory-as-UX — Original to Ditto (Insight-028). Chief-of-staff metaphor — Original.
 
 ### 7. Process graph enhanced with goal hierarchy
 
@@ -221,7 +221,7 @@ Three layers in one view:
 2. **Processes** — how work flows, dependencies, connections (middle)
 3. **Live state** — what's running, what's waiting, what needs attention (bottom)
 
-Inspired by: Paperclip org chart as primary navigation (`paperclipai/paperclip` — real-time agent hierarchy with status). Asana Work Graph goal hierarchy (`asana.com/resources/work-graph`). Sim Studio execution DAG with live state (`simstudioai/sim`). Combined three-layer view — Original to Agent OS.
+Inspired by: Paperclip org chart as primary navigation (`paperclipai/paperclip` — real-time agent hierarchy with status). Asana Work Graph goal hierarchy (`asana.com/resources/work-graph`). Sim Studio execution DAG with live state (`simstudioai/sim`). Combined three-layer view — Original to Ditto.
 
 ### 8. Architecture layer amendments
 
@@ -268,11 +268,11 @@ Summary of all sources:
 | Plugin-as-skill model | Claude Cowork | Plugins bundle skills + connectors + sub-agents |
 | Org chart as primary navigation | Paperclip | Real-time hierarchy with status indicators |
 | Work Graph with goal hierarchy | Asana | Typed graph connecting goals → projects → tasks |
-| System agents through own harness | Original to Agent OS | No existing product governs its own orchestration |
-| Unified task surface (review + action + goal) | Original to Agent OS | No product unifies these three task types |
-| Reactive-to-repetitive lifecycle | Original to Agent OS | No product explicitly tracks work maturation |
-| Conversation as pervasive layer (not mode) | Original to Agent OS (inspired by Claude Cowork plugin model) | Other products have chat OR dashboard, not chat ACROSS modes with trust-governed routing |
-| Memory as UX (demonstrated continuity) | Original to Agent OS (Insight-028) | No product makes accumulated memory a core UX principle |
+| System agents through own harness | Original to Ditto | No existing product governs its own orchestration |
+| Unified task surface (review + action + goal) | Original to Ditto | No product unifies these three task types |
+| Reactive-to-repetitive lifecycle | Original to Ditto | No product explicitly tracks work maturation |
+| Conversation as pervasive layer (not mode) | Original to Ditto (inspired by Claude Cowork plugin model) | Other products have chat OR dashboard, not chat ACROSS modes with trust-governed routing |
+| Memory as UX (demonstrated continuity) | Original to Ditto (Insight-028) | No product makes accumulated memory a core UX principle |
 
 ## Consequences
 

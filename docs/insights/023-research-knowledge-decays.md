@@ -9,7 +9,7 @@
 
 The development process has four types of durable knowledge: decisions (ADRs), work plans (briefs), design principles (insights), and framework evaluations (landscape.md). But the most expensive knowledge to produce — detailed pattern research across source projects — had no persistent form. It existed only in conversation and evaporated at session end.
 
-This is the same problem Agent OS solves for its users. The harness captures implicit feedback (edits, corrections, approvals) so that operational knowledge compounds over time. But our own development process was losing its most valuable input: the "how does project X implement pattern Y" findings that inform every architectural decision.
+This is the same problem Ditto solves for its users. The harness captures implicit feedback (edits, corrections, approvals) so that operational knowledge compounds over time. But our own development process was losing its most valuable input: the "how does project X implement pattern Y" findings that inform every architectural decision.
 
 The pattern generalises: any system that produces knowledge through investigation (not just execution) needs a persistence layer for that investigation, not just for the decisions that result from it. Recording only decisions is like recording only test results without the test code — you know what passed but can't re-run or build on the analysis.
 

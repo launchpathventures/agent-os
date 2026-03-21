@@ -1,5 +1,5 @@
 /**
- * Agent OS — Harness Event Emitter
+ * Ditto — Harness Event Emitter
  *
  * Simple typed event emitter for harness lifecycle events.
  * External surfaces (Telegram bot, web dashboard) subscribe to events

@@ -5,11 +5,11 @@
 
 ## Context
 
-Agent OS defines 16 domain-agnostic UI primitives and 8 view compositions. The question: should Agent OS build a formal runtime UI composition protocol (ViewSpec JSON, composition function, component registry) for its web dashboard?
+Ditto defines 16 domain-agnostic UI primitives and 8 view compositions. The question: should Ditto build a formal runtime UI composition protocol (ViewSpec JSON, composition function, component registry) for its web dashboard?
 
 **Research findings** (see `docs/research/runtime-composable-ui.md`):
 - **SDUI** (Airbnb, Lyft, DoorDash, Netflix) is production-proven — but was invented primarily to solve **mobile app store deployment delays**. On the web, you can deploy anytime. The core SDUI value proposition doesn't apply.
-- **A2UI** (Google, Dec 2025) is the first protocol for agent-driven UI composition. Sound architecture, but early (v0.9) and solves a multi-platform problem Agent OS doesn't have yet.
+- **A2UI** (Google, Dec 2025) is the first protocol for agent-driven UI composition. Sound architecture, but early (v0.9) and solves a multi-platform problem Ditto doesn't have yet.
 - **React already composes at runtime.** Conditional rendering based on data, trust tier, and process context is standard React — no intermediate JSON protocol needed.
 
 **The key realisation:** The 16 primitives are React components. Composing them based on context is just React. The Output Viewer (Primitive 6) already adapts to six output types. Trust-aware density is `if (trustTier === 'supervised')` in the component. Data-driven rendering is props. A formal ViewSpec protocol between engine and frontend is an abstraction layer that adds complexity without solving a problem the web frontend actually has.
@@ -54,12 +54,12 @@ The 8 views in the architecture spec are good starting points. But the system sh
 
 ### 3. Defer Formal Composition Protocol to Multi-Platform (Phase 13+)
 
-When Agent OS needs to render on mobile (Phase 13) or inside third-party surfaces, re-evaluate. At that point:
+When Ditto needs to render on mobile (Phase 13) or inside third-party surfaces, re-evaluate. At that point:
 - A2UI may have matured (v1.0+) and could be adopted directly
 - The 16 primitives will have been battle-tested as React components, making it clear which abstractions are actually needed
 - A formal protocol (ViewSpec or A2UI) will solve a real problem: one backend, multiple rendering targets
 
-**Re-entry condition:** Phase 13 (Mobile) or whenever Agent OS needs to render UI outside of its own Next.js frontend.
+**Re-entry condition:** Phase 13 (Mobile) or whenever Ditto needs to render UI outside of its own Next.js frontend.
 
 ### 4. The Output Viewer Is the Key Composability Primitive
 

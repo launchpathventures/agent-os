@@ -1,4 +1,4 @@
-# UX Interaction Spec: Mobile/Remote Agent OS Experience
+# UX Interaction Spec: Mobile/Remote Ditto Experience
 
 **Date:** 2026-03-19
 **Role:** Dev Designer
@@ -178,7 +178,7 @@ The mobile home view is a simplified version of the desktop Home:
 
 ```
 ┌──────────────────────────────────────┐
-│  Agent OS              [Profile]     │
+│  Ditto              [Profile]     │
 ├──────────────────────────────────────┤
 │                                      │
 │  Good morning, Tim.       Wed 18 Mar │
@@ -351,7 +351,7 @@ This is the "auto-approve similar" trust building in miniature: every notificati
 
 ---
 
-## The "Edit @ Desk" Pattern (Original to Agent OS)
+## The "Edit @ Desk" Pattern (Original to Ditto)
 
 A key mobile interaction that no existing tool implements well:
 
@@ -428,7 +428,7 @@ They open the desktop dashboard. The auth flow item is surfaced at the top: "You
 
 The research found six classification dimensions (input-type-taxonomies.md) and a universal finding: **no AI agent platform requires users to pre-classify inputs. Classification is the system's job.**
 
-### The Agent OS Classification Model (Process Owner's Perspective)
+### The Ditto Classification Model (Process Owner's Perspective)
 
 When the user captures something, the system runs the Capture → Classify → Route pipeline (already defined in human-layer.md, Primitive 12). From the user's perspective:
 
@@ -512,7 +512,7 @@ This is already described in human-layer.md as a five-step pipeline. The mobile 
 
 ### How the Process Owner Thinks About It
 
-The user doesn't think "I'm feeding a process pipeline." They think: "I had a thought. I dumped it into Agent OS. It'll show up where it needs to."
+The user doesn't think "I'm feeding a process pipeline." They think: "I had a thought. I dumped it into Ditto. It'll show up where it needs to."
 
 The Capture → Classify → Route process should be:
 - **Invisible when it works** — capture, confirmation toast, done
@@ -569,7 +569,7 @@ Two insights emerged during this work that should be captured:
 Desktop serves both Explore and Operate. Mobile serves Operate only, with Capture as the bridge. This is not a limitation — it's a natural fit. You don't design processes on your phone. You make decisions, provide context, and keep the pipeline flowing.
 
 ### Emerging Insight: "Edit @ Desk" Is a First-Class Interaction
-No existing tool handles the mobile-to-desktop handoff well for complex review items. Agent OS's "Edit @ desk" pattern — acknowledge, flag, don't block, resume at desk — is original and solves a real gap. This is not "save for later" (passive) — it's "I've seen this, I agree with the issue, I'll fix it when I have the right tools" (active acknowledgment).
+No existing tool handles the mobile-to-desktop handoff well for complex review items. Ditto's "Edit @ desk" pattern — acknowledge, flag, don't block, resume at desk — is original and solves a real gap. This is not "save for later" (passive) — it's "I've seen this, I agree with the issue, I'll fix it when I have the right tools" (active acknowledgment).
 
 ---
 
@@ -605,7 +605,7 @@ Testing the mobile experience against each of the four personas defined in `docs
 
 **What the spec gets right for Lisa:**
 - **Morning brief (7:00am phone check):** Replaces Lisa's Shopify dashboard scan. "2 descriptions ready for review. 3 products flagged for pricing — competitor X dropped widget price 20%." More actionable than raw dashboard metrics.
-- **Photo capture at warehouse:** Lisa screenshots a negative review and texts customer service. With Agent OS, she photos the review, the system classifies it ("customer complaint — wrong size shipped"), routes it to the customer service process, and it surfaces in the right review queue. No more texting customer service.
+- **Photo capture at warehouse:** Lisa screenshots a negative review and texts customer service. With Ditto, she photos the review, the system classifies it ("customer complaint — wrong size shipped"), routes it to the customer service process, and it surfaces in the right review queue. No more texting customer service.
 - **"Edit @ desk" for content:** Lisa's corrections to product descriptions are taste-driven rewrites, not simple approve/reject. "Edit @ desk" is perfect — she flags "this description is too generic" from her phone and rewrites it at her home office.
 
 **What's missing for Lisa:**
@@ -652,7 +652,7 @@ Testing the mobile experience against each of the four personas defined in `docs
 
 3. **Coaching signals.** Nadia's job isn't just approval — it's developing her team. When she sees "Chen's correction rate is 40% on data sourcing" on mobile, she needs to know: is this getting better or worse? The Performance Sparkline serves this, but it should be visible in the team health context, not just per-process. Nadia wants to see at a glance: "Chen's accuracy is trending up across all processes" or "Priya's formatting corrections are increasing — might need a coaching conversation."
 
-**Verdict:** The spec under-serves Nadia compared to the other three personas. The core issue is that the spec was designed for a single process owner, but Nadia is a multi-process, multi-person governor. The team attribution and team health gaps are significant for her mobile experience — without them, she falls back to Slacking team members for status, which is exactly what Agent OS should eliminate.
+**Verdict:** The spec under-serves Nadia compared to the other three personas. The core issue is that the spec was designed for a single process owner, but Nadia is a multi-process, multi-person governor. The team attribution and team health gaps are significant for her mobile experience — without them, she falls back to Slacking team members for status, which is exactly what Ditto should eliminate.
 
 ---
 

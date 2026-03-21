@@ -36,7 +36,7 @@ All 6 provenance entries in Brief 012 trace to documented sources:
 - Implementation-level detail extracted (file paths, how it works)
 - Factual pros/cons documented
 
-## Items Original to Agent OS (Phase 4a scope)
+## Items Original to Ditto (Phase 4a scope)
 
 - **Work item taxonomy (5 types)** — No existing project has question/task/goal/insight/outcome with lifecycle rules. Defined in ADR-010. No external pattern to extract.
 - **Implementation term hiding** — No CLI framework studied hides its internal domain model from user-facing output. This is a UX decision from the Designer spec, not a pattern to borrow.

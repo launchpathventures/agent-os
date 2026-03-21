@@ -1,5 +1,5 @@
 /**
- * Agent OS — Agent Tools (Read-Only Codebase Access)
+ * Ditto — Agent Tools (Read-Only Codebase Access)
  *
  * Three tools that give AI agents read-only access to the codebase they're
  * working on. Tools are scoped to process.cwd() with path traversal prevention.

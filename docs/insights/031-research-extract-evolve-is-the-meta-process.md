@@ -8,7 +8,7 @@ emerged_from: PM triage — composition discipline audit
 
 ## Observation
 
-The cycle of researching external approaches, extracting implementation patterns, and evolving internal processes is not just our development methodology — it is one of the core meta-processes Agent OS must run on itself.
+The cycle of researching external approaches, extracting implementation patterns, and evolving internal processes is not just our development methodology — it is one of the core meta-processes Ditto must run on itself.
 
 The platform's self-improvement loop (Phase 9: improvement-scanner) does exactly this: scan the landscape, identify patterns that outperform current implementations, propose upgrades, earn trust in those proposals. The system is never static — it continuously scouts, extracts, and evolves.
 

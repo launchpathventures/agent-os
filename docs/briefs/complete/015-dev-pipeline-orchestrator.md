@@ -12,7 +12,7 @@
 
 ## Context
 
-The person building Agent OS is currently the orchestrator meta-process. They manually invoke `/dev-pm`, then `/dev-researcher`, then `/dev-architect`, etc. — sitting in Claude Code, copying context between sessions, deciding what to invoke next. This is operationally identical to the problem Agent OS solves for its personas (Rob manually writing quotes, Lisa manually rewriting product descriptions).
+The person building Ditto is currently the orchestrator meta-process. They manually invoke `/dev-pm`, then `/dev-researcher`, then `/dev-architect`, etc. — sitting in Claude Code, copying context between sessions, deciding what to invoke next. This is operationally identical to the problem Ditto solves for its personas (Rob manually writing quotes, Lisa manually rewriting product descriptions).
 
 The dev pipeline is already fully defined: role contracts in `.claude/commands/dev-*.md`, process definitions in `processes/feature-implementation.yaml`, handoff rules in `docs/dev-process.md`, review gates in `docs/review-checklist.md`. Everything needed for automation exists — except the automation.
 
@@ -26,7 +26,7 @@ The human says `pnpm dev-pipeline "Build Phase 4"` or sends `/start Build Phase 
 
 ## Non-Goals
 
-- **Not a general-purpose orchestrator.** This is specifically for the Agent OS dev pipeline. Phase 4 builds the general workspace model.
+- **Not a general-purpose orchestrator.** This is specifically for the Ditto dev pipeline. Phase 4 builds the general workspace model.
 - **Not replacing the engine.** The engine's heartbeat/harness/adapter layer is untouched. This is parallel infrastructure using `claude -p`.
 - **Not implementing trust earning for dev roles.** All gates are supervised (human reviews everything). Trust progression is a Phase 4 concept.
 - **Not building a web dashboard.** Telegram is the mobile surface. The web dashboard is Phase 10.
@@ -107,7 +107,7 @@ The retrospective (After Completion, step 3) is where these lessons are captured
 
 **Pinned status message (always visible, edited in-place):**
 ```
-📌 Agent OS Dev Pipeline
+📌 Ditto Dev Pipeline
 ━━━━━━━━━━━━━━━━━━━━━━
 Phase: Phase 4a (Architect → writing brief)
 Status: ⏳ Running

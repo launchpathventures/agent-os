@@ -9,7 +9,7 @@
 
 Technical and process debt currently lands in fragile, non-queryable places: `docs/state.md` "Known Issues" (manual, drifts), inline `// TODO` comments (invisible to the system), and reviewer notes that get acknowledged then forgotten. None of these have a lifecycle, re-entry conditions, or visibility to future sessions.
 
-Every organisation creates debt. The question isn't whether debt exists — it's whether the system knows about it. Agent OS needs a first-class mechanism for capturing debt with:
+Every organisation creates debt. The question isn't whether debt exists — it's whether the system knows about it. Ditto needs a first-class mechanism for capturing debt with:
 - **What** — the specific compromise or gap
 - **Why** — the reasoning for deferral (not just "dogfood scale")
 - **When to revisit** — a concrete re-entry condition, not "later"

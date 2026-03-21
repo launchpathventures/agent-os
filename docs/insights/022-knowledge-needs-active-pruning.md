@@ -9,7 +9,7 @@
 
 Insights, like human understanding, should have an active lifecycle: emerge, mature, get absorbed into durable knowledge (architecture spec, ADRs), or get superseded when understanding changes. The current system only accumulates — the insight template has `absorbed` and `superseded` statuses but nothing triggers their use.
 
-This mirrors a core Agent OS principle: the harness learns from corrections. When the Documenter runs, insights that have been fully absorbed into architecture docs or ADRs should be marked as such and moved out of the active set. Insights that contradict newer understanding should be marked superseded with a pointer to what replaced them.
+This mirrors a core Ditto principle: the harness learns from corrections. When the Documenter runs, insights that have been fully absorbed into architecture docs or ADRs should be marked as such and moved out of the active set. Insights that contradict newer understanding should be marked superseded with a pointer to what replaced them.
 
 The test: if a new session reads only the active insights, do they get an accurate picture of current design thinking? If stale or absorbed insights remain active, they create noise or worse, contradictions.
 

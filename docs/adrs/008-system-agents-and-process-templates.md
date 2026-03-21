@@ -5,17 +5,17 @@
 
 ## Context
 
-Agent OS's architecture describes several functions that operate on behalf of the platform rather than on behalf of user-configured processes: the self-improvement meta-process (architecture.md:509-526), the governance function (architecture.md:303-319), process discovery (Insight-016), and the daily brief (architecture.md:597-609). These are described as processes or functions, but they are architecturally distinct from user-configured domain processes — they are essential to the platform's own operation.
+Ditto's architecture describes several functions that operate on behalf of the platform rather than on behalf of user-configured processes: the self-improvement meta-process (architecture.md:509-526), the governance function (architecture.md:303-319), process discovery (Insight-016), and the daily brief (architecture.md:597-609). These are described as processes or functions, but they are architecturally distinct from user-configured domain processes — they are essential to the platform's own operation.
 
 Separately, the architecture states that "industry standard templates provide starting points — users customise from known-good patterns" (architecture.md:145) and that "frameworks like APQC... have already mapped what businesses do" (architecture.md:54-56). But no specification exists for how these templates are structured, stored, or used by the platform.
 
-These two gaps — unnamed system agents and unspecified template library — converge at the cold-start problem. Every automation platform in the landscape solves cold-start with passive template browsing (n8n: 8,834 templates, Zapier: role-based starter kits, Notion: 30,000+ community templates). None uses AI to actively help users discover, analyze, or formalize their first process. Agent OS's Explore mode and process-first model demand a more active approach.
+These two gaps — unnamed system agents and unspecified template library — converge at the cold-start problem. Every automation platform in the landscape solves cold-start with passive template browsing (n8n: 8,834 templates, Zapier: role-based starter kits, Notion: 30,000+ community templates). None uses AI to actively help users discover, analyze, or formalize their first process. Ditto's Explore mode and process-first model demand a more active approach.
 
 ### Forces
 
 1. **The architecture already describes system agents without naming them.** Governance, self-improvement, daily brief, and trust earning are platform-level functions. Formalizing them as a category prevents architectural drift as more are added.
 
-2. **Process templates with governance declarations don't exist anywhere.** The landscape ships workflow templates (trigger → action) or agent templates (role + tools). Nobody ships templates with quality criteria, trust configuration, feedback loops, and learning — the process-as-primitive model. This is a gap Agent OS must fill.
+2. **Process templates with governance declarations don't exist anywhere.** The landscape ships workflow templates (trigger → action) or agent templates (role + tools). Nobody ships templates with quality criteria, trust configuration, feedback loops, and learning — the process-as-primitive model. This is a gap Ditto must fill.
 
 3. **APQC PCF is the most viable base.** 1,000+ processes, 13 categories, 5 levels deep, royalty-free license, available as Excel. No AI-accessible version exists. The D365 Business Process Catalog is the only open-source alternative (800+ processes on GitHub, but Dynamics 365-specific).
 
@@ -37,7 +37,7 @@ These two gaps — unnamed system agents and unspecified template library — co
 
 ### 1. Formalize two agent categories: system and domain
 
-**System agents** are shipped with the platform, versioned with it, and operate on behalf of Agent OS itself. They cannot be deleted by users. They are subject to the same harness pipeline (trust, review, feedback) as domain agents — they are not exempt from governance.
+**System agents** are shipped with the platform, versioned with it, and operate on behalf of Ditto itself. They cannot be deleted by users. They are subject to the same harness pipeline (trust, review, feedback) as domain agents — they are not exempt from governance.
 
 **Domain agents** are user-configured agents that execute user-defined processes. They are created, modified, and deleted by users. This is what the current architecture describes.
 
@@ -93,7 +93,7 @@ status: draft  # templates load as draft — not active until user adopts
 - **Phase 11:** APQC PCF imported as a classification taxonomy (not as templates). The process-analyst agent uses APQC categories to classify and compare user processes. Templates remain hand-crafted but APQC-classified.
 - **Phase 13:** Community-contributed templates. Users can share adapted templates.
 
-**Why not convert all 1,000+ APQC processes to templates?** APQC entries are classification elements (category → process group → process → activity → task), not executable process definitions. They describe *what* a process is, not *how* it runs. Converting an APQC entry to an Agent OS template requires adding: steps with executor types, quality criteria, feedback configuration, trust tiers, integration bindings. This is domain-specific work — "invoice reconciliation" looks different for Rob (trades, Xero) vs Lisa (ecommerce, Shopify) vs Jordan (mid-size, ERP). Hand-crafted, persona-grounded templates are more valuable than bulk-converted taxonomy entries.
+**Why not convert all 1,000+ APQC processes to templates?** APQC entries are classification elements (category → process group → process → activity → task), not executable process definitions. They describe *what* a process is, not *how* it runs. Converting an APQC entry to an Ditto template requires adding: steps with executor types, quality criteria, feedback configuration, trust tiers, integration bindings. This is domain-specific work — "invoice reconciliation" looks different for Rob (trades, Xero) vs Lisa (ecommerce, Shopify) vs Jordan (mid-size, ERP). Hand-crafted, persona-grounded templates are more valuable than bulk-converted taxonomy entries.
 
 **APQC's role:** Classification lens, not template source. The process-analyst agent uses APQC to recognize what a user is describing ("This sounds like invoice reconciliation — APQC 9.3") and to surface completeness gaps ("Standard invoice reconciliation includes a three-way match step — yours doesn't. Is that intentional?"). APQC is embodied in the agent's knowledge, not materialized as 1,000 YAML files.
 
@@ -133,9 +133,9 @@ Add a `templates/` directory for process template YAML files, parallel to `proce
 ## Provenance
 
 - **System agent concept:** Original — no existing framework distinguishes system agents from domain agents. Microsoft AI Foundry's Red Teaming Agent is the single known precedent (probes user-built agents for safety).
-- **Template library pattern:** Established industry pattern (n8n 8,834 templates, Zapier starter kits, Notion 30K+ templates). Agent OS extends this with governance declarations (trust, quality criteria, feedback) — Original.
+- **Template library pattern:** Established industry pattern (n8n 8,834 templates, Zapier starter kits, Notion 30K+ templates). Ditto extends this with governance declarations (trust, quality criteria, feedback) — Original.
 - **APQC as classification lens:** APQC Process Classification Framework (since 1992). Using it as agent knowledge rather than as a template database is Original.
-- **Cold-start via conversational analysis:** ClearWork (hybrid AI-guided interviews) + PKAI academic framework (preparation → socialization → externalization). Agent OS's version differs: produces executable process definitions with trust tiers, not RPA blueprints — Original.
+- **Cold-start via conversational analysis:** ClearWork (hybrid AI-guided interviews) + PKAI academic framework (preparation → socialization → externalization). Ditto's version differs: produces executable process definitions with trust tiers, not RPA blueprints — Original.
 - **Hybrid template-agent knowledge model:** Original — no existing system uses templates as both user-browsable artifacts and agent training material.
 - **Trust-evaluator as system agent:** Original — no existing platform has a trust evaluation agent (trust is always infrastructure, not an agent).
 
@@ -153,7 +153,7 @@ Add a `templates/` directory for process template YAML files, parallel to `proce
 - **System agent governance:** System agents need their own trust tiers, review patterns, and feedback loops. Quis custodiet ipsos custodes? The governance-monitor monitors domain agents, but who monitors the governance-monitor? Answer: it's always `critical` tier — human reviews every finding.
 
 ### What new constraints this introduces
-- **Template quality bar:** Every template shipped with Agent OS must be hand-crafted, persona-grounded, and tested. Bulk-converting APQC entries is explicitly rejected.
+- **Template quality bar:** Every template shipped with Ditto must be hand-crafted, persona-grounded, and tested. Bulk-converting APQC entries is explicitly rejected.
 - **System agent prompts are product artifacts:** Changes to system agent system prompts are product changes, not casual edits. They need review.
 - **Phase 5 must include templates:** The end-to-end verification phase must ship with at least the coding domain templates (already exist as `processes/`) plus 2-3 non-coding templates to prove the template-adoption flow.
 

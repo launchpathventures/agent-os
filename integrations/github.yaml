@@ -1,0 +1,17 @@
+# GitHub Integration
+#
+# Provides access to GitHub repositories, issues, PRs, and actions
+# via the GitHub CLI (gh). CLI is the preferred protocol — cheapest
+# and most reliable for services with mature CLIs.
+#
+# Provenance: ADR-005 (CLI-first cost optimisation, 10-32x fewer tokens than MCP)
+
+service: github
+description: GitHub repository management — issues, PRs, actions, releases
+interfaces:
+  cli:
+    command: gh
+    auth: cli_login    # Uses `gh auth login` or GH_TOKEN env var
+    env_vars:
+      - GH_TOKEN       # Optional — gh CLI falls back to interactive auth
+preferred: cli

@@ -26,7 +26,7 @@ Currently, all skills assume in-flow invocation and end with a hardcoded handoff
 - **All seven skill commands** need to handle both modes. The fix should be lightweight — no upfront mode flag. The skill does its work, then presents appropriate next steps based on what was produced rather than assuming the linear handoff.
 - **State updates still happen in both modes** — what was produced and where it lives. The difference is in the "next step" guidance.
 - **The Documenter role** is relevant in both modes — if state changed, the Documenter should still run.
-- **This is the same pattern Agent OS itself handles** — processes have variations, and the harness adapts. We're hitting it in our own dev process.
+- **This is the same pattern Ditto itself handles** — processes have variations, and the harness adapts. We're hitting it in our own dev process.
 
 ## Where It Should Land
 

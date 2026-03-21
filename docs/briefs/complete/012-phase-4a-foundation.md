@@ -113,7 +113,7 @@ After this sub-brief: `pnpm cli sync`, `pnpm cli start`, `pnpm cli status`, `pnp
 # Fresh start
 pnpm cli sync
 pnpm cli status
-# Expected: "Welcome to Agent OS" or process list with no pending items
+# Expected: "Welcome to Ditto" or process list with no pending items
 
 # Start a run
 pnpm cli start code-review

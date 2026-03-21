@@ -12,7 +12,7 @@ Template provenance:
 - Non-Goals section from Rust RFC template (rust-lang/rfcs)
 - Acceptance criteria as boolean pass/fail from compound-product (snarktank/compound-product)
 - Constraints pattern from antfarm agent AGENTS.md (snarktank/antfarm)
-- Provenance section original to Agent OS
+- Provenance section original to Ditto
 - Review gate from Paperclip pr-report skill (.agents/skills/pr-report/SKILL.md)
 - Status lifecycle from ADR convention (Michael Nygard pattern, same as docs/adrs/)
 
@@ -89,7 +89,7 @@ Which of the six human jobs does this work affect? (Orient, Review, Define, Dele
 
 - **Jobs affected:** {list, or "None — no user-facing changes"}
 - **Primitives involved:** {which of the 16 primitives, or "None"}
-- **Process-owner perspective:** {how does the person using Agent OS experience this change?}
+- **Process-owner perspective:** {how does the person using Ditto experience this change?}
 - **Interaction states:** {loading, empty, error, success, partial — for any UI-touching work, or "N/A"}
 - **Designer input:** {reference to Designer's interaction spec at `docs/research/*-ux.md`, or "Not invoked — lightweight UX section only"}
 

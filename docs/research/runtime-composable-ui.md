@@ -9,7 +9,7 @@
 
 ## Context
 
-Agent OS's architecture already defines 16 domain-agnostic UI primitives and 8 view compositions. The current design assumes views are **pre-composed** — Home = Brief + Queue + Capture. This research investigates the next step: making view composition **dynamic** — driven by agent intent, user need, or data shape at runtime, rather than hardcoded screens.
+Ditto's architecture already defines 16 domain-agnostic UI primitives and 8 view compositions. The current design assumes views are **pre-composed** — Home = Brief + Queue + Capture. This research investigates the next step: making view composition **dynamic** — driven by agent intent, user need, or data shape at runtime, rather than hardcoded screens.
 
 The motivating insight: as software matures, opinionated functional UIs (CRM, accounts, HR) will not necessarily be interacted with directly by humans. Agents handle the work; humans need UI only when required to complete one of the six jobs (Orient, Review, Define, Delegate, Capture, Decide). The UI should compose itself around the job, not around the domain.
 
@@ -330,7 +330,7 @@ SDUI is the most battle-tested approach to runtime UI composition. The server �
 - SDKs in C#, Python, TypeScript/JavaScript
 - Cross-platform: Teams, Outlook, Power Automate, third-party apps
 
-### 5.3 Relevance to Agent OS
+### 5.3 Relevance to Ditto
 
 Both Block Kit and Adaptive Cards demonstrate mature, production-proven patterns for:
 - Agents composing JSON → platform renders native UI
@@ -429,19 +429,19 @@ React Server Components and traditional SDUI are both "server-driven" but solve 
 
 ### 8.1 Intent-Driven View Composition
 
-No existing system composes views from **user intent + data availability + job type**. SDUI systems require a developer to pre-define which views exist. A2UI lets an agent compose from a catalog but doesn't encode the concept of "the human needs to Orient" or "the human needs to Decide." This mapping from job-to-view is **Original to Agent OS**.
+No existing system composes views from **user intent + data availability + job type**. SDUI systems require a developer to pre-define which views exist. A2UI lets an agent compose from a catalog but doesn't encode the concept of "the human needs to Orient" or "the human needs to Decide." This mapping from job-to-view is **Original to Ditto**.
 
 ### 8.2 Trust-Aware UI Composition
 
-No existing system adjusts what UI surfaces based on earned trust. A supervised process should show more detail and require more interaction; an autonomous process should show less. This dynamic adjustment of UI density based on trust tier is **Original to Agent OS**.
+No existing system adjusts what UI surfaces based on earned trust. A supervised process should show more detail and require more interaction; an autonomous process should show less. This dynamic adjustment of UI density based on trust tier is **Original to Ditto**.
 
 ### 8.3 Process-Scoped View Assembly
 
-SDUI systems (especially Airbnb's) compose from context + user data + personalisation + platform — a structurally similar four-dimensional model. Agent OS's version is differentiated by using **process** and **job** as first-class dimensions rather than "feature" and "personalisation." The composition pattern itself is not unprecedented; what is original is the specific dimensions Agent OS uses: process + data + job + device. This is a **differentiated application of a known pattern** rather than a wholly original concept.
+SDUI systems (especially Airbnb's) compose from context + user data + personalisation + platform — a structurally similar four-dimensional model. Ditto's version is differentiated by using **process** and **job** as first-class dimensions rather than "feature" and "personalisation." The composition pattern itself is not unprecedented; what is original is the specific dimensions Ditto uses: process + data + job + device. This is a **differentiated application of a known pattern** rather than a wholly original concept.
 
 ### 8.4 Feedback-Embedded Composition
 
-No existing runtime composition system embeds implicit feedback capture into the composed UI. Slack Block Kit can compose a review card, but it doesn't track edits-as-feedback or detect correction patterns. The integration of composition + feedback is **Original to Agent OS**.
+No existing runtime composition system embeds implicit feedback capture into the composed UI. Slack Block Kit can compose a review card, but it doesn't track edits-as-feedback or detect correction patterns. The integration of composition + feedback is **Original to Ditto**.
 
 ---
 

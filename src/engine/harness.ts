@@ -1,5 +1,5 @@
 /**
- * Agent OS — Harness Pipeline
+ * Ditto — Harness Pipeline
  *
  * The harness is a chain-of-responsibility pipeline that wraps every step execution.
  * Each handler has canHandle() and execute() methods. Handlers execute in order,

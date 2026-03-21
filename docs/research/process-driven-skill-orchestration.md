@@ -8,7 +8,7 @@
 
 ## Context
 
-Agent OS currently has two distinct orchestration models:
+Ditto currently has two distinct orchestration models:
 
 1. **The engine** (`src/engine/heartbeat.ts`) — automatically drives process execution. Process YAML declares steps with `executor` types and `agent_role`. The heartbeat resolves dependencies, the harness pipeline wraps each step with memory → execution → review → trust → feedback. The user never manually selects which agent runs. The process definition governs everything.
 
@@ -20,7 +20,7 @@ The research question is whether model #1 (automatic, process-driven) effectivel
 
 ## Finding 1: The Architecture Already Answers "Yes"
 
-The Agent OS architecture spec (architecture.md) already describes a system where processes drive agent selection automatically:
+The Ditto architecture spec (architecture.md) already describes a system where processes drive agent selection automatically:
 
 - **Process definitions** declare each step's executor type (`ai-agent`, `script`, `human`) and `agent_role` (planner, builder, reviewer, etc.)
 - **The heartbeat** automatically sequences steps based on dependency resolution
@@ -102,7 +102,7 @@ Trigger.dev workflows are triggered by events (webhooks, schedules, API calls). 
 - **Cons:** Requires infrastructure, developer must author workflows in code, not for non-technical setup
 - **Provenance:** Trigger.dev AI agents (trigger.dev/docs/guides/ai-agents/overview)
 
-### Option E: Context-File Single-Purpose Agents ("AI Agent OS" Practitioner Pattern)
+### Option E: Context-File Single-Purpose Agents ("AI Ditto" Practitioner Pattern)
 
 Each "digital employee" is standalone with a persistent context file (`agents.md`) encoding role, tools, and preferences. Routing is the human choosing which employee to talk to, or an event trigger firing the right agent.
 
@@ -110,7 +110,7 @@ Each "digital employee" is standalone with a persistent context file (`agents.md
 - **Routing mechanism:** Human selection or event triggers — no automatic multi-agent routing
 - **Pros:** Very accessible for non-technical users, minimal prompting once set up
 - **Cons:** No multi-agent coordination, no automatic sequencing, human is the orchestration bus
-- **Provenance:** Greg Isenberg / Remy Gaskell "AI Agent OS" practitioner pattern
+- **Provenance:** Greg Isenberg / Remy Gaskell "AI Ditto" practitioner pattern
 
 ### Option F: Handoff Protocol (OpenAI Agents SDK)
 
@@ -124,7 +124,7 @@ Agents explicitly declare which other agents they can hand off to. During execut
 
 ---
 
-## Finding 4: The Agent OS Process Definition Already Contains Everything Needed
+## Finding 4: The Ditto Process Definition Already Contains Everything Needed
 
 The current `processes/feature-implementation.yaml` already declares:
 
@@ -172,13 +172,13 @@ Currently:
 
 The architecture spec describes this explicitly:
 
-> "Conversations are great for exploring and refining but poor for capturing, defining, and running business processes. Agent OS encodes this directly."
+> "Conversations are great for exploring and refining but poor for capturing, defining, and running business processes. Ditto encodes this directly."
 > — `docs/human-layer.md:38`
 
 > "Setup should feel like a frog slowly being boiled — the user never has a moment of 'this is too much.' The platform is a consultant slowly helping the user identify, map, automate, and operate AI processes."
 > — `docs/human-layer.md:49`
 
-The Explore → Operate transition is listed as one of Agent OS's genuinely original contributions (architecture.md:424, landscape.md:231).
+The Explore → Operate transition is listed as one of Ditto's genuinely original contributions (architecture.md:424, landscape.md:231).
 
 **Source:** `docs/human-layer.md:29-57`, `docs/architecture.md:419-425`
 
@@ -186,7 +186,7 @@ The Explore → Operate transition is listed as one of Agent OS's genuinely orig
 
 ## Finding 6: Three Layers of "No Slash Commands Needed"
 
-For Agent OS to fully remove the need for manual skill invocation, three layers must work:
+For Ditto to fully remove the need for manual skill invocation, three layers must work:
 
 ### Layer A: Process Execution (EXISTS)
 The heartbeat engine already drives step-by-step execution automatically. Users trigger → engine executes → harness governs → human reviews when prompted.
@@ -205,12 +205,12 @@ The conversational interface that helps a non-technical user go from "I need hel
 
 ---
 
-## Finding 7: Patterns Most Relevant to Agent OS
+## Finding 7: Patterns Most Relevant to Ditto
 
-Given Agent OS's process-first philosophy and trust-tier governance:
+Given Ditto's process-first philosophy and trust-tier governance:
 
 ### For Process Execution: Config-Driven (Already Implemented)
-Agent OS already uses the equivalent of CrewAI's declarative routing — the YAML process definition maps steps to executors and roles, and the engine drives it. No LLM router needed for execution.
+Ditto already uses the equivalent of CrewAI's declarative routing — the YAML process definition maps steps to executors and roles, and the engine drives it. No LLM router needed for execution.
 
 ### For Process Creation: Hybrid (Not Yet Built)
 The Explore mode should combine:
@@ -225,11 +225,11 @@ When processes hand off to other processes, the Option D pattern (event-driven t
 
 ## Gaps Where No Existing Solution Fits
 
-1. **Trust-aware routing.** No existing system adjusts routing or human-involvement based on earned trust tiers. This remains Original to Agent OS.
+1. **Trust-aware routing.** No existing system adjusts routing or human-involvement based on earned trust tiers. This remains Original to Ditto.
 
-2. **Conversational process crystallization.** While several systems have conversational interfaces, none implement the specific Explore → Operate transition where conversation progressively builds a structured process definition. This remains Original to Agent OS.
+2. **Conversational process crystallization.** While several systems have conversational interfaces, none implement the specific Explore → Operate transition where conversation progressively builds a structured process definition. This remains Original to Ditto.
 
-3. **Implicit feedback capture during process creation.** The idea that corrections during setup become quality criteria for the process is not found in any reviewed system. This remains Original to Agent OS.
+3. **Implicit feedback capture during process creation.** The idea that corrections during setup become quality criteria for the process is not found in any reviewed system. This remains Original to Ditto.
 
 ---
 

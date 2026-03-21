@@ -1,13 +1,13 @@
 # Insight-041: Users Bring Their Own AI — The Adapter Abstraction
 
 **Date:** 2026-03-20
-**Trigger:** User asked whether end users would use their Claude CLI or OpenAI Codex CLI for driving Agent OS locally, or whether we'd insist on API usage.
+**Trigger:** User asked whether end users would use their Claude CLI or OpenAI Codex CLI for driving Ditto locally, or whether we'd insist on API usage.
 **Layers affected:** L2 Agent, L3 Harness
 **Status:** absorbed — CLI adapter delivered in Brief 016a, adapter abstraction documented in architecture.md L2
 
 ## The Insight
 
-Agent OS's value is the harness — trust, routing, memory, feedback, review patterns. Not the execution substrate. The adapter layer should abstract over how agents actually run. Users choose their preferred AI execution method:
+Ditto's value is the harness — trust, routing, memory, feedback, review patterns. Not the execution substrate. The adapter layer should abstract over how agents actually run. Users choose their preferred AI execution method:
 
 - `claude` CLI (subscription, flat cost, full tool suite)
 - `codex` CLI (subscription, flat cost, different model)
@@ -18,7 +18,7 @@ Agent OS's value is the harness — trust, routing, memory, feedback, review pat
 The harness wraps all of them equally. Trust gates, feedback capture, memory assembly, and review patterns work regardless of which adapter produced the output.
 
 This means:
-- No vendor lock-in — Agent OS is AI-provider-agnostic
+- No vendor lock-in — Ditto is AI-provider-agnostic
 - "I want to use my subscription, not pay per-token" is a valid first user story
 - The CLI adapter in Brief 016 isn't a compromise — it's the first of several adapters
 - Every adapter implements the same `StepExecutionResult` interface

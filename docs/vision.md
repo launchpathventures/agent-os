@@ -1,4 +1,4 @@
-# Agent OS — Vision
+# Ditto — Vision
 
 ## The Problem
 
@@ -10,7 +10,7 @@ The people who need this solved are **outcome owners** — people responsible fo
 
 ## The Insight
 
-Agent OS is not an agent framework. It is a **harness creator** — a living workspace where work evolves through governed processes.
+Ditto is not an agent framework. It is a **harness creator** — a living workspace where work evolves through governed processes.
 
 Agents are commodities — Claude, GPT, scripts, APIs, whatever comes next. What matters is the **harness** within which they operate: who checks whom, what trust level governs execution, what quality gates apply, and how the system learns from every human decision.
 
@@ -18,7 +18,7 @@ The harness has two dimensions:
 - **Evolving** — it learns from feedback, corrections, and trust data. The harness today is different from the harness next month.
 - **Orchestrating** — it coordinates agents, determines review patterns, manages parallel execution, and enforces governance.
 
-The **process** is not a workflow. It is a **governance declaration**: what inputs are acceptable, what value looks like, what quality gates apply, what trust level governs execution, and what outputs matter. Processes are durable — defined once, refined through use, executed consistently. This is the antidote to AI reinvention: the same prompt should not produce randomly different outcomes. When context genuinely shifts, the system should adapt intelligently. When it hasn't, the system should execute consistently. The balance between **declarative process** (structured, governed, repeatable) and **intuitive metacognition** (adaptive, context-aware, capable of noticing what wasn't asked for) is the core design tension of Agent OS.
+The **process** is not a workflow. It is a **governance declaration**: what inputs are acceptable, what value looks like, what quality gates apply, what trust level governs execution, and what outputs matter. Processes are durable — defined once, refined through use, executed consistently. This is the antidote to AI reinvention: the same prompt should not produce randomly different outcomes. When context genuinely shifts, the system should adapt intelligently. When it hasn't, the system should execute consistently. The balance between **declarative process** (structured, governed, repeatable) and **intuitive metacognition** (adaptive, context-aware, capable of noticing what wasn't asked for) is the core design tension of Ditto.
 
 Agents are pluggable. Processes are durable. The harness is the product.
 
@@ -26,7 +26,7 @@ Agents are pluggable. Processes are durable. The harness is the product.
 
 **Process is the primitive.** The atomic unit isn't a task, an agent, or a workflow. It's a process: inputs → transformation → outputs, with known sources and known destinations. An agent is just the thing that executes a process. The outcome owner may define the process upfront, or the system may help them discover and refine it over time — but once a process exists, it doesn't get reinvented. It gets improved.
 
-**Composition over invention.** Agent OS composes proven open-source projects rather than building from scratch. The first question — for the platform and for every agent within it — is: "what can we build FROM?" not "what can we build?" The unique value is in the harness, trust, governance, and learning layers.
+**Composition over invention.** Ditto composes proven open-source projects rather than building from scratch. The first question — for the platform and for every agent within it — is: "what can we build FROM?" not "what can we build?" The unique value is in the harness, trust, governance, and learning layers.
 
 **Progressive trust, earned not configured.** Trust starts conservative (supervised — human reviews everything) and is earned through track record. The system tracks approval rates, correction rates, and review cycles. When thresholds are met, it suggests upgrades. It never auto-upgrades. Trust automatically downgrades when quality degrades.
 
@@ -38,7 +38,7 @@ Agents are pluggable. Processes are durable. The harness is the product.
 
 ## Where We're Going
 
-Agent OS starts as a CLI-driven engine running a coding agent team — the dogfood. This first implementation proves: process definitions work, the harness enforces quality, trust is earned progressively, and feedback captures learning data.
+Ditto starts as a CLI-driven engine running a coding agent team — the dogfood. This first implementation proves: process definitions work, the harness enforces quality, trust is earned progressively, and feedback captures learning data.
 
 From there:
 - **Web dashboard** with 16 universal UI primitives that compose into any business view

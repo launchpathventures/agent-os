@@ -31,7 +31,7 @@ Research into how existing agent frameworks implement goal decomposition, work-q
 - When tools fail, agents adapt: "letting the agent know when a tool is failing and letting it adapt works surprisingly well." Combined with retry logic and checkpoints for deterministic recovery.
 - State persistence (memory saved to external systems before context limits) allows resumption rather than restart.
 
-**Key pattern for Agent OS:** Dynamic decomposition with effort-calibrated subagents. The plan-then-fan-out-then-synthesize loop with a "sufficient?" judgment gate.
+**Key pattern for Ditto:** Dynamic decomposition with effort-calibrated subagents. The plan-then-fan-out-then-synthesize loop with a "sufficient?" judgment gate.
 
 ---
 
@@ -56,7 +56,7 @@ Research into how existing agent frameworks implement goal decomposition, work-q
 - Plan can be updated on-the-fly if the task changes mid-execution.
 - No parallel execution -- strictly sequential, one step at a time.
 
-**Key pattern for Agent OS:** The file-based plan tracking (`todo.md`) as durable state that survives context loss. The `TASK_COMPLETE` explicit signal. The one-action-per-iteration discipline.
+**Key pattern for Ditto:** The file-based plan tracking (`todo.md`) as durable state that survives context loss. The `TASK_COMPLETE` explicit signal. The one-action-per-iteration discipline.
 
 ---
 
@@ -81,7 +81,7 @@ Research into how existing agent frameworks implement goal decomposition, work-q
 - Known issues in the community with delegation failures (manager assigning to wrong agents).
 - Sequential execution within the hierarchy -- no parallel worker execution documented.
 
-**Key pattern for Agent OS:** The manager-outside-the-pool pattern (orchestrator is not a worker). Dynamic assignment based on capability matching. The validation gate between steps.
+**Key pattern for Ditto:** The manager-outside-the-pool pattern (orchestrator is not a worker). Dynamic assignment based on capability matching. The validation gate between steps.
 
 ---
 
@@ -107,7 +107,7 @@ Research into how existing agent frameworks implement goal decomposition, work-q
 - No native parallel execution of plan steps.
 - Failed steps feed into `past_steps` context for the Replanner to reason about.
 
-**Key pattern for Agent OS:** The Replanner as a gate between steps -- it can adapt the plan based on what has been learned. The `past_steps` accumulator as a running log. The ability to use different model tiers (expensive for planning, cheap for execution).
+**Key pattern for Ditto:** The Replanner as a gate between steps -- it can adapt the plan based on what has been learned. The `past_steps` accumulator as a running log. The ability to use different model tiers (expensive for planning, cheap for execution).
 
 ---
 
@@ -142,7 +142,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - `HandoffTermination` is the escalation mechanism: pauses the run, allows application or human to provide input.
 - `ExternalTermination` allows external systems to stop execution.
 
-**Key pattern for Agent OS:** The composable termination condition system is the standout. `HandoffTermination` as a first-class "blocked on human" signal. The ability to compose conditions with boolean logic. The `FunctionalTermination` for custom stopping expressions.
+**Key pattern for Ditto:** The composable termination condition system is the standout. `HandoffTermination` as a first-class "blocked on human" signal. The ability to compose conditions with boolean logic. The `FunctionalTermination` for custom stopping expressions.
 
 ---
 
@@ -176,7 +176,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - Signal handlers run concurrently with the main workflow via deterministic coroutine switching at await points.
 - Child workflows can continue independently of parent (with `ABANDON` parent close policy).
 
-**Key pattern for Agent OS:** The Selector's ability to process completions in any order is the core "route around blocked items" mechanism. The soft-timeout pattern (notify but don't cancel) maps directly to trust-based oversight. The signal-based wake-up for human input.
+**Key pattern for Ditto:** The Selector's ability to process completions in any order is the core "route around blocked items" mechanism. The soft-timeout pattern (notify but don't cancel) maps directly to trust-based oversight. The signal-based wake-up for human input.
 
 ---
 
@@ -197,7 +197,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - **Critical insight**: A function run that is sleeping, waiting for an event, or paused between steps does NOT count against concurrency limits. Only actively executing steps count. This means many more runs can be in-progress than the concurrency limit suggests.
 - Results collected via `Promise.all()`: `const [emailID, updates] = await Promise.all([sendEmail, updateUser])`. Total data from all steps must be under 4MB.
 
-**Key pattern for Agent OS:** The memoization/replay model for durability. The distinction between "active compute" and "waiting" states for resource management. The `waitForEvent`/`waitForSignal` primitives for human-in-the-loop. Fan-out via `step.sendEvent()` for triggering other functions.
+**Key pattern for Ditto:** The memoization/replay model for durability. The distinction between "active compute" and "waiting" states for resource management. The `waitForEvent`/`waitForSignal` primitives for human-in-the-loop. Fan-out via `step.sendEvent()` for triggering other functions.
 
 ---
 
@@ -223,7 +223,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - Individual queues can be paused independently.
 - Idempotency keys prevent duplicate work on retries.
 
-**Key pattern for Agent OS:** The waitpoint-as-primitive concept -- a single abstraction that handles human approval, external service callbacks, and time-based delays. The `onWait`/`onResume` lifecycle hooks for resource management. The many-to-many blocking relationship.
+**Key pattern for Ditto:** The waitpoint-as-primitive concept -- a single abstraction that handles human approval, external service callbacks, and time-based delays. The `onWait`/`onResume` lifecycle hooks for resource management. The many-to-many blocking relationship.
 
 ---
 
@@ -251,7 +251,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - Not documented. Suspension appears to pause the entire workflow at that step -- subsequent steps do not execute until the suspended step resumes.
 - No mechanism for continuing other branches while one is suspended.
 
-**Key pattern for Agent OS:** The `suspend()`/`resume()` as a first-class API within step execution. The conditional suspension pattern (check `resumeData`, suspend if missing). Snapshot-based state persistence across deployments. Semantic labels for suspension points.
+**Key pattern for Ditto:** The `suspend()`/`resume()` as a first-class API within step execution. The conditional suspension pattern (check `resumeData`, suspend if missing). Snapshot-based state persistence across deployments. Semantic labels for suspension points.
 
 ---
 
@@ -273,7 +273,7 @@ Conditions are stateful but auto-reset between runs. Custom conditions require i
 - The shift: from "approve before execution" to "monitor and intervene when needed."
 - Key insight: "effective oversight doesn't require approving every action but being in a position to intervene when it matters."
 
-**Key pattern for Agent OS:** The taxonomy of stop reasons maps directly to process harness gates: uncertainty about approach (propose alternatives), need more data (gather diagnostics), ambiguous intent (clarify), missing resources (blocked). These are four distinct escalation types, not one.
+**Key pattern for Ditto:** The taxonomy of stop reasons maps directly to process harness gates: uncertainty about approach (propose alternatives), need more data (gather diagnostics), ambiguous intent (clarify), missing resources (blocked). These are four distinct escalation types, not one.
 
 ---
 
@@ -298,7 +298,7 @@ Instance -> Judge M1 (cheap)
 
 **Key insight:** Abstention correlates with human-perceived subjectivity, not shallow features. The system correctly identifies genuinely hard cases.
 
-**Key pattern for Agent OS:** The cascaded confidence check with escalation is directly applicable to trust tiers. Cheap fast check first, expensive careful check only when uncertain, human only when both fail. The calibrated threshold (not arbitrary) with provable guarantees.
+**Key pattern for Ditto:** The cascaded confidence check with escalation is directly applicable to trust tiers. Cheap fast check first, expensive careful check only when uncertain, human only when both fail. The calibrated threshold (not arbitrary) with provable guarantees.
 
 ---
 
@@ -321,7 +321,7 @@ Instance -> Judge M1 (cheap)
 - **Exception/error**: tool failure, API down, data corruption -- the system is broken, not uncertain.
 - Each type routes differently: blocked -> specific request to human; uncertain -> present options and ask for guidance; error -> retry/escalate to ops.
 
-**Key pattern for Agent OS:** The three-way distinction (blocked / uncertain / error) as distinct escalation types with different routing. The four-tier confidence routing with different oversight levels. The insight that escalation accuracy is the key metric.
+**Key pattern for Ditto:** The three-way distinction (blocked / uncertain / error) as distinct escalation types with different routing. The four-tier confidence routing with different oversight levels. The insight that escalation accuracy is the key metric.
 
 ---
 
@@ -343,7 +343,7 @@ Instance -> Judge M1 (cheap)
 5. If any score is below threshold: route to human.
 6. If judge itself expresses uncertainty ("I'm not certain"): always escalate.
 
-**Key pattern for Agent OS:** The judge-as-separate-context pattern (fresh evaluation, not self-assessment within the same context). Boundary-aware routing (scores near thresholds get human review). The judge's own uncertainty as a meta-signal.
+**Key pattern for Ditto:** The judge-as-separate-context pattern (fresh evaluation, not self-assessment within the same context). Boundary-aware routing (scores near thresholds get human review). The judge's own uncertainty as a meta-signal.
 
 ---
 

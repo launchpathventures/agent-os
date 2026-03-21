@@ -7,11 +7,11 @@
 
 ## The Insight
 
-Agent OS models work flow (processes, steps, harness) and work governance (trust, feedback, attention) but does not model **how humans think through work**. The architecture has no concept of cognitive mode, expertise level, tacit knowledge, abstraction level, challenge orientation, stakes awareness, or relational context — seven dimensions that shape every human judgment.
+Ditto models work flow (processes, steps, harness) and work governance (trust, feedback, attention) but does not model **how humans think through work**. The architecture has no concept of cognitive mode, expertise level, tacit knowledge, abstraction level, challenge orientation, stakes awareness, or relational context — seven dimensions that shape every human judgment.
 
 This is not a feature gap — it's a **missing architectural dimension**, analogous to how the attention model (ADR-011) was a missing dimension before it was named. Trust tiers determine oversight rate. The attention model determines oversight form. A cognitive model would determine **what kind of human thinking is being requested** and adapt the system's behaviour accordingly.
 
-The gap is visible in the review experience: Agent OS presents every output with the same approve/edit/reject flow, regardless of whether the output needs analytical checking (invoice reconciliation), creative judgment (brand copy), strategic evaluation (improvement proposal), or intuitive gut-check (quote review by an expert). These are fundamentally different cognitive acts, and the system treats them identically.
+The gap is visible in the review experience: Ditto presents every output with the same approve/edit/reject flow, regardless of whether the output needs analytical checking (invoice reconciliation), creative judgment (brand copy), strategic evaluation (improvement proposal), or intuitive gut-check (quote review by an expert). These are fundamentally different cognitive acts, and the system treats them identically.
 
 No system in our surveyed landscape (docs/landscape.md + 8-area cognitive science and HCI literature review) implements cognitive modeling for work oversight. Cognitive science has the theory (Dreyfus, Klein, Kahneman, Polanyi, Simon, Weick, Edmondson). Applying it to the human-agent collaboration problem appears to be genuinely original territory.
 

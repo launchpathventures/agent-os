@@ -1,7 +1,7 @@
 {
-  "name": "agent-os",
+  "name": "ditto",
   "version": "0.1.0",
-  "description": "The universal platform for human-agent collaboration",
+  "description": "AI that gets better every time you work with it",
   "type": "module",
   "scripts": {
     "cli": "tsx src/cli.ts",

@@ -1,14 +1,14 @@
-# Agent OS — Development Process
+# Ditto — Development Process
 
 **Last updated:** 2026-03-19
 
-This document describes how Agent OS gets built. It formalises the role separation that disciplines each development session — the solo-founder hat-switching problem made explicit.
+This document describes how Ditto gets built. It formalises the role separation that disciplines each development session — the solo-founder hat-switching problem made explicit.
 
 ---
 
 ## Why Role Separation
 
-Agent OS is built by a human and a single AI agent. The AI plays every role — PM, researcher, architect, builder, reviewer, documenter. Without explicit separation, roles blur: the builder redesigns mid-implementation, the reviewer softens findings on its own work, the researcher skips to recommending.
+Ditto is built by a human and a single AI agent. The AI plays every role — PM, researcher, architect, builder, reviewer, documenter. Without explicit separation, roles blur: the builder redesigns mid-implementation, the reviewer softens findings on its own work, the researcher skips to recommending.
 
 Role separation doesn't require multiple agents. It requires conscious hat-switching — like a solo founder who puts on their marketing hat, then their product hat, then their sales hat. The mental frame changes even when the person doesn't.
 
@@ -256,7 +256,7 @@ This makes maintenance visible to the Reviewer (checklist point 12) and auditabl
 
 **Verification:** After 5 sessions under this model, the Documenter reports in the retrospective whether drift was caught by producing roles or by audit. If mostly caught by audit, the constraints need strengthening.
 
-**Provenance:** Insight-043 (point of contact), Insight-042 (meta-process), Insight-022 (active pruning). Original to Agent OS.
+**Provenance:** Insight-043 (point of contact), Insight-042 (meta-process), Insight-022 (active pruning). Original to Ditto.
 
 ---
 
@@ -264,7 +264,7 @@ This makes maintenance visible to the Reviewer (checklist point 12) and auditabl
 
 Software development has a self-governing quality infrastructure: linters, type checkers, tests, CI/CD. These catch errors mechanically before human review. The agent doesn't need to be perfect — it needs to be testable.
 
-Agent OS development applies this principle directly:
+Ditto development applies this principle directly:
 
 1. **Automated checks run first** — `pnpm run type-check` + `pnpm test` + smoke test from the brief
 2. **Structured review second** — Dev Reviewer checks against the 12-point architecture checklist, including verification that the Builder ran tests and smoke test
@@ -280,7 +280,7 @@ This layering is the seed for the harness's general quality infrastructure (see 
 
 ## Provenance
 
-The seven-role development process is **original to Agent OS**. No existing framework formalises how a single AI agent should switch between constrained roles during a collaborative development session. The closest analogues are:
+The seven-role development process is **original to Ditto**. No existing framework formalises how a single AI agent should switch between constrained roles during a collaborative development session. The closest analogues are:
 
 - **gstack** — defines specialised agent roles (planner, builder, reviewer) but for product work, not meta-development
 - **antfarm** — enforces maker-checker separation but through separate agent invocations, not role contracts

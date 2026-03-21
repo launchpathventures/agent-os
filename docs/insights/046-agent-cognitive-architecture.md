@@ -1,7 +1,7 @@
 # Insight-046: Agents Need Cognitive Architecture, Not Just Skills
 
 **Date:** 2026-03-21
-**Trigger:** Strategic conversation about whether Agent OS is opinionated enough about what makes agents effective problem solvers — not just iterative machines. Drew parallels to the software consulting market ($500B+) as the opportunity for Agent OS as the last mile for applied AI. Evolved through three rounds: (1) reflection & mental models, (2) mindset/state/cognitive-skills, (3) executive function & intuition as the governing layer.
+**Trigger:** Strategic conversation about whether Ditto is opinionated enough about what makes agents effective problem solvers — not just iterative machines. Drew parallels to the software consulting market ($500B+) as the opportunity for Ditto as the last mile for applied AI. Evolved through three rounds: (1) reflection & mental models, (2) mindset/state/cognitive-skills, (3) executive function & intuition as the governing layer.
 **Layers affected:** L2 Agent, L3 Harness, L4 Awareness, L5 Learning, L6 Human
 **Status:** active
 
@@ -11,7 +11,7 @@ Execution quality is determined by cognitive posture before skill ever fires. Th
 
 But cognitive tools alone are not enough. **Executive function and intuition are the governing capabilities that make humans powerful problem solvers** — the ability to select the right approach, sense when it's not working, shift fluidly, and follow unexpected threads to arrive somewhere you didn't plan. Without these, cognitive tools become just a fancier workflow.
 
-Agent OS currently models agents as: role + tools + memory → output → trust check. This is the factory model. What's missing is the full cognitive stack:
+Ditto currently models agents as: role + tools + memory → output → trust check. This is the factory model. What's missing is the full cognitive stack:
 
 **Seven layers of agent effectiveness:**
 
@@ -46,9 +46,9 @@ Intuition = pattern matching below conscious awareness. For agents, the equivale
 
 The design principle this produces:
 
-> **Agent OS provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use. The executive function — whether in the orchestrator, the agent, or the human — selects and shifts fluidly based on what's emerging. The system must leave room for intuitive observation alongside structured reasoning.**
+> **Ditto provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use. The executive function — whether in the orchestrator, the agent, or the human — selects and shifts fluidly based on what's emerging. The system must leave room for intuitive observation alongside structured reasoning.**
 
-This is the difference between a consulting firm's methodology (available tools) and a consultant's judgment (which tool, when, and when to throw the playbook out). Agent OS should be the firm, not the playbook.
+This is the difference between a consulting firm's methodology (available tools) and a consultant's judgment (which tool, when, and when to throw the playbook out). Ditto should be the firm, not the playbook.
 
 Too prescriptive = fancy workflow, no intelligence, no room to breathe.
 Too unstructured = raw chat, no quality, no learning.
@@ -75,7 +75,7 @@ The individual techniques are well-evidenced (chain-of-thought: Wei et al. 2022;
 
 The software consulting market (~$500B+) charges for problem framing (~40% of value) and adaptation (~20%) — not just methodology and execution. The differentiator isn't knowledge — it's executive function (sense the real problem, select the right approach, adapt when reality doesn't match the plan) combined with intuition (notice what wasn't asked for, follow unexpected threads).
 
-Agent OS with process-as-primitive captures methodology + execution. The cognitive architecture captures problem framing + adaptation + intuitive sensing. That's the last mile between "AI that does tasks" and "AI that solves problems."
+Ditto with process-as-primitive captures methodology + execution. The cognitive architecture captures problem framing + adaptation + intuitive sensing. That's the last mile between "AI that does tasks" and "AI that solves problems."
 
 ## Design direction
 
@@ -109,14 +109,14 @@ Individual agents also have local executive function — the ability to sense wi
 
 ## Implications
 
-- Agent OS holds the opinion: "Execution quality depends on cognitive posture, not just skill. Executive function and intuition — not prescription — govern how cognitive tools are applied."
+- Ditto holds the opinion: "Execution quality depends on cognitive posture, not just skill. Executive function and intuition — not prescription — govern how cognitive tools are applied."
 - The cognitive architecture provides tools and conditions, not prescriptions
 - The orchestrator evolves into the system's executive function
 - Agents are prompted for judgment and intuitive observation, not just task execution
 - The trust model values cognitive judgment quality (honest uncertainty, right approach selection, knowing when to deviate)
 - The learning layer generates evidence about which cognitive approaches work where — but never removes the agent's freedom to choose
 - Space for intuition is a design requirement, not a nice-to-have
-- This is the capability that positions Agent OS as the last-mile platform for applied AI
+- This is the capability that positions Ditto as the last-mile platform for applied AI
 
 ## Where It Should Land
 

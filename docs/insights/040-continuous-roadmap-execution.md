@@ -7,7 +7,7 @@
 
 ## The Insight
 
-The dev pipeline was built as a single-task executor: `/start Build Phase 4` runs 7 roles with a human gate after each. This requires the human to approve every step, decide what's next, and invoke the next task. The human becomes the orchestrator — the exact bottleneck Agent OS exists to eliminate.
+The dev pipeline was built as a single-task executor: `/start Build Phase 4` runs 7 roles with a human gate after each. This requires the human to approve every step, decide what's next, and invoke the next task. The human becomes the orchestrator — the exact bottleneck Ditto exists to eliminate.
 
 The pipeline should instead be a **continuous roadmap executor**. It reads `docs/roadmap.md`, identifies the next incomplete milestone, runs the appropriate role sequence with intelligent routing, and chains phases together automatically. The human is notified by digest at natural milestones and only interrupted for genuine exceptions:
 
@@ -28,7 +28,7 @@ This is ADR-011's autonomous trust tier applied to the dev process from the star
 - The routing step after each role must decide: continue automatically, or escalate
 - Digests replace interruptions as the primary communication mode
 - The human's role shifts from "approve each step" to "set direction, review exceptions, course-correct when needed"
-- This is the strongest dogfood of Agent OS's own attention model (ADR-011)
+- This is the strongest dogfood of Ditto's own attention model (ADR-011)
 
 ## Where It Should Land
 

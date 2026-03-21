@@ -18,7 +18,7 @@ This connects to three other insights:
 
 ## The Trust Connection
 
-Trust-modulated model routing is Original to Agent OS: as a process step earns trust (consistent quality, low correction rate), the harness could recommend downgrading to a cheaper model — the same way it recommends trust tier upgrades. The human approves the model change. If quality degrades, the harness auto-reverts (like trust downgrades).
+Trust-modulated model routing is Original to Ditto: as a process step earns trust (consistent quality, low correction rate), the harness could recommend downgrading to a cheaper model — the same way it recommends trust tier upgrades. The human approves the model change. If quality degrades, the harness auto-reverts (like trust downgrades).
 
 This creates a compound optimisation: trust → cheaper model → lower cost AND trust → less review → less human overhead. The system gets cheaper AND better over time.
 

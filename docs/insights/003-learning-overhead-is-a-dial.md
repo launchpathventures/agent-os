@@ -7,7 +7,7 @@
 
 ## The Insight
 
-Agent OS must be exceptional at leveraging best-in-class patterns from existing repos and emerging trends. But this creates a tension: learning takes time, and not every execution should bear that cost.
+Ditto must be exceptional at leveraging best-in-class patterns from existing repos and emerging trends. But this creates a tension: learning takes time, and not every execution should bear that cost.
 
 The resolution is that learning/scouting overhead is a **dial, not a switch**:
 
@@ -41,7 +41,7 @@ This mirrors real organisations. A senior employee doing routine work doesn't st
 
 **For the self-improvement process:** The periodic self-improvement scan (Phase 8) is the baseline — it runs regardless. But process-specific learning (mid-execution scouting) is opt-in and controlled by the process definition.
 
-**For agent creation:** The Dev Researcher → Dev Architect flow (research before design) should be the template for how Agent OS helps users create new agents/processes. "What can we build FROM?" should be a guided step in process creation, not just a development principle.
+**For agent creation:** The Dev Researcher → Dev Architect flow (research before design) should be the template for how Ditto helps users create new agents/processes. "What can we build FROM?" should be a guided step in process creation, not just a development principle.
 
 ## Where It Should Land
 

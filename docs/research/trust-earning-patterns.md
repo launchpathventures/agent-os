@@ -1,7 +1,7 @@
 # Research Report: Trust Earning Patterns for Phase 3
 
 **Date:** 2026-03-19
-**Research question:** How do existing systems handle trust accumulation, feedback weighting, sliding windows, and tier upgrade/downgrade? What can Agent OS build from?
+**Research question:** How do existing systems handle trust accumulation, feedback weighting, sliding windows, and tier upgrade/downgrade? What can Ditto build from?
 **Research question (expanded):** Additionally: how do systems aggregate trust signals from multiple sources? How do they handle human-reviewer disagreement? How do they present trust to users? How do they prevent gaming?
 **Status:** Complete (2nd pass) — pending review
 
@@ -25,7 +25,7 @@ costEvents {
 
 **Window calculation:** Current UTC month (first day to first day of next month). Aggregation methods return spend by agent, provider, project, or model. Rolling windows: last 5h, 24h, 7d.
 
-**Relevance to Agent OS:** The event-sourced pattern — append-only events, compute aggregates at query time — maps directly to trust data accumulation. Trust events (approve/edit/reject) would be the equivalent of cost events.
+**Relevance to Ditto:** The event-sourced pattern — append-only events, compute aggregates at query time — maps directly to trust data accumulation. Trust events (approve/edit/reject) would be the equivalent of cost events.
 
 ### Two-Threshold Budget System
 
@@ -38,7 +38,7 @@ Paperclip uses a two-threshold model for budget enforcement:
 
 Budget policies are scoped at three levels: company, project, agent. Incidents are tracked as records (`budgetIncidents` table) linked to the policy that triggered them.
 
-**Relevance to Agent OS:** The two-threshold pattern could apply to trust downgrades — a "warn" threshold that surfaces a concern vs a "hard" threshold that triggers automatic downgrade.
+**Relevance to Ditto:** The two-threshold pattern could apply to trust downgrades — a "warn" threshold that surfaces a concern vs a "hard" threshold that triggers automatic downgrade.
 
 ### Approval as Decision Record
 
@@ -52,13 +52,13 @@ approvals {
 
 State transitions are idempotent. Every approval decision creates an activity log entry. Approvals support comment threads for async discussion before decision.
 
-**Relevance to Agent OS:** Trust upgrade suggestions could use this pattern — the system proposes, the human decides (approve/reject), the decision is recorded with reasoning.
+**Relevance to Ditto:** Trust upgrade suggestions could use this pattern — the system proposes, the human decides (approve/reject), the decision is recorded with reasoning.
 
 ### Configuration Rollback
 
 Paperclip stores agent config revisions as immutable snapshots (`agentConfigRevisions`). Rollback creates a NEW revision rather than deleting history. Each revision records `changedKeys`, `beforeConfig`, `afterConfig`, and `source` ("patch" or "rollback").
 
-**Relevance to Agent OS:** Trust tier changes should be recorded as immutable revisions with before/after state, enabling rollback and audit.
+**Relevance to Ditto:** Trust tier changes should be recorded as immutable revisions with before/after state, enabling rollback and audit.
 
 ---
 
@@ -75,7 +75,7 @@ Paperclip stores agent config revisions as immutable snapshots (`agentConfigRevi
 **B. Exponential aging with decay factor**
 - **Beta Reputation System (Josang & Ismail 2002):** `alpha_new = lambda * alpha_old + positive_events`, `beta_new = lambda * beta_old + negative_events`. Lambda controls decay: 1.0 = no decay, 0.9 = 10% per period. After extended inactivity, system naturally returns toward uniform prior (complete uncertainty).
 
-**Agent OS mapping:** Fixed windows are simpler to implement and explain. Exponential aging provides smoother transitions. Both are viable; the choice depends on whether we want "your last N runs" or "all runs, weighted by recency."
+**Ditto mapping:** Fixed windows are simpler to implement and explain. Exponential aging provides smoother transitions. Both are viable; the choice depends on whether we want "your last N runs" or "all runs, weighted by recency."
 
 ### Concrete Tier Thresholds
 
@@ -124,7 +124,7 @@ Every system observed treats upgrades and downgrades asymmetrically:
 | Discourse | Auto-promote first 50 users on new instance |
 | Stack Overflow | Association bonus (+100) from linked sites |
 
-**Agent OS mapping:** New processes start supervised (the cold-start tier). This is equivalent to eBay's minimum history requirement — you can't upgrade until you have enough data.
+**Ditto mapping:** New processes start supervised (the cold-start tier). This is equivalent to eBay's minimum history requirement — you can't upgrade until you have enough data.
 
 ---
 
@@ -139,7 +139,7 @@ The Beta system models reputation as `Beta(alpha, beta)` where:
 
 **Weighting different feedback types:** The system is symmetric by default (1 positive = 1 negative). To weight differently, contribute multiple "units" per event:
 
-| Agent OS feedback | Possible weight (units) |
+| Ditto feedback | Possible weight (units) |
 |-------------------|------------------------|
 | Clean approval | +1 positive |
 | Minor edit (editRatio < 0.2) | +0.5 positive (mostly right) |
@@ -151,7 +151,7 @@ The Beta system models reputation as `Beta(alpha, beta)` where:
 **Wilson Score Interval (alternative):**
 Lower bound of confidence interval for binomial proportion. Used by Reddit. Formula handles small samples naturally — items with few ratings get wide confidence intervals, pushing the lower bound toward zero. Prevents "1 approval, 0 rejections = 100% trust."
 
-**Agent OS mapping:** Both systems work. Beta is more intuitive for continuous trust scoring. Wilson is better for "is this process trustworthy enough to upgrade?" threshold decisions. Could use Beta for running score + Wilson for upgrade eligibility.
+**Ditto mapping:** Both systems work. Beta is more intuitive for continuous trust scoring. Wilson is better for "is this process trustworthy enough to upgrade?" threshold decisions. Could use Beta for running score + Wilson for upgrade eligibility.
 
 ---
 
@@ -208,7 +208,7 @@ Where `d` is edit distance between versions. This measures: **did the edit move 
 - Text that **survives subsequent edits** gains trust
 - The judge's weight is `log(1.0 + reputation)` — more reputable judges have more impact
 
-**Agent OS mapping:**
+**Ditto mapping:**
 - **Clean approval** = agent output survived review = trust-positive (equivalent to WikiTrust's "text survived editing")
 - **Minor edit** = small `d01` = mostly right, moderate positive signal
 - **Major rewrite** = large `d01` = substantially wrong, negative signal
@@ -216,17 +216,17 @@ Where `d` is edit distance between versions. This measures: **did the edit move 
 
 ### Correction Pattern Extraction
 
-**No open-source system implements the full pipeline Agent OS needs.** Individual components exist:
+**No open-source system implements the full pipeline Ditto needs.** Individual components exist:
 - `chrisjbryant/errant` — typed correction classification (grammar-specific)
 - `grammarly/gector` — token-level transformation tags
 - `wikimedia/revscoring` — feature vector extraction from diffs
-- Agent OS ADR-003 — LLM-based reconciliation (send original + diff + existing memories to LLM → returns ADD/UPDATE/DELETE/NONE operations)
+- Ditto ADR-003 — LLM-based reconciliation (send original + diff + existing memories to LLM → returns ADD/UPDATE/DELETE/NONE operations)
 
-**Gap confirmed:** "Correction pattern extraction from diffs" is Original to Agent OS (ADR-003 provenance table). No system combines structured diff storage → pattern extraction → memory injection → trust scoring.
+**Gap confirmed:** "Correction pattern extraction from diffs" is Original to Ditto (ADR-003 provenance table). No system combines structured diff storage → pattern extraction → memory injection → trust scoring.
 
 ---
 
-## 5. Existing Data Structures in Agent OS
+## 5. Existing Data Structures in Ditto
 
 ### What's already built (Phase 2):
 
@@ -257,7 +257,7 @@ Where `d` is edit distance between versions. This measures: **did the edit move 
 
 ## 6. Summary: Patterns Available to Build From
 
-| Pattern | Source | Agent OS applicability |
+| Pattern | Source | Ditto applicability |
 |---------|--------|----------------------|
 | Event-sourced accumulation | Paperclip `costEvents` | Trust events as append-only records |
 | Two-threshold warn/stop | Paperclip `budgetPolicies` | Downgrade: warn threshold + hard threshold |
@@ -274,12 +274,12 @@ Where `d` is edit distance between versions. This measures: **did the edit move 
 | Three-version quality formula | WikiTrust `computerep.ml` | Measure if corrections stick across runs |
 | LLM-based pattern reconciliation | ADR-003 (Original) | Extract correction patterns from diffs |
 
-### What's Original to Agent OS (no existing solution)
+### What's Original to Ditto (no existing solution)
 
 1. **Process-scoped trust earning** — all systems are user-scoped or item-scoped, not process-scoped
 2. **Edit severity → trust weight** — WikiTrust computes reputation from edits but doesn't map to tier transitions
 3. **Correction pattern extraction pipeline** — diff → pattern → memory → improved output → trust signal
-4. **Never-auto-upgrade constraint** — all systems auto-promote; Agent OS always proposes, human decides
+4. **Never-auto-upgrade constraint** — all systems auto-promote; Ditto always proposes, human decides
 5. **Executor-type differentiation in trust** — Insight-005: scripts vs AI steps could earn trust differently
 
 ---
@@ -324,7 +324,7 @@ Each condition has: `metricKey` (string), `operator` (GREATER_THAN | LESS_THAN),
 
 Checks cover heterogeneous signals: branch protection, CI tests, code review, fuzzing, dependency updates, CII best practices.
 
-### Agent OS Mapping
+### Ditto Mapping
 
 For trust tiers, the most relevant combination is **Tiered Thresholds** (mapping to existing 4 tiers) with **Weighted Average** within each tier to handle reliability differences. Each feedback source would contribute to the overall score with source-appropriate weighting:
 
@@ -369,7 +369,7 @@ No production system implements explicit dual-signal trust. But the data structu
 **Amazon A2I — Confidence Threshold + Random Sampling:**
 Three trigger types for human review: confidence below threshold, missing expected data, random sampling at configurable percentage. The sampling trigger (5% of all outputs regardless of confidence) provides unbiased ground-truth for AI calibration measurement.
 
-**Agent OS mapping:** The existing spot-checked tier's ~20% sampling already provides this calibration data. When a sampled run is reviewed and the human agrees with the auto-advance decision, that's a calibration confirmation. When they disagree, it's a calibration signal for both the producing agent and the review pattern.
+**Ditto mapping:** The existing spot-checked tier's ~20% sampling already provides this calibration data. When a sampled run is reviewed and the human agrees with the auto-advance decision, that's a calibration confirmation. When they disagree, it's a calibration signal for both the producing agent and the review pattern.
 
 ### Gaming Prevention
 
@@ -389,7 +389,7 @@ Three trigger types for human review: confidence below threshold, missing expect
 - Azure ML feature attribution drift detects when predictions correlate with "easy" features
 - Stack Overflow daily rep cap (+200/day) prevents burst gaming
 
-**Agent OS mapping:** Key risks to address:
+**Ditto mapping:** Key risks to address:
 1. Agent producing trivially-correct outputs to inflate approval rate → minimum complexity/substantiveness check
 2. Reviewer agent rubber-stamping → track reviewer agreement rate with human overrides
 3. Human batch-approving without reviewing → time-on-review tracking (Insight: `canAutoAdvance=false` for critical tier already partially addresses this)
@@ -402,7 +402,7 @@ Full research report at: `docs/research/trust-visibility-ux.md`
 
 ### Key UX Patterns Found
 
-| # | Pattern | Source | Agent OS application |
+| # | Pattern | Source | Ditto application |
 |---|---------|--------|---------------------|
 | 1 | Projected rate at next evaluation | eBay seller dashboard | "At current correction rate, next evaluation will show..." |
 | 2 | Privilege ladder | Stack Overflow | Show what each trust tier unlocks |
@@ -413,7 +413,7 @@ Full research report at: `docs/research/trust-visibility-ux.md`
 | 7 | No progress bar (deliberate) | Discourse | Consider whether showing progression encourages gaming |
 | 8 | System-wide threshold config + bootstrap mode | Discourse admin | Org-level defaults with per-process overrides |
 
-### Gaps in Current Agent OS Design (Trust Control, Primitive 11)
+### Gaps in Current Ditto Design (Trust Control, Primitive 11)
 
 The existing architecture spec describes Trust Control as "shows current tier, how earned, what changes if adjusted." This research identifies 7 specific gaps:
 
@@ -483,13 +483,13 @@ The harness pipeline records signals in `harnessDecisions` that are not currentl
 | Upgrade eligibility scorecard | SonarQube + Backstage Soundcheck | Individual conditions shown pass/fail |
 | Requirements + obligations preview | Stripe capabilities | Show what comes WITH an upgrade |
 
-### What's Original to Agent OS (no existing solution)
+### What's Original to Ditto (no existing solution)
 
 1. **Process-scoped trust earning** — all systems are user-scoped or item-scoped
 2. **Multi-source trust aggregation for a process** — combining human, agent, system, outcome signals into per-process trust (Insight-009)
 3. **Edit severity → trust weight** — WikiTrust computes reputation but doesn't map to tier transitions
 4. **Correction pattern extraction pipeline** — diff → pattern → memory → improved output → trust signal
-5. **Never-auto-upgrade constraint** — all systems auto-promote; Agent OS always proposes, human decides
+5. **Never-auto-upgrade constraint** — all systems auto-promote; Ditto always proposes, human decides
 6. **Executor-type differentiation in trust** — Insight-005: scripts vs AI steps could earn trust differently
 7. **Dual-signal trust from human-reviewer disagreement** — human override as signal about both producer and reviewer
 8. **Trust simulation / evaluate mode for trust tiers** — GitHub has evaluate mode for rulesets, but applying simulation to progressive trust tiers is novel

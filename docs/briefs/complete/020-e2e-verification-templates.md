@@ -45,7 +45,7 @@ Run the full work evolution cycle (capture → classify → route → orchestrat
 | What | Source | Why this source |
 |------|--------|----------------|
 | Template format | n8n template library + Zapier templates | Standard template pattern: pre-built definitions users can adopt |
-| Governance declarations in templates | Original to Agent OS (ADR-008) | No surveyed template system includes trust config, quality criteria, and feedback loops |
+| Governance declarations in templates | Original to Ditto (ADR-008) | No surveyed template system includes trust config, quality criteria, and feedback loops |
 | Template adoption flow | ADR-008 cold-start pattern | AI-guided adoption rather than passive browsing |
 
 ## What Changes (Work Products)

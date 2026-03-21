@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent OS follows a strict Research → Design → Build → Review cycle. The Dev Researcher produces detailed pattern analysis — specific file paths in source projects, how patterns work at the code level, gaps identified, build-from vs Original classifications. This is the primary input to the Dev Architect.
+Ditto follows a strict Research → Design → Build → Review cycle. The Dev Researcher produces detailed pattern analysis — specific file paths in source projects, how patterns work at the code level, gaps identified, build-from vs Original classifications. This is the primary input to the Dev Architect.
 
 Currently, research findings exist only in conversation context. They evaporate when the session ends. This creates three problems:
 
@@ -50,7 +50,7 @@ Create `docs/research/` as a persistent home for research reports. One file per 
 
 ## Gaps
 
-{Capabilities where no existing solution was found, marked as Original to Agent OS}
+{Capabilities where no existing solution was found, marked as Original to Ditto}
 
 ## Deferred / Out of Scope
 
@@ -90,7 +90,7 @@ Create `docs/research/` as a persistent home for research reports. One file per 
 Original — no existing framework in the landscape persists design intelligence / scouting knowledge as a distinct artifact type. The closest analogues:
 
 - **ralph** — three-tier state (git + progress.txt + prd.json) persists execution state but not research findings
-- **"AI Agent OS" practitioner pattern** — `memory.md` persists agent learning but not cross-project pattern analysis
+- **"AI Ditto" practitioner pattern** — `memory.md` persists agent learning but not cross-project pattern analysis
 - **Paperclip** — activity log persists operational events but not design rationale
 
 The convention of structured research reports as project artifacts draws from academic/consulting practice (literature reviews, technology radar) rather than any software framework.

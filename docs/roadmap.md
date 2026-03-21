@@ -1,10 +1,10 @@
-# Agent OS — Roadmap
+# Ditto — Roadmap
 
 **Last updated:** 2026-03-21
-**Current phase:** Phase 5 complete — goal-directed orchestrator, E2E verification, 3 non-coding process templates. ADR-014 (Agent Cognitive Architecture) accepted. Phase 4 remaining: cognitive model fields (deferred to Phase 8). Phase 5 deferred: attention model extensions (digest mode), cognitive model (mode-aware review). Next: Phase 6 (External Integrations). Cognitive architecture phases (A1-D) interleave with existing roadmap.
-**Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Agent OS is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
+**Current phase:** Phase 6 in progress — Brief 024 (Integration Foundation + CLI) complete. Integration registry, CLI handler, `integration` executor, harness logging all working. ADR-005 accepted. Next: Brief 025 (MCP + Agent Tool Use). Cognitive architecture phases (A1-D) interleave with existing roadmap.
+**Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
-This is the complete capability map for Agent OS. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
+This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
 
 ---
 
@@ -12,7 +12,7 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 
 - **Status:** not started | in progress | done | deferred
 - **Source doc:** which design document defines this capability
-- **Build from:** which open-source project provides the pattern (or "Original" if unique to Agent OS)
+- **Build from:** which open-source project provides the pattern (or "Original" if unique to Ditto)
 - **Re-entry:** for deferred items, what condition triggers re-entry
 
 ---
@@ -217,39 +217,43 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 
 ---
 
+## Phase 6: External Integrations
+
+**Objective:** Connect processes to external systems via multi-protocol integration. CLI (cheapest), MCP (structured), REST (universal fallback). All calls traverse the harness.
+**Re-entry condition:** Dogfood processes proven end-to-end (Phase 5) ✓
+**Sub-phased:** 3 sub-briefs along dependency seams. Build order: 024 → 025 → 026. ADR-014 Phase A1 (Cognitive Toolkit) runs in parallel with 025.
+
+| Capability | Status | Source doc | Build from | Deliverable |
+|-----------|--------|-----------|------------|-------------|
+| **Integration registry (Brief 024)** | | | | |
+| Registry format (YAML declaration files per service) | done | ADR-005, Insight-007 | Original (informed by Nango git-tracked approach) | `integrations/github.yaml`, `integrations/00-schema.yaml` |
+| Registry loader (parse + validate, like process-loader) | done | ADR-005 | Process loader pattern (existing) | `src/engine/integration-registry.ts` |
+| **Step executor extension (Brief 024)** | | | | |
+| `integration` executor type in schema + step-executor | done | ADR-005 | Handler registry pattern (Sim Studio) | `src/db/schema.ts`, `src/engine/step-executor.ts` |
+| CLI protocol handler (execute CLI commands, parse JSON output) | done | ADR-005 | Script adapter (existing) + Google Workspace CLI pattern | `src/engine/integration-handlers/cli.ts` |
+| MCP protocol handler (connect to MCP server, invoke tools) | not started | ADR-005, architecture.md L2 | Claude Agent SDK MCP, OpenClaw skills-over-MCP | Brief 025 |
+| REST protocol handler (HTTP calls with auth) | not started | ADR-005 | Standard HTTP client patterns | Brief 026 |
+| **Credential management (Brief 026)** | | | | |
+| Credential vault (encrypted storage, isolated from agent runtime) | not started | ADR-005 | Composio brokered credentials pattern | Brief 026 |
+| Token lifecycle (refresh, rotation, revocation) | not started | ADR-005 | Nango managed auth | Brief 026 |
+| Per-process, per-agent credential scoping | not started | ADR-005 | Original | Brief 026 |
+| **Agent tool use (Brief 025)** | | | | |
+| Step-level `tools:` field in process definitions | not started | ADR-005, architecture.md L2 | OpenClaw skills pattern | Brief 025 |
+| Tool resolution from integration registry at harness assembly | not started | ADR-005 | Claude Agent SDK dynamic tool loading | Brief 025 |
+| Tool authorisation via agent permissions | not started | architecture.md (Governance) | Schema fields from Phase 1 | Brief 025 |
+| **Process I/O (Brief 026)** | | | | |
+| External input sources in process definitions | not started | ADR-005, architecture.md L1 | Process definition source/trigger fields (existing) | Brief 026 |
+| Polling-based trigger handler | not started | ADR-005 | Standard polling pattern | Brief 026 |
+| Webhook trigger handler | deferred | ADR-005 | Re-entry: when polling proves insufficient | — |
+| Output delivery to external destinations | not started | ADR-005 | Nango actions pattern | Brief 026 |
+| **Harness integration (Brief 024)** | | | | |
+| External calls traverse harness pipeline (trust gate, audit) | done | ADR-005 | Harness pipeline (existing) | Existing pipeline handles integration steps |
+| Integration call logging in activity table | done | ADR-005 | Feedback recorder (existing) | `src/engine/harness-handlers/feedback-recorder.ts` |
+| ADR-005 formalised | done | — | — | `docs/adrs/005-integration-architecture.md` (accepted) |
+
+---
+
 ## Future Phases (sequenced but not scheduled)
-
-### Phase 6: External Integrations
-
-**Re-entry condition:** Dogfood processes proven end-to-end (Phase 5), ready for non-coding domain
-**Sizing note:** 16 capabilities across 6 subsystems — exceeds Insight-004 splitting heuristic. Must be split into sub-phases before building. Natural seam: (a) registry + CLI protocol + harness integration, (b) MCP + REST + credential vault + process I/O.
-
-| Capability | Source doc | Build from |
-|-----------|-----------|------------|
-| **Integration registry** | | |
-| Registry format (YAML declaration files per service) | ADR-005, Insight-007 | Original (informed by Nango git-tracked approach) |
-| Registry loader (parse + validate, like process-loader) | ADR-005 | Process loader pattern (existing) |
-| **Step executor extension** | | |
-| `integration` executor type in schema + step-executor | ADR-005 | Handler registry pattern (Sim Studio) |
-| CLI protocol handler (execute CLI commands, parse JSON output) | ADR-005 | Script adapter (existing) + Google Workspace CLI pattern |
-| MCP protocol handler (connect to MCP server, invoke tools) | ADR-005, architecture.md L2 | Claude Agent SDK MCP, OpenClaw skills-over-MCP |
-| REST protocol handler (HTTP calls with auth) | ADR-005 | Standard HTTP client patterns |
-| **Credential management** | | |
-| Credential vault (encrypted storage, isolated from agent runtime) | ADR-005 | Composio brokered credentials pattern |
-| Token lifecycle (refresh, rotation, revocation) | ADR-005 | Nango managed auth |
-| Per-process, per-agent credential scoping | ADR-005 | Original |
-| **Agent tool use** | | |
-| Step-level `tools:` field in process definitions | ADR-005, architecture.md L2 | OpenClaw skills pattern |
-| Tool resolution from integration registry at harness assembly | ADR-005 | Claude Agent SDK dynamic tool loading |
-| Tool authorisation via agent permissions | architecture.md (Governance) | Schema fields from Phase 1 |
-| **Process I/O** | | |
-| External input sources in process definitions | ADR-005, architecture.md L1 | Process definition source/trigger fields (existing) |
-| Webhook trigger handler | ADR-005 | Standard webhook patterns |
-| Output delivery to external destinations | ADR-005 | Nango actions pattern |
-| **Harness integration** | | |
-| External calls traverse harness pipeline (trust gate, audit) | ADR-005 | Harness pipeline (existing) |
-| Integration call logging in activity table | ADR-005 | Feedback recorder (existing) |
-| ADR-005 formalised | — | — |
 
 ### Phase 7: Layer 4 — Awareness
 
@@ -420,8 +424,8 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 | `onboarding-guide` system agent (first-run flow, template-aware) | ADR-008 | Original |
 | `process-discoverer` system agent (data-driven pattern finding from connected sources) | ADR-006, ADR-008 | Informed by PKAI + ClearWork + Original |
 | **Reactive-to-repetitive lifecycle** | | |
-| System detects repeated ad-hoc work patterns | ADR-010, Insight-027 | Original to Agent OS |
-| System proposes new process creation from observed patterns | ADR-010 | Original to Agent OS |
+| System detects repeated ad-hoc work patterns | ADR-010, Insight-027 | Original to Ditto |
+| System proposes new process creation from observed patterns | ADR-010 | Original to Ditto |
 | User confirms/refines proposed process → activates supervised | ADR-010, Insight-016 | Original |
 | **Evidence-informed discovery** | | |
 | Capability Catalog (guided discovery, not app store) | human-layer.md | APQC/ITIL base knowledge |
@@ -454,7 +458,7 @@ This is the complete capability map for Agent OS. Every item traces back to the 
 | **Mobile (Operate Mode)** | mobile-remote-experience-ux.md, Insight-011 | Original design |
 | — 7 mobile-adapted primitives (Brief, Queue, Viewer, Feedback, Capture, Process Card glance, Improvement Card) | mobile-remote-experience-ux.md | Original |
 | — Three-depth review (notification → queue → detail) | mobile-remote-experience-ux.md | Original (informed by Linear, GitHub Mobile, Gmail) |
-| — "Edit @ desk" mobile-to-desktop handoff | mobile-remote-experience-ux.md, Insight-012 | Original to Agent OS |
+| — "Edit @ desk" mobile-to-desktop handoff | mobile-remote-experience-ux.md, Insight-012 | Original to Ditto |
 | — Push notification design (6 types, 4 priority levels) | mobile-remote-experience-ux.md | Informed by iOS/Android patterns |
 | — Voice interaction (voice-in + voice-out) | mobile-remote-experience-ux.md persona validation | Native only (Siri App Intents, Android App Actions) |
 | — Team attribution + team health for multi-person governors | mobile-remote-experience-ux.md persona validation (Nadia) | Original |
@@ -559,7 +563,7 @@ Unblocks Phase 3 (always-on heartbeats for trust earning). Engine codebase is th
 
 ---
 
-## What's Original to Agent OS
+## What's Original to Ditto
 
 These capabilities have no equivalent in existing frameworks:
 
@@ -590,7 +594,7 @@ These capabilities have no equivalent in existing frameworks:
 25. **Memory as UX** — the system demonstrates accumulated context on every surface. Daily Brief feels like a chief of staff who knows everything. Never feels like "new chat" (Insight-028)
 26. **Attention model** — trust tiers determine oversight rate, attention model determines oversight form (item review / digest / alert). No surveyed system combines process-level trust tiers with per-output confidence routing and trust-aware notification form (ADR-011)
 27. **Silence as feature** — autonomous processes that run cleanly produce no notifications. Absence of noise IS the signal that things are working. No agent platform explicitly designs for proactive silence (ADR-011)
-28. **Structure as the product** — the eight things raw chat is missing (loose structure, guidance, standards, goal orientation, quality control, informed autonomy, interconnectedness, abstraction). Agent OS IS the scaffolding that makes AI useful for non-technical users (Insight-030)
+28. **Structure as the product** — the eight things raw chat is missing (loose structure, guidance, standards, goal orientation, quality control, informed autonomy, interconnectedness, abstraction). Ditto IS the scaffolding that makes AI useful for non-technical users (Insight-030)
 29. **Process-declared context shape** — process definitions declare their context profile (memory/tools/history weighting). No system lets the process definition control context assembly shape (ADR-012)
 30. **Trust-modulated model routing** — as trust is earned, system recommends downgrading to cheaper models. Same mechanism as trust tier upgrades. No system ties model selection to earned trust (ADR-012)
 31. **Outcome-budget-attention triangle** — user sets importance, budget, and attention. System optimises model, context, and review pattern within those constraints. No system treats budget as a goal for meta-process optimisation (ADR-012)

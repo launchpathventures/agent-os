@@ -1,19 +1,20 @@
-# Agent OS — Current State
+# Ditto — Current State
 
 **Last updated:** 2026-03-21
-**Current phase:** Phase 5 complete. ADR-014 (Agent Cognitive Architecture) accepted. Insight-047 (Outcome Owners + Process Lifecycle) captured. README, vision, personas reframed around "outcome owners" and the reinvention problem. Next: PM triage for Phase 6 or Cognitive Architecture A1.
+**Current phase:** Phase 6a complete (Brief 024). Integration foundation proven: registry loader, CLI protocol handler, integration executor, harness logging. ADR-005 accepted. Next: `/dev-builder` for Brief 025 (MCP + Agent Tool Use), or ADR-014 Phase A1 (Cognitive Toolkit) in parallel.
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
 
 ## What's Working
 
-- **Storage** — SQLite + Drizzle ORM + better-sqlite3. WAL mode. Auto-created at `data/agent-os.db`. (ADR-001)
+- **Storage** — SQLite + Drizzle ORM + better-sqlite3. WAL mode. Auto-created at `data/ditto.db`. (ADR-001)
 - **Process definitions** — 11 YAML processes in `processes/` (7 domain + 4 system). Parallel groups, depends_on, human steps, conditional routing (route_to/default_next). System processes have `system: true`.
 - **Claude adapter** — 10 role-based system prompts, tool use loop (read_file/search_files/list_files, max 25 calls). Categorical confidence (high/medium/low per ADR-011).
 - **CLI adapter (Brief 016a)** — `src/adapters/cli.ts`. Spawns `claude -p` as subprocess. Loads role contracts from `.claude/commands/dev-*.md`. Parses CONFIDENCE from output. costCents: 0 (subscription-based). Provenance: ralph (subprocess), Paperclip (adapter pattern).
 - **Script adapter** — Deterministic steps with on_failure
-- **Process loader** — YAML parsing, parallel_group containers, dependency validation, cycle detection. Supports route_to, default_next, retry_on_failure fields (Brief 016b).
+- **Integration infrastructure (Brief 024)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. `integration` executor type in step-executor switch. `resolveAuth(service, cliInterface, processId?)` reads env vars (Brief 026 swaps to vault). Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol` on stepRuns. (ADR-005)
+- **Process loader** — YAML parsing, parallel_group containers, dependency validation, cycle detection, integration step validation (config.service required). Supports route_to, default_next, retry_on_failure fields (Brief 016b).
 - **CLI** — citty + @clack/prompts. 12 commands: sync, start, heartbeat, status, review, approve, edit, reject, trust, capture, complete, debt. TTY-aware, --json on listings. Unified task surface.
 - **Work items** — workItems table (type, status, goalAncestry, assignedProcess, spawnedFrom). Conditional flow (Insight-039).
 - **Harness pipeline** — 6 handlers: memory-assembly → step-execution → review-pattern → routing → trust-gate → feedback-recorder. Routing handler (Brief 016b) evaluates route_to conditions via substring matching (Mode 1).
@@ -29,13 +30,13 @@
 - **Agent tools** — 3 read-only tools (read_file, search_files, list_files). Path traversal prevention, secret deny-list.
 - **DB schema enforcement** — `pnpm cli sync` runs drizzle-kit push. Handles first-run and evolution.
 - **Debt tracking** — `docs/debts/` markdown files. `pnpm cli debt` to list.
-- **Dev process** — 7 roles as skills. Brief template. 28 active insights, 21 archived. 31 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
+- **Dev process** — 7 roles as skills. Brief template. 26 active insights, 23 archived. 31 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
 - **Dev pipeline** — `claude -p` orchestrator + Telegram bot. Full Claude workspace on mobile. (Brief 015). Engine-integrated: `processes/dev-pipeline.yaml` runs 7 roles through the real harness with conditional routing (Brief 016c).
 - **System agents (Brief 014a+014b+021)** — 4 system agents running through the harness pipeline: trust-evaluator (wraps Phase 3 code, spot-checked), intake-classifier (keyword matching, supervised), router (LLM-based via Anthropic SDK, supervised), orchestrator (goal-directed — decomposes goals into tasks, routes around paused items, confidence-based stopping; supervised). `category: system` + `systemRole` on agents table. System agent registry dispatches via `script` executor + `systemAgent` config (Insight-044). `startSystemAgentRun()` for programmatic triggering.
 - **Goal-directed orchestrator (Brief 021+022)** — Decomposes goals into child work items using process step list as blueprint. `orchestratorHeartbeat()` iterates spawned tasks, routes around trust gate pauses to independent work. Confidence-based stopping: low confidence triggers escalation (Types 1/3/4). CLI: scope negotiation in `capture`, goal tree in `status`, escalation display. Schema: `decomposition` on workItems, `orchestratorConfidence` on processRuns.
 - **Process templates (Brief 020)** — 3 non-coding templates in `templates/`: invoice-follow-up (4 steps, 1 human), content-review (3 steps, all AI), incident-response (4 steps, 2 human). All include governance declarations (trust, quality_criteria, feedback). Loaded as `status: draft` via `aos sync`. Process loader reads from both `processes/` and `templates/`.
 - **Auto-classification capture (Brief 014b)** — `aos capture` auto-classifies work item type (keyword patterns) and auto-routes to best matching process (LLM). Falls back to interactive @clack/prompts on low confidence. System processes filtered from routing targets.
-- **Test infrastructure (Brief 017)** — vitest + 66 integration tests covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch). Real SQLite per test (no mocks). Anthropic SDK mocked at module level. `pnpm test` runs in ~560ms.
+- **Test infrastructure (Brief 017)** — vitest + 82 integration tests covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests). Real SQLite per test (no mocks). Anthropic SDK mocked at module level. `pnpm test` runs in ~3.2s.
 - **E2E verification (Brief 020)** — Full work evolution cycle verified: capture → classify → route → orchestrate → execute → human step → resume → review → trust update. All 6 architecture layers proven working. Report at `docs/verification/phase-5-e2e.md`.
 
 ## What Needs Rework
@@ -44,6 +45,7 @@
 
 ## Recently Completed
 
+- **Brief 024 complete** (Phase 6a: Integration Foundation + CLI) — Integration registry (YAML loader + validation), CLI protocol handler (exec + retry + credential scrubbing), `integration` executor type, harness `integration.call` logging, process loader validation. ADR-005 accepted. 13 AC, 16 new tests (82 total). Reviewed: PASS WITH FLAGS (4 flags, 2 addressed inline). Approved 2026-03-21.
 - **ADR-014 accepted** (Agent Cognitive Architecture) — Three-layer cognitive architecture (infrastructure + toolkit + context), orchestrator as executive function, adaptive scaffolding, cognitive quality in trust. 6-phase build plan (A1-D). Research report: 30+ sources. Approved 2026-03-21.
 - **Insight-047 captured** (Outcome Owners + Process Lifecycle) — Architecture review against "outcome owner" reframe. Two gaps: process articulation tools deferred too far (Phase 11), declarative-metacognitive balance unnamed. Judgment hierarchy proposed. Reviewed: PASS WITH FLAGS.
 - **Outcome owner reframe** — README rewritten, vision.md updated, personas.md updated. Users are "outcome owners" not "process owners." Reinvention problem (AI without durable process) is central. Declarative process vs intuitive metacognition named as core design tension.
@@ -74,7 +76,7 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | Parallel execution via Promise.all | Phase 2c | Done |
 | Dev Designer as 7th role | ADR-004 | Accepted |
 | Trust earning algorithm | ADR-007 | Accepted |
-| Integration architecture (multi-protocol) | ADR-005 | Proposed |
+| Integration architecture (multi-protocol) | ADR-005 | Accepted |
 | Analyze as first-class mode + org data model | ADR-006 | Accepted |
 | Two-track deployment | ADR-006 | Accepted |
 | AGPL-3.0 license | ADR-006 | Accepted |
@@ -90,19 +92,70 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 
 | Brief | Phase | Status |
 |-------|-------|--------|
-| 023 — Phase 6 External Integrations (parent) | 6 | Draft — awaiting approval |
-| 024 — Integration Foundation + CLI (Phase 6a) | 6a | Ready — approved 2026-03-21 |
+| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024 complete |
 | 025 — MCP + Agent Tool Use (Phase 6b) | 6b | Ready — approved 2026-03-21 |
 | 026 — Credentials + Process I/O (Phase 6c) | 6c | Ready — approved 2026-03-21 |
 
 ## Next Steps
 
-1. **NOW:** Phase 6 briefs approved. Build order: 024 (Integration Foundation + CLI) → 025 (MCP + Tool Use) → 026 (Credentials + Process I/O). Parallel: ADR-014 Phase A1 (Cognitive Toolkit) can run alongside 024. Next: `/dev-builder` for Brief 024.
+1. **NOW:** Brief 024 complete. Next: `/dev-builder` for Brief 025 (MCP + Agent Tool Use). Parallel: ADR-014 Phase A1 (Cognitive Toolkit) can run alongside 025. Reviewer recommends manual `gh` smoke test before starting 025.
 2. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047). Outcome owner reframe means process creation tools are core, not late-stage.
 4. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
 5. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8. Extended by ADR-014 for agent-execution cognitive framing.
 6. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
 7. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
+
+## Documenter Retrospective (2026-03-21 — Phase 6a Build Session)
+
+**What was produced this session:**
+1. Brief 024 implemented: integration registry loader, CLI protocol handler, `integration` executor type, harness `integration.call` activity logging, process loader validation for integration steps, schema additions (`integrationService`/`integrationProtocol` on stepRuns).
+2. 16 new tests (8 registry, 6 CLI handler, 2 resolveAuth) — 82 total. All pass.
+3. ADR-005 accepted (proposed → accepted).
+4. Review: PASS WITH FLAGS (4 flags — 2 addressed inline: `resolveAuth` signature + ADR-005 status; 2 acknowledged: smoke test + unpopulated schema fields).
+
+**What worked:**
+- **The existing patterns made this fast.** The integration registry is a near-copy of the process-loader pattern. The CLI handler extends the script adapter's exec approach. The step-executor switch was a one-case addition. The infrastructure layers are composable — Brief 024 added a new executor type with minimal cross-cutting changes.
+- **The reviewer caught real interface issues.** The `resolveAuth(service, cliInterface)` signature didn't match the brief's `resolveAuth(service, processId)`. Adding `processId` now (even unused) means Brief 026's vault can scope credentials per-process without changing call sites. Good forward-compatibility fix caught by maker-checker.
+- **Test infrastructure paid off.** The injectable `execAsync.fn` wrapper was needed because Node's `exec` has a custom promisify symbol that vitest module mocks can't intercept. Having real-DB test patterns already in place meant the registry tests were straightforward.
+
+**What surprised us:**
+- **Mocking `child_process.exec` is harder than expected.** Three attempts before finding a working pattern. Node's `promisify` uses a custom symbol on `exec` that bypasses standard mock interception. The injectable wrapper (`execAsync.fn`) was the clean solution — this pattern should be noted for Brief 025/026 if they also need exec mocking.
+- **The `integrationService`/`integrationProtocol` schema fields are defined but not yet populated.** The step-execution harness handler doesn't write them after execution. This is a gap — the schema declares columns that are always null. Flagged by reviewer; TODO comment added. Worth resolving in Brief 025 when the step-execution handler is already being touched for tool use.
+
+**What to change:**
+- **Smoke tests should be run when the tool is available.** The reviewer correctly flagged that no real `gh` CLI invocation was tested. For Brief 025 (MCP), a similar problem exists — testing against real MCP servers. Consider creating a minimal test integration (e.g., `echo` wrapper) that can be smoke-tested in CI without external dependencies.
+- **Schema fields should only be added when the code that populates them is in the same brief.** The `integrationService`/`integrationProtocol` fields were specified in the brief but the population code wasn't — leaving dead columns. Future briefs should either include the full pipeline or defer the schema addition.
+
+---
+
+## Documenter Retrospective (2026-03-21 — ADR-014 + Phase 6 Design Session)
+
+**What was produced this session:**
+1. Insight-046 evolved through three rounds of strategic conversation into a full design principle (7 layers of agent effectiveness, executive function as governing layer, intuition as design requirement).
+2. Research report: `docs/research/cognitive-prompting-architectures.md` — 30+ sources across prompting science, cognitive architectures, metacognition, executive function in AI. Key finding: "provide tools, don't prescribe."
+3. ADR-014 (Agent Cognitive Architecture) — three-layer design (infrastructure + toolkit + context), executive function as orchestrator evolution, adaptive scaffolding, cognitive quality in trust, judgment hierarchy. Reviewed: PASS WITH FLAGS (5 flags, all addressed). Accepted.
+4. Architecture.md updated — new cross-cutting section for Agent Cognitive Architecture, "Processes declare structure, agents bring judgment" principle added to Core Thesis.
+5. PM triage: two parallel tracks identified (Phase 6 sub-phasing + ADR-014 A1).
+6. Phase 6 parent brief (023) + 3 sub-briefs (024, 025, 026) designed. ADR-005 follow-up decisions resolved. Reviewed: PASS WITH FLAGS (2 flags, both addressed). All approved.
+7. Health audit: 66 tests pass, types clean, no TODO/FIXME in source, 5 debts tracked (all deferred, Debt-005 re-entry approaching). Insight/research counts corrected.
+
+**What worked:**
+- **The strategic conversation produced the session's most valuable artifact.** Insight-046 started as "agents need mental models" and evolved through three rounds to "executive function + intuition govern all cognitive resources." Each round deepened the concept: (1) reflection + mental models, (2) mindset/state/cognitive skills (Farnam Street, Robbins, Brown), (3) executive function + the prescriptive-vs-intuitive tension. The final design principle — "provide tools, don't prescribe" — came from the research confirming the human's intuition.
+- **Research validated before design.** The human asked "is there evidence?" before committing to the architecture. The research (MeMo, MAP, Prompting Inversion, Reflexion) provided both validation and key constraints (adaptive scaffolding from Prompting Inversion, modular decomposition from MAP). The ADR is grounded in 30+ sources, not just conversation.
+- **Phase 6 sub-phasing was efficient.** The Architect split 16 capabilities into 3 briefs (13+14+13 AC) along clear dependency seams. All ADR-005 follow-up decisions resolved in the parent brief. The reviewer found real issues (webhook deferral inconsistency, auth abstraction migration path) that improved the design.
+- **Two major design outputs in one session** (ADR-014 + Phase 6 briefs). Different in character — ADR-014 was strategic/philosophical, Phase 6 was tactical/concrete — but both flowed naturally from the PM's triage identifying them as parallel tracks.
+
+**What surprised us:**
+- **The "outcome owner" reframe happened mid-session.** The human updated README, vision, and personas between messages. This reframe (users as outcome owners, not process owners) influenced both ADR-014 (judgment hierarchy) and the Phase 6 approach (process articulation tools discussion). Organic evolution of project identity during a design session.
+- **Insight-047 appeared without being explicitly designed.** The human captured it directly while the Architect was working on ADR-014. It identified two architecture gaps (process articulation tools deferred too far, declarative-metacognitive balance unnamed) that the Architect then incorporated. User-as-designer pattern working.
+- **The health audit found no retrospective rework needed for cognitive architecture.** ADR-014 is entirely additive — no existing code needs changing. This validates the six-layer architecture's extensibility: a major new cross-cutting concern slots in without touching existing code.
+
+**What to change:**
+- **Strategic sessions should explicitly separate "conversation" from "design."** This session had ~4 rounds of strategic conversation, then research, then ADR, then Phase 6 briefs. The conversation rounds are high-value but don't produce trackable artifacts until the research/ADR phase. A future session could capture the conversation insights as a lightweight "design notes" artifact before the formal ADR.
+- **The Architect role was invoked once but did two distinct jobs** (ADR-014 + Phase 6 sub-phasing). These are genuinely different design tasks. The second invocation was handled via the PM coordinating a re-entry to the Architect, which worked but meant a very long Architect context. Future sessions: separate Architect invocations for separate design tasks.
+- **Debt-005 (dev memory not dogfooding) re-entry condition is now met** (Phase 5 complete). PM should triage whether to address it before or alongside Phase 6 build.
+
+---
 
 ## Documenter Retrospective (2026-03-21 — Cognitive Architecture Deep-Dive Session)
 
@@ -110,14 +163,14 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 1. Insight-046 significantly expanded through three rounds of strategic conversation: (1) reflection & mental models, (2) mindset/state/cognitive skills, (3) executive function & intuition as the governing layer.
 2. Seven layers of agent effectiveness defined (up from six): Skills → Mental Models → Thinking Style → State → Metacognition → Relational Intelligence → Executive Function.
 3. Executive function mapped to agent equivalents: working memory, cognitive flexibility, inhibitory control, planning, monitoring, initiation.
-4. Design principle articulated: "Agent OS provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use."
+4. Design principle articulated: "Ditto provides cognitive tools and creates conditions for quality thinking. It does NOT prescribe which tool to use."
 5. Incremental implementation plan: Phase 1 (toolkit + tracking, human as executive function) → Phase 2 (learning correlation, orchestrator begins) → Phase 3 (full cognitive management, orchestrator as executive function).
-6. Consulting market parallel refined: ~$500B+ market, Agent OS captures methodology + execution (process-as-primitive) + problem framing + adaptation + intuitive sensing (cognitive architecture).
+6. Consulting market parallel refined: ~$500B+ market, Ditto captures methodology + execution (process-as-primitive) + problem framing + adaptation + intuitive sensing (cognitive architecture).
 
 **What worked:**
 - **Iterative deepening produced genuine insight.** Three rounds of conversation, each building on the last, moved from "agents need mental models" (obvious) to "executive function is the governing layer" (non-obvious). The third round — adding executive function and intuition — fundamentally changed the design direction from "cognitive toolkit" to "cognitive architecture with judgment."
-- **The consulting market parallel sharpened the value proposition.** Connecting executive function to the 40% problem-framing / 20% adaptation split in consulting made the abstract concrete. It clarifies what Agent OS does that raw AI doesn't.
-- **The "firm, not playbook" metaphor is a strong design test.** Every feature decision can be tested against: "Does this make Agent OS more like a firm (judgment, adaptation) or more like a playbook (prescription, rigidity)?"
+- **The consulting market parallel sharpened the value proposition.** Connecting executive function to the 40% problem-framing / 20% adaptation split in consulting made the abstract concrete. It clarifies what Ditto does that raw AI doesn't.
+- **The "firm, not playbook" metaphor is a strong design test.** Every feature decision can be tested against: "Does this make Ditto more like a firm (judgment, adaptation) or more like a playbook (prescription, rigidity)?"
 
 **What surprised us:**
 - **Intuition emerged as a design requirement.** The original insight was about structured cognitive tools. The conversation surfaced that too much structure kills the very intelligence we're trying to enable. "Space for intuition" is now a first-class design principle — genuinely unexpected.
@@ -214,7 +267,7 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 ## Documenter Retrospective (2026-03-21 — QMD/Obsidian Research Session)
 
 **What was produced this session:**
-1. Research report: `docs/research/qmd-obsidian-knowledge-search.md` — evaluated QMD (markdown search engine), Obsidian integration patterns, and OpenClaw memory model as composition opportunities for Agent OS. Reviewed: PASS WITH FLAGS (3 flags, 2 addressed).
+1. Research report: `docs/research/qmd-obsidian-knowledge-search.md` — evaluated QMD (markdown search engine), Obsidian integration patterns, and OpenClaw memory model as composition opportunities for Ditto. Reviewed: PASS WITH FLAGS (3 flags, 2 addressed).
 2. Landscape update: OpenClaw added as proper entry in `docs/landscape.md` with memory architecture details (4-layer model, compaction limitations). Previously only referenced in architecture.md borrowing table.
 3. Landscape update: QMD added to `docs/landscape.md` Knowledge Search section.
 4. Research index updated with new report.
@@ -225,8 +278,8 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 - **The landscape gap for OpenClaw was real.** A project referenced in architecture.md's borrowing table had no landscape.md entry. The research session surfaced this organically. Now there's a proper evaluation with memory architecture details and competitive contrast.
 
 **What surprised us:**
-- **QMD's stack overlap with Agent OS.** Same dependencies (better-sqlite3, vitest, TypeScript, MIT, Node 22), same test runner, same DB engine. If QMD stabilises, the integration path is unusually clean for a third-party tool.
-- **OpenClaw's memory model has hard limits not previously documented.** 20K chars per bootstrap file, 150K aggregate. Lossy compaction. These are concrete numbers that inform competitive positioning — Agent OS's structured memory has no such limits.
+- **QMD's stack overlap with Ditto.** Same dependencies (better-sqlite3, vitest, TypeScript, MIT, Node 22), same test runner, same DB engine. If QMD stabilises, the integration path is unusually clean for a third-party tool.
+- **OpenClaw's memory model has hard limits not previously documented.** 20K chars per bootstrap file, 150K aggregate. Lossy compaction. These are concrete numbers that inform competitive positioning — Ditto's structured memory has no such limits.
 
 **What to change:**
 - **Landscape.md should have entries for every project in architecture.md's borrowing table.** OpenClaw was borrowed from but never evaluated in the landscape doc. A periodic audit of the borrowing table against landscape.md would catch these gaps. This is a Documenter responsibility.

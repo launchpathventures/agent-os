@@ -1,0 +1,30 @@
+# Integration Registry Schema
+#
+# Defines the structure for integration registry files in this directory.
+# Each YAML file declares a service and its available interfaces.
+#
+# Provenance: ADR-005 (multi-protocol, multi-purpose integration architecture)
+# Pattern: Mirrors process definition declarations (git-tracked, declarative)
+
+required_fields:
+  - service      # Unique service identifier (e.g., "github", "google-workspace")
+  - description  # Human-readable description
+  - interfaces   # At least one protocol interface (cli, mcp, rest)
+  - preferred    # Which protocol to prefer (must match an interface key)
+
+interface_types:
+  cli:
+    required: [command]           # Base CLI command (e.g., "gh", "gws", "aws")
+    optional: [auth, env_vars]    # Auth method, required env vars
+  mcp:
+    required: [uri]               # MCP server URI (e.g., "stdio://server-name")
+    optional: [auth]
+  rest:
+    required: [base_url]          # API base URL
+    optional: [auth, headers]
+
+auth_methods:
+  - env_var         # Environment variable (e.g., GH_TOKEN)
+  - oauth_keyring   # OAuth token stored in OS keyring
+  - cli_login       # CLI's own auth mechanism (e.g., gh auth login)
+  - api_key         # API key (stored in vault, Brief 026)

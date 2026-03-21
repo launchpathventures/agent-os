@@ -414,7 +414,7 @@ $ aos capture "I need to track and follow up on overdue invoices"
 | Stopping condition | Decide, Orient | Review Queue (extended), Conversation Thread |
 | Process templates | Define, Delegate | Conversation Thread, Process Builder, Quick Capture |
 
-## Gaps — Original to Agent OS
+## Gaps — Original to Ditto
 
 1. **Four-way escalation UX** — No surveyed product distinguishes blocked/uncertain/error/aggregate-uncertainty with distinct UX treatments. Most show a single "needs attention" state.
 2. **Route-around visibility** — No surveyed product shows the user that the orchestrator continued on independent work while something is blocked. Most either stop entirely or hide the routing decision.

@@ -6,7 +6,7 @@
 
 ---
 
-## Current State in Agent OS
+## Current State in Ditto
 
 The Quick Capture primitive (Primitive 12, defined in `docs/human-layer.md` line 548 and `docs/architecture.md` line 372) currently distinguishes only two input types: **"New task"** vs **"Just context"**. The architecture defines process inputs with Source + Trigger but not standardised input types. The Capture-Classify-Route pipeline is defined as a five-step process: transcribe, classify, extract action items, add to the right place, surface if actionable.
 
@@ -127,7 +127,7 @@ Inbox Item
 │       └── Useful reference? → REFERENCE
 ```
 
-The critical GTD insight for Agent OS: **the first classification is binary (actionable vs non-actionable), not type-based.** Type emerges from the second question ("what kind of actionable?").
+The critical GTD insight for Ditto: **the first classification is binary (actionable vs non-actionable), not type-based.** Type emerges from the second question ("what kind of actionable?").
 
 Sources: GTD Wikipedia, Todoist GTD Guide, FacileThings Clarify Stage
 
@@ -203,7 +203,7 @@ Sources: Camunda BPMN Reference, Red Hat BPMN Events, ProcessMind BPMN Start Eve
 | **Change Request** | Proposal to modify a service/system | Planned, risk-assessed |
 | **Event** | Monitoring alert or state change | Automated, early warning |
 
-ITIL insight for Agent OS: **inputs are classified by what response they require**, not by their content.
+ITIL insight for Ditto: **inputs are classified by what response they require**, not by their content.
 
 Sources: BMC Helix ITIL Ticket Types, PDCA ITIL Ticket Types, Beyond20 Incident vs Problem vs Request
 
