@@ -31,24 +31,48 @@ Observes what's working and what isn't. Actively researches external sources —
 
 The cognitive framework is to Ditto what executive function is to a human brain — not a separate module but the pervasive operating context for all cognition. It's how the platform *thinks*, not just what it does.
 
-## The Relationships
+## The Hierarchy
+
+The five meta processes are not peers — there is a clear hierarchy with the Build process as the generative core:
 
 ```
-Cognitive Framework (executive function — pervasive, shapes everything)
+Cognitive Framework (how everything thinks — pervasive, shapes all decisions)
     │
-    ├── Goal Framing ──→ confirmed brief
-    │                        │
-    │                        ├──→ Process Execution ──→ outcome
-    │                        │
-    │                        └──→ Process/Agent Creation ──→ new capability
-    │                                    │
-    │                                    └──→ Process Execution ──→ outcome
+    ├── Goal Framing (what to build/do)
+    │       │
+    │       └──→ confirmed brief
+    │                │
+    │                ├──→ Build Process (creates all processes, agents, skills)
+    │                │        │
+    │                │        ├── creates domain processes (quoting, onboarding, etc.)
+    │                │        ├── creates/evolves meta processes (including itself)
+    │                │        └── creates agents and skills to fill gaps
+    │                │                │
+    │                │                └──→ Process Execution (runs what was built)
+    │                │
+    │                └──→ Process Execution (runs existing processes)
     │
     └── Feedback & Evolution ──→ improvements to all of the above
-                                  (including the cognitive framework itself)
+            │                     (including the cognitive framework itself)
+            │
+            └── PRIMARY CONSUMER: Build Process
+                (every pattern discovered, every correction captured,
+                 every external repo mined feeds directly into how
+                 Build works)
 ```
 
-The cognitive framework sits above and through everything — it's not a step in the pipeline, it's the operating context. Feedback & Evolution is the only meta process that can modify the cognitive framework itself (with human approval at the highest trust gate).
+### Why Build Is the Highest-Leverage Meta Process
+
+The Build process is the generative core of the platform. Every process, agent, and skill in the system — meta or domain — was created by it. This makes it uniquely self-referential: it can build and modify itself.
+
+**Quality compounds through Build.** If Build is weak, everything it creates is weak. If Build is excellent, excellence propagates to every process, agent, and skill downstream. This means:
+
+1. **Feedback & Evolution feeds directly into Build** — every external pattern discovered, every correction captured, every improvement identified goes straight into how Build operates
+2. **Build must be research-driven from day one** — the research-extract-evolve cycle (Insight-031) is baked into Build's DNA, not bolted on later
+3. **Build is the primary consumer of external repos** — when the evolution process finds a better way to structure agents, define processes, handle errors, Build absorbs it immediately
+4. **Build quality determines platform quality** — this is the one process where under-investing is a systemic risk. Cutting corners here cuts corners everywhere downstream
+
+The cognitive framework sits above and through everything — it's not a step in the pipeline, it's the operating context. Feedback & Evolution can modify the cognitive framework itself (with human approval at the highest trust gate). But Feedback & Evolution's most frequent and impactful output is improvements to the Build process.
 
 ## Implications
 
@@ -57,6 +81,8 @@ The cognitive framework sits above and through everything — it's not a step in
 - Modifying the cognitive framework is the highest-trust operation in the system (it changes how everything thinks)
 - External research (repos, papers, communities) is a first-class input to platform evolution, not ad hoc
 - The five meta processes together ARE the platform — everything else is domain-specific processes created by them
+- **The Build process is the single highest-leverage investment** — it must be robust, research-driven, and continuously improved by the learning loop from day one
+- The dev pipeline on this repo IS the Build process running on itself — every session that creates briefs, writes code, reviews work is the Build process executing and should feed back into improving Build
 - This is the complete picture the architect needs to design from
 
 ## Where It Should Land
