@@ -25,6 +25,7 @@ export const stepExecutionHandler: HarnessHandler = {
         context.processRun.inputs,
         context.processDefinition,
         context.resolvedTools ?? undefined,
+        context.processRun.processId,
       );
 
       context.stepResult = result;

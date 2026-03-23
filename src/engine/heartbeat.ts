@@ -38,6 +38,7 @@ import { routingHandler } from "./harness-handlers/routing";
 import { trustGateHandler } from "./harness-handlers/trust-gate";
 import { metacognitiveCheckHandler } from "./harness-handlers/metacognitive-check";
 import { feedbackRecorderHandler } from "./harness-handlers/feedback-recorder";
+import { deliverOutput } from "./process-io";
 
 export interface HeartbeatResult {
   processRunId: string;
@@ -587,6 +588,17 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
       processName: definition.name,
       stepsExecuted: existingStepRuns.filter((s) => s.status === "approved").length,
     });
+
+    // Output delivery: fire after run completes and trust gate has passed (Brief 036 AC7)
+    try {
+      await deliverOutput(processRunId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Output delivery failed for run ${processRunId.slice(0, 8)}: ${message}`);
+      await logActivity("output.delivery.failed", processRunId, "process_run", {
+        error: message,
+      });
+    }
 
     return { processRunId, stepsExecuted: 0, status: "completed", message: "All steps complete" };
   }

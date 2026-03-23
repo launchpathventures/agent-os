@@ -65,6 +65,8 @@ function createTables(sqlite: Database.Database): void {
       definition TEXT NOT NULL DEFAULT '{}',
       trust_tier TEXT NOT NULL DEFAULT 'supervised',
       trust_data TEXT DEFAULT '{}',
+      source TEXT,
+      output_delivery TEXT,
       project_id TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
@@ -282,6 +284,18 @@ function createTables(sqlite: Database.Database): void {
       status TEXT NOT NULL DEFAULT 'active',
       summary TEXT,
       turns TEXT NOT NULL DEFAULT '[]'
+    );
+
+    CREATE TABLE IF NOT EXISTS credentials (
+      id TEXT PRIMARY KEY,
+      process_id TEXT NOT NULL REFERENCES processes(id),
+      service TEXT NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      expires_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      UNIQUE(process_id, service)
     );
   `);
 }

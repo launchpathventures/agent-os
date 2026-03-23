@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
 **Last updated:** 2026-03-23
-**Current phase:** ADR-009 v2 accepted (Process Output Architecture). Insights 066-069 captured. Brief 035+036 awaiting approval. Next: PM triages.
+**Current phase:** Brief 035 complete (Credential Vault). Brief 036 (Process I/O) unblocked. 247 tests (18 test files).
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -240,19 +240,22 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | MCP protocol handler (connect to MCP server, invoke tools) | deferred | ADR-005, Insight-065 | Re-entry: when CLI+REST insufficient for a required service | — |
 | REST protocol handler (HTTP calls with auth) | done | ADR-005 | Standard HTTP client patterns (native fetch) | `src/engine/integration-handlers/rest.ts` (Brief 025) |
 | **Credential management (Brief 026)** | | | | |
-| Credential vault (encrypted storage, isolated from agent runtime) | not started | ADR-005 | Composio brokered credentials pattern | Brief 026 |
-| Token lifecycle (refresh, rotation, revocation) | not started | ADR-005 | Nango managed auth | Brief 026 |
-| Per-process, per-agent credential scoping | not started | ADR-005 | Original | Brief 026 |
+| Credential vault (AES-256-GCM encrypted, HKDF key derivation) | done | ADR-005 | Composio brokered credentials, Node.js crypto | `src/engine/credential-vault.ts` (Brief 035) |
+| Token lifecycle (`expiresAt` stored, auto-refresh deferred) | done (partial) | ADR-005 | Nango managed auth | `credentials` table `expires_at` field (Brief 035) |
+| Per-process, per-service credential scoping | done | ADR-005 | Original | `credentials` table UNIQUE(process_id, service) (Brief 035). Per-agent scoping deferred to Phase 12. |
+| Unified auth resolution (vault-first, env-var fallback) | done | ADR-005 | 12-factor migration pattern | `resolveServiceAuth()` (Brief 035) |
+| Credential CLI (`ditto credential add/list/remove`) | done | ADR-005 | @clack/prompts masked input | `src/cli/commands/credential.ts` (Brief 035) |
 | **Agent tool use (Brief 025)** | | | | |
 | Step-level `tools:` field in process definitions | done | ADR-005, Insight-065 | Ditto-native tool pattern (LlmToolDefinition) | `src/engine/process-loader.ts` (Brief 025) |
 | Tool resolution from integration registry at harness assembly | done | ADR-005, Insight-065 | Integration YAML tools section + tool-resolver | `src/engine/tool-resolver.ts` (Brief 025) |
 | Tool authorisation via step declaration | done | ADR-005 | Original — per-step `tools:` field in process definition | `src/engine/tool-resolver.ts` (Brief 025) |
 | Tool call logging on stepRuns | done | ADR-005 | `toolCalls` JSON field | `src/db/schema.ts` (Brief 025) |
-| **Process I/O (Brief 026)** | | | | |
-| External input sources in process definitions | not started | ADR-005, architecture.md L1 | Process definition source/trigger fields (existing) | Brief 026 |
-| Polling-based trigger handler | not started | ADR-005 | Standard polling pattern | Brief 026 |
+| **Process I/O (Brief 036)** | | | | |
+| External input sources in process definitions (`source:` field) | done | ADR-005, architecture.md L1 | Process definition source fields | `ProcessSourceConfig` type, `processes.source` DB column (Brief 036) |
+| Polling-based trigger handler | done | ADR-005 | Standard polling pattern | `src/engine/process-io.ts` (`startPolling`/`stopPolling`) (Brief 036) |
 | Webhook trigger handler | deferred | ADR-005 | Re-entry: when polling proves insufficient | — |
-| Output delivery to external destinations | not started | ADR-005 | Nango actions pattern | Brief 026 |
+| Output delivery to external destinations (`output_delivery:` field) | done | ADR-005 | Nango actions pattern | `src/engine/process-io.ts` (`deliverOutput`) (Brief 036) |
+| Trigger CLI (`ditto trigger start/stop/status`) | done | ADR-005 | @clack/prompts | `src/cli/commands/trigger.ts` (Brief 036) |
 | **Harness integration (Brief 024)** | | | | |
 | External calls traverse harness pipeline (trust gate, audit) | done | ADR-005 | Harness pipeline (existing) | Existing pipeline handles integration steps |
 | Integration call logging in activity table | done | ADR-005 | Feedback recorder (existing) | `src/engine/harness-handlers/feedback-recorder.ts` |
@@ -645,7 +648,7 @@ These capabilities have no equivalent in existing frameworks:
 9. **The compound effect** — trust + learning + self-improvement compounding over time
 10. **Trust-aware integration access** — external API calls governed by earned trust level
 11. **Integration feedback capture** — capturing whether external actions produced correct outcomes
-12. **Process-scoped integration permissions** — credentials scoped per-process, per-agent
+12. **Process-scoped integration permissions** — credentials scoped per-process, per-service (per-agent deferred to Phase 12)
 13. **Evidence-informed process discovery** — discovering processes from readily available organizational data (email, calendar, documents, financial, messaging, service desk) rather than enterprise event logs or desktop surveillance
 14. **Organizational data model** — persistent, evolving understanding of how the organisation actually works, derived from connected data sources (ADR-006)
 15. **Continuous process gap detection** — ongoing discovery of undiscovered processes from connected data, extending self-improvement beyond existing process optimization

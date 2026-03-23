@@ -148,6 +148,10 @@ The canonical reference for every key term, concept, and component in Ditto. Thi
 - Layer: 3 (Harness)
 - Related: Supervised, Spot-checked, Autonomous, Trust Tier
 
+**Credential Vault** — Encrypted per-process credential storage using AES-256-GCM with HKDF key derivation from `DITTO_VAULT_KEY`. Scoped by (processId, service) — one process cannot access another's credentials. Unified auth resolution (`resolveServiceAuth`) tries vault first, falls back to env vars with deprecation warning. CLI management: `ditto credential add/list/remove`. Provenance: ADR-005, Composio brokered credentials, Nango token lifecycle, Brief 035.
+- Layer: 2 (Agent) / Integration
+- Related: Integration Registry, resolveServiceAuth, ADR-005, Brokered Credentials
+
 **Crystallisation** — The transition from Explore Mode to Operate Mode, where a freeform conversation solidifies into a structured, repeatable process definition. The platform's signature moment.
 - Layer: 6 (Human)
 - Related: Explore Mode, Operate Mode, Conversation Thread, Process Builder
@@ -435,6 +439,10 @@ The canonical reference for every key term, concept, and component in Ditto. Thi
 **Process Graph** — UI primitive (#14) providing a live map of process dependencies. Each node is a Process Card, colour-coded by health. Shows data flow, bottlenecks, and impact propagation. How a non-technical person understands their business as a system.
 - Layer: 6 (Human)
 - Related: Decide, Awareness Layer, Dependency Graph, Process Card
+
+**Process I/O** — The mechanism by which processes connect to external systems at their boundaries (distinct from agent tool use, which happens inside a step's reasoning loop). Two directions: **source** (polling-based trigger that checks an external service and creates work items) and **output delivery** (sending approved process outputs to an external destination after the trust gate passes). Implemented in `src/engine/process-io.ts`. Provenance: standard polling pattern, Nango actions pattern, ADR-005, Brief 036.
+- Layer: 1 (Process) / Integration
+- Related: Integration Infrastructure, Credential Vault, Heartbeat, Trust Gate, Output Delivery, Trigger
 
 **Process Layer** — Architecture Layer 1. The foundation: industry standard templates, organisational variations, input/output definitions, quality criteria, and step decomposition. The process definition is the atomic unit.
 - Layer: 1 (Process)

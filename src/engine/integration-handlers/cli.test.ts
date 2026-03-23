@@ -107,12 +107,12 @@ describe("cli-handler", () => {
   });
 
   describe("resolveAuth", () => {
-    it("reads env vars when available", () => {
+    it("reads env vars when available", async () => {
       const original = process.env.GH_TOKEN;
       process.env.GH_TOKEN = "test-token-123";
 
       try {
-        const env = resolveAuth("github", testCliInterface);
+        const env = await resolveAuth("github", testCliInterface);
         expect(env.GH_TOKEN).toBe("test-token-123");
       } finally {
         if (original !== undefined) {
@@ -123,12 +123,12 @@ describe("cli-handler", () => {
       }
     });
 
-    it("returns empty object when env vars not set", () => {
+    it("returns empty object when env vars not set", async () => {
       const original = process.env.GH_TOKEN;
       delete process.env.GH_TOKEN;
 
       try {
-        const env = resolveAuth("github", testCliInterface);
+        const env = await resolveAuth("github", testCliInterface);
         expect(env).toEqual({});
       } finally {
         if (original !== undefined) {

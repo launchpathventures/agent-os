@@ -85,6 +85,21 @@ export function isStep(entry: StepEntry): entry is StepDefinition {
   return "id" in entry;
 }
 
+/** Process I/O: external source config (Brief 036) */
+export interface ProcessSourceConfig {
+  service: string;
+  action: string;
+  params: Record<string, unknown>;
+  intervalMs: number;
+}
+
+/** Process I/O: output delivery config (Brief 036) */
+export interface ProcessOutputDeliveryConfig {
+  service: string;
+  action: string;
+  params: Record<string, unknown>;
+}
+
 export interface ProcessDefinition {
   name: string;
   id: string;
@@ -130,6 +145,9 @@ export interface ProcessDefinition {
     }>;
     downgrade_triggers: string[];
   };
+  // Process I/O (Brief 036): external source and output delivery
+  source?: ProcessSourceConfig;
+  output_delivery?: ProcessOutputDeliveryConfig;
 }
 
 /**
@@ -232,6 +250,35 @@ export function validateStepTools(definition: ProcessDefinition): string[] {
           );
         }
       }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validate source and output_delivery service references against the integration registry.
+ * Returns error messages (empty array = valid).
+ * Provenance: Brief 036 AC3
+ */
+export function validateProcessIo(definition: ProcessDefinition): string[] {
+  const errors: string[] = [];
+
+  if (definition.source) {
+    const integration = getIntegration(definition.source.service);
+    if (!integration) {
+      errors.push(
+        `source: service "${definition.source.service}" not found in integration registry`,
+      );
+    }
+  }
+
+  if (definition.output_delivery) {
+    const integration = getIntegration(definition.output_delivery.service);
+    if (!integration) {
+      errors.push(
+        `output_delivery: service "${definition.output_delivery.service}" not found in integration registry`,
+      );
     }
   }
 
@@ -407,6 +454,16 @@ export async function syncProcessesToDb(
       throw new Error(`Process "${def.name}" has step tool errors`);
     }
 
+    // Validate process I/O service references (Brief 036)
+    const ioErrors = validateProcessIo(def);
+    if (ioErrors.length > 0) {
+      console.error(`  Process I/O validation errors in ${def.name}:`);
+      for (const err of ioErrors) {
+        console.error(`    - ${err}`);
+      }
+      throw new Error(`Process "${def.name}" has process I/O errors`);
+    }
+
     const existing = await db
       .select()
       .from(schema.processes)
@@ -429,6 +486,8 @@ export async function syncProcessesToDb(
           definition: def as unknown as Record<string, unknown>,
           status: def.status as ProcessStatus,
           trustTier,
+          source: (def.source ?? null) as typeof def.source,
+          outputDelivery: (def.output_delivery ?? null) as typeof def.output_delivery,
           updatedAt: new Date(),
         })
         .where(eq(schema.processes.slug, def.id));
@@ -444,6 +503,8 @@ export async function syncProcessesToDb(
         definition: def as unknown as Record<string, unknown>,
         status: def.status as ProcessStatus,
         trustTier,
+        source: (def.source ?? null) as typeof def.source,
+        outputDelivery: (def.output_delivery ?? null) as typeof def.output_delivery,
       });
 
       console.log(`  Created: ${def.name} (v${def.version})`);

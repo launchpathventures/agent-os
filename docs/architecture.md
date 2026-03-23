@@ -533,7 +533,7 @@ Integration: [Service Name]
 Agents never see OAuth tokens, API keys, or service account credentials. The harness brokers all external access:
 - Credentials stored encrypted, isolated from agent runtime
 - Token lifecycle (refresh, rotation, revocation) managed by the integration layer
-- Scoped per-process, per-agent — an agent assigned to Process A cannot use Process B's credentials
+- Scoped per-process, per-service — an agent assigned to Process A cannot use Process B's credentials (per-agent scoping deferred to Phase 12). Credential vault: AES-256-GCM encrypted at rest, HKDF key derivation (Brief 035).
 - Every external call logged to the activity table
 
 **Harness integration — all external calls are first-class harness events:**
@@ -778,7 +778,7 @@ Ditto composes proven patterns rather than inventing from scratch:
 - Self-healing via learning layer with human governance
 - Trust-aware integration access (external calls governed by earned trust tier)
 - Integration feedback capture (did the external action produce the right outcome?)
-- Process-scoped integration permissions (credentials scoped per-process, per-agent)
+- Process-scoped integration permissions (credentials scoped per-process, per-service; per-agent deferred to Phase 12)
 
 ---
 

@@ -105,6 +105,7 @@ async function executeCliTool(
   service: string,
   config: CliExecuteConfig,
   input: Record<string, unknown>,
+  processId?: string,
 ): Promise<string> {
   const integration = getIntegration(service);
   const cliInterface = integration?.interfaces.cli;
@@ -117,6 +118,7 @@ async function executeCliTool(
     service,
     command,
     cliInterface,
+    processId,
   });
 
   // Return the result text for the LLM
@@ -134,6 +136,7 @@ async function executeRestTool(
   service: string,
   config: RestExecuteConfig,
   input: Record<string, unknown>,
+  processId?: string,
 ): Promise<string> {
   const integration = getIntegration(service);
   const restInterface = integration?.interfaces.rest;
@@ -161,6 +164,7 @@ async function executeRestTool(
     endpoint,
     body,
     query,
+    processId,
   });
 
   // Check for error
@@ -181,6 +185,7 @@ async function executeRestTool(
 export function resolveTools(
   toolNames: string[],
   integrationDir?: string,
+  processId?: string,
 ): ResolvedTools {
   const tools: LlmToolDefinition[] = [];
   // Map from qualified name (service.action) to { service, tool, executeConfig }
@@ -226,9 +231,9 @@ export function resolveTools(
     const config = tool.execute;
 
     if (config.protocol === "cli") {
-      return executeCliTool(service, config, input);
+      return executeCliTool(service, config, input, processId);
     } else if (config.protocol === "rest") {
-      return executeRestTool(service, config as RestExecuteConfig, input);
+      return executeRestTool(service, config as RestExecuteConfig, input, processId);
     }
 
     return `Error: unsupported protocol '${(config as { protocol: string }).protocol}'`;

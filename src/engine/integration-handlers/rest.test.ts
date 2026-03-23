@@ -29,34 +29,34 @@ describe("rest handler", () => {
   };
 
   describe("resolveRestAuth", () => {
-    it("resolves bearer_token auth from env vars", () => {
+    it("resolves bearer_token auth from env vars", async () => {
       process.env.SLACK_BOT_TOKEN = "xoxb-test-token";
-      const { headers, authValues } = resolveRestAuth("slack", slackInterface);
+      const { headers, authValues } = await resolveRestAuth("slack", slackInterface);
 
       expect(headers["Authorization"]).toBe("Bearer xoxb-test-token");
       expect(authValues["SLACK_BOT_TOKEN"]).toBe("xoxb-test-token");
     });
 
-    it("falls back to SERVICE_TOKEN if BOT_TOKEN not set", () => {
+    it("falls back to SERVICE_TOKEN if BOT_TOKEN not set", async () => {
       process.env.SLACK_TOKEN = "xoxb-fallback";
-      const { headers } = resolveRestAuth("slack", slackInterface);
+      const { headers } = await resolveRestAuth("slack", slackInterface);
 
       expect(headers["Authorization"]).toBe("Bearer xoxb-fallback");
     });
 
-    it("includes static headers from interface definition", () => {
-      const { headers } = resolveRestAuth("slack", slackInterface);
+    it("includes static headers from interface definition", async () => {
+      const { headers } = await resolveRestAuth("slack", slackInterface);
 
       expect(headers["Content-Type"]).toBe("application/json; charset=utf-8");
     });
 
-    it("resolves api_key auth type", () => {
+    it("resolves api_key auth type", async () => {
       process.env.TEST_API_KEY = "sk-test-123";
       const iface: RestInterface = {
         base_url: "https://api.example.com",
         auth: "api_key",
       };
-      const { headers } = resolveRestAuth("test", iface);
+      const { headers } = await resolveRestAuth("test", iface);
 
       expect(headers["Authorization"]).toBe("Bearer sk-test-123");
     });

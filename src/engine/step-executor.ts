@@ -40,6 +40,7 @@ export async function executeStep(
   runInputs: Record<string, unknown>,
   processDefinition: ProcessDefinition,
   resolvedTools?: ResolvedTools,
+  processId?: string,
 ): Promise<StepExecutionResult> {
   console.log(`  Executing step: ${step.name} (${step.executor})`);
 
@@ -89,7 +90,7 @@ export async function executeStep(
       }
       const protocol = (step.config?.protocol as string | undefined) || undefined;
       return executeIntegration(
-        { service, command, protocol: protocol as "cli" | "mcp" | "rest" | undefined },
+        { service, command, protocol: protocol as "cli" | "mcp" | "rest" | undefined, processId },
         integration,
       );
     }

@@ -16,6 +16,7 @@ export interface IntegrationStepConfig {
   service: string;
   command: string;
   protocol?: "cli" | "mcp" | "rest"; // Override preferred protocol
+  processId?: string; // Per-process credential scoping (Brief 035)
 }
 
 /**
@@ -44,6 +45,7 @@ export async function executeIntegration(
         service: config.service,
         command: config.command,
         cliInterface,
+        processId: config.processId,
       });
     }
 
@@ -60,6 +62,7 @@ export async function executeIntegration(
         restInterface,
         method: "GET",
         endpoint: config.command,
+        processId: config.processId,
       });
       return {
         outputs: {

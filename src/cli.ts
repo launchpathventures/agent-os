@@ -43,6 +43,8 @@ import { trustCommand } from "./cli/commands/trust";
 import { captureCommand } from "./cli/commands/capture";
 import { completeCommand } from "./cli/commands/complete";
 import { debtCommand } from "./cli/commands/debt";
+import { credentialCommand } from "./cli/commands/credential";
+import { triggerCommand } from "./cli/commands/trigger";
 
 const main = defineCommand({
   meta: {
@@ -63,6 +65,8 @@ const main = defineCommand({
     capture: captureCommand,
     complete: completeCommand,
     debt: debtCommand,
+    credential: credentialCommand,
+    trigger: triggerCommand,
   },
 });
 

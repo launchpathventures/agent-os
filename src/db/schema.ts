@@ -8,7 +8,7 @@
  * zero-setup pattern from snarktank/antfarm /src/db.ts
  */
 
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique } from "drizzle-orm/sqlite-core";
 import { randomUUID } from "crypto";
 
 // ============================================================
@@ -131,6 +131,13 @@ export const processes = sqliteTable("processes", {
   trustData: text("trust_data", { mode: "json" })
     .$type<Record<string, unknown>>()
     .default({}),
+
+  // Process I/O (Brief 036): external source and output delivery config
+  // Distinct from outputs[].destination (descriptive label) — these are executable integration configs
+  source: text("source", { mode: "json" })
+    .$type<{ service: string; action: string; params: Record<string, unknown>; intervalMs: number } | null>(),
+  outputDelivery: text("output_delivery", { mode: "json" })
+    .$type<{ service: string; action: string; params: Record<string, unknown> } | null>(),
 
   // What project/org this belongs to
   projectId: text("project_id"),
@@ -675,6 +682,35 @@ export const workItems = sqliteTable("work_items", {
     .$defaultFn(() => new Date()),
   completedAt: integer("completed_at", { mode: "timestamp_ms" }),
 });
+
+// ============================================================
+// Credential Vault — encrypted per-process credentials (Brief 035)
+// ============================================================
+
+/**
+ * Encrypted credential storage — per-(processId, service) scoping.
+ * Values are AES-256-GCM encrypted, IV + authTag stored alongside.
+ * Never expose encryptedValue/iv/authTag outside the vault module.
+ * Provenance: ADR-005 (brokered credentials), Nango managed auth, Brief 035.
+ */
+export const credentials = sqliteTable("credentials", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => randomUUID()),
+  processId: text("process_id")
+    .references(() => processes.id)
+    .notNull(),
+  service: text("service").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  iv: text("iv").notNull(),
+  authTag: text("auth_tag").notNull(),
+  expiresAt: integer("expires_at"),
+  createdAt: integer("created_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
+}, (table) => [
+  unique("credentials_process_service_unique").on(table.processId, table.service),
+]);
 
 // ============================================================
 // Activity Feed — audit trail

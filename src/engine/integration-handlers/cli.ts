@@ -15,6 +15,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import type { StepExecutionResult } from "../step-executor";
 import type { CliInterface } from "../integration-registry";
+import { resolveServiceAuth } from "../credential-vault";
 
 type ExecFn = (cmd: string, opts: Record<string, unknown>) => Promise<{ stdout: string; stderr: string }>;
 
@@ -27,32 +28,22 @@ const BACKOFF_MS = [1000, 2000, 4000]; // Exponential backoff: 1s, 2s, 4s
 const MAX_RETRIES = 3;
 
 /**
- * Resolve authentication for a service.
- * Initially reads from environment variables.
- * Brief 026 swaps this implementation to use the credential vault.
- * Same interface, different backend.
+ * Resolve authentication for a CLI service via credential vault.
+ * Vault-first, env-var fallback with deprecation warning (Brief 035).
  *
  * @param service - Service name (e.g., "github")
  * @param cliInterface - CLI interface definition with env_vars
- * @param processId - Process ID for per-process credential scoping (used by vault in Brief 026)
+ * @param processId - Process ID for per-process credential scoping
  */
-export function resolveAuth(
+export async function resolveAuth(
   service: string,
   cliInterface: CliInterface,
   processId?: string,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-
-  if (cliInterface.env_vars) {
-    for (const varName of cliInterface.env_vars) {
-      const value = process.env[varName];
-      if (value) {
-        env[varName] = value;
-      }
-    }
-  }
-
-  return env;
+): Promise<Record<string, string>> {
+  const resolved = await resolveServiceAuth(processId, service, {
+    envVars: cliInterface.env_vars,
+  });
+  return resolved.envVars;
 }
 
 /**
@@ -99,6 +90,7 @@ export interface CliHandlerParams {
   command: string;
   cliInterface: CliInterface;
   timeoutMs?: number;
+  processId?: string;
 }
 
 /**
@@ -112,8 +104,8 @@ export interface CliHandlerParams {
 export async function executeCli(
   params: CliHandlerParams,
 ): Promise<StepExecutionResult> {
-  const { service, command, cliInterface, timeoutMs = 120_000 } = params;
-  const authEnv = resolveAuth(service, cliInterface);
+  const { service, command, cliInterface, timeoutMs = 120_000, processId } = params;
+  const authEnv = await resolveAuth(service, cliInterface, processId);
   const logs: string[] = [];
   let lastError: Error | null = null;
 

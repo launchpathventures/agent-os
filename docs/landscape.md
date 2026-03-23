@@ -372,8 +372,9 @@ The "AI Ditto" practitioner pattern's key insight: **frame agents as employees**
 
 **AG-UI (Agent-User Interaction Protocol)** — github.com/ag-ui-protocol/ag-ui
 - Event-driven bidirectional protocol connecting agent backends to user-facing applications. Complements A2UI.
-- ~16 standard event types. Real-time streaming. Production use in CopilotKit, Microsoft Agent Framework, Oracle Agent Specification.
-- **Ditto relevance:** LOW for now — Ditto's engine-to-frontend communication can use standard REST + WebSocket (already planned). Re-evaluate at Phase 13.
+- 17 event types across 7 categories (lifecycle, text, tool calls, state, activity, reasoning, special). Snapshot-delta pattern (JSON Patch RFC 6902). Transport-agnostic (SSE, WebSocket, webhooks). JS SDK: `@ag-ui/client` (`packages/client/src/`). Apache 2.0.
+- Growing adoption: CopilotKit, LangGraph, CrewAI, Mastra, Microsoft, Google ADK, Pydantic AI.
+- **Ditto relevance:** MEDIUM-HIGH — Phase 10 dashboard needs real-time engine-to-frontend streaming. AG-UI's event taxonomy maps closely to Ditto's existing harness events (`src/engine/events.ts`). The snapshot-delta pattern matches json-render's streaming format. Evaluate: adopt the protocol directly (interoperability with CopilotKit), or adopt the event taxonomy only and implement Ditto-native streaming. See `docs/research/phase-10-dashboard-workspace.md` Section 4.4.
 
 **DivKit (Yandex)** — github.com/divkit/divkit
 - Apache 2.0. Open-source cross-platform SDUI framework (JSON → native UI for Android, iOS, Web, Flutter).

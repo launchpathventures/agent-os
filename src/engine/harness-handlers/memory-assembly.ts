@@ -233,7 +233,7 @@ export const memoryAssemblyHandler: HarnessHandler = {
     // Resolve step-level tools into LlmToolDefinitions + dispatch function.
     // Separate from memory budget — tools don't consume token budget.
     if (context.stepDefinition.tools && context.stepDefinition.tools.length > 0) {
-      const resolved = resolveTools(context.stepDefinition.tools);
+      const resolved = resolveTools(context.stepDefinition.tools, undefined, context.processRun.processId);
       if (resolved.tools.length > 0) {
         context.resolvedTools = resolved;
         console.log(

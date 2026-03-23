@@ -62,10 +62,13 @@ preferred: cli  # cheapest option for this service
 ### 3. Credential management — brokered, never exposed to agents
 
 Agents never see OAuth tokens, API keys, or service account credentials. The harness brokers all external access:
-- Credentials stored encrypted, isolated from agent runtime
-- Token lifecycle (refresh, rotation, revocation) managed by the integration layer
-- Per-process, per-agent scoping — an agent assigned to Process A cannot use Process B's Xero credentials
+- Credentials stored encrypted at rest (AES-256-GCM, HKDF key derivation from `DITTO_VAULT_KEY`) in the `credentials` table, isolated from agent runtime
+- Token lifecycle: `expiresAt` field stored for future refresh automation (no auto-refresh loop yet)
+- Per-process, per-service scoping — an agent assigned to Process A cannot use Process B's credentials. Per-agent scoping deferred to Phase 12.
+- Unified auth resolution (`resolveServiceAuth`): vault-first, env-var fallback with deprecation warning for migration
 - Every external call logged to the activity table with actor, target, timestamp
+
+> **Post-implementation note (Brief 035):** Credential vault implemented with `(processId, service)` UNIQUE constraint. CLI management: `ditto credential add/list/remove`. Env-var fallback preserved for backward compatibility.
 
 ### 4. All integration calls traverse the harness
 
@@ -98,7 +101,7 @@ The `integration` executor resolves the service and protocol from the registry, 
 | CLI-first cost optimisation | Scalekit benchmarks, devgent.org analysis | CLI preferred where 10-32x cheaper |
 | Trust-aware integration access | Original | No existing platform gates external calls by earned trust level |
 | Integration feedback capture | Original | No existing platform captures whether external actions had correct outcomes |
-| Process-scoped integration permissions | Original | No existing platform scopes credentials per-process per-agent |
+| Process-scoped integration permissions | Original | No existing platform scopes credentials per-process per-service (per-agent deferred to Phase 12) |
 
 ## Consequences
 

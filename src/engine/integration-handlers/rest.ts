@@ -11,18 +11,20 @@
 
 import type { RestInterface } from "../integration-registry";
 import { scrubCredentials } from "./cli";
+import { resolveServiceAuth } from "../credential-vault";
 
 /**
- * Resolve auth credentials for a REST service from environment variables.
- * Supports bearer_token (SLACK_BOT_TOKEN, etc.) and api_key patterns.
+ * Resolve auth credentials for a REST service via credential vault.
+ * Vault-first, env-var fallback with deprecation warning (Brief 035).
  *
  * Returns { headers, authValues } where authValues are the raw credential
  * values for scrubbing from responses.
  */
-export function resolveRestAuth(
+export async function resolveRestAuth(
   service: string,
   restInterface: RestInterface,
-): { headers: Record<string, string>; authValues: Record<string, string> } {
+  processId?: string,
+): Promise<{ headers: Record<string, string>; authValues: Record<string, string> }> {
   const headers: Record<string, string> = {};
   const authValues: Record<string, string> = {};
 
@@ -33,23 +35,23 @@ export function resolveRestAuth(
     }
   }
 
-  // Resolve auth based on auth type
+  // Resolve auth via vault (unified path)
+  const resolved = await resolveServiceAuth(processId, service, {
+    authType: restInterface.auth,
+  });
+
+  // Build auth headers from resolved env vars
   const authType = restInterface.auth;
-  if (authType === "bearer_token") {
-    // Convention: SERVICE_BOT_TOKEN or SERVICE_TOKEN env var
-    const envName = `${service.toUpperCase()}_BOT_TOKEN`;
-    const fallbackName = `${service.toUpperCase()}_TOKEN`;
-    const token = process.env[envName] || process.env[fallbackName];
-    if (token) {
+  const resolvedValues = Object.values(resolved.envVars);
+  const token = resolvedValues[0]; // First resolved value is the token
+
+  if (token) {
+    if (authType === "bearer_token" || authType === "api_key") {
       headers["Authorization"] = `Bearer ${token}`;
-      authValues[envName] = token;
     }
-  } else if (authType === "api_key") {
-    const envName = `${service.toUpperCase()}_API_KEY`;
-    const key = process.env[envName];
-    if (key) {
-      headers["Authorization"] = `Bearer ${key}`;
-      authValues[envName] = key;
+    // Copy all resolved values for scrubbing
+    for (const [key, value] of Object.entries(resolved.envVars)) {
+      authValues[key] = value;
     }
   }
 
@@ -64,6 +66,7 @@ export interface RestHandlerParams {
   body?: Record<string, unknown>;
   query?: Record<string, string>;
   timeoutMs?: number;
+  processId?: string;
 }
 
 /**
@@ -75,8 +78,8 @@ export interface RestHandlerParams {
 export async function executeRest(
   params: RestHandlerParams,
 ): Promise<{ result: unknown; logs: string[] }> {
-  const { service, restInterface, method, endpoint, body, query, timeoutMs = 30_000 } = params;
-  const { headers, authValues } = resolveRestAuth(service, restInterface);
+  const { service, restInterface, method, endpoint, body, query, timeoutMs = 30_000, processId } = params;
+  const { headers, authValues } = await resolveRestAuth(service, restInterface, processId);
   const logs: string[] = [];
 
   // Build URL

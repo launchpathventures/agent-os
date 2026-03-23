@@ -1,7 +1,7 @@
 # Ditto — Current State
 
 **Last updated:** 2026-03-23
-**Current phase:** Briefs 035 + 036 approved (Phase 6c). Brief 035 (Credential Vault + Auth Unification) ready to build. 236 tests (17 test files).
+**Current phase:** Phase 6 complete (External Integrations). Briefs 024+025+035+036 all done. 257 tests (19 test files).
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
@@ -15,10 +15,10 @@
 - **Claude adapter (Briefs 031+025)** — Role contract loading from `.claude/commands/dev-*.md` via `step.config.role_contract` (fallback to hardcoded prompts). Two tool categories merged at execution: codebase tools (`step.config.tools` → `readOnlyTools` or `readWriteTools`) + integration tools (resolved by harness from `step.tools`). Dispatches codebase calls to `executeTool()`, integration calls to `executeIntegrationTool()`. Confidence parsing from response text (`CONFIDENCE: high|medium|low`). Tool use loop (max 25 calls). Uses `createCompletion()` from `llm.ts`.
 - **CLI adapter (Brief 016a)** — `src/adapters/cli.ts`. Spawns `claude -p` as subprocess. Loads role contracts from `.claude/commands/dev-*.md`. Parses CONFIDENCE from output. costCents: 0 (subscription-based). Provenance: ralph (subprocess), Paperclip (adapter pattern).
 - **Script adapter** — Deterministic steps with on_failure
-- **Integration infrastructure (Briefs 024+025)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. Supports tool definitions in YAML: `IntegrationTool` type with name, description, parameters, execute config (CLI command template or REST endpoint). `getIntegrationTools(service)` export. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. REST protocol handler (`src/engine/integration-handlers/rest.ts`) — native `fetch`, GET/POST/PUT/DELETE, auth header injection (bearer_token/api_key from env vars), credential scrubbing on all paths. `integration` executor type in step-executor switch. `resolveAuth(service, cliInterface, processId?)` reads env vars (Brief 026 swaps to vault). Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol`/`toolCalls` on stepRuns. (ADR-005, Insight-065)
+- **Integration infrastructure (Briefs 024+025+035+036)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. Supports tool definitions in YAML: `IntegrationTool` type with name, description, parameters, execute config (CLI command template or REST endpoint). `getIntegrationTools(service)` export. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. REST protocol handler (`src/engine/integration-handlers/rest.ts`) — native `fetch`, GET/POST/PUT/DELETE, auth header injection, credential scrubbing on all paths. `integration` executor type in step-executor switch. **Credential vault (Brief 035):** `src/engine/credential-vault.ts` — AES-256-GCM encrypted at rest, HKDF key derivation, per-(processId, service) scoping with UNIQUE constraint. Unified `resolveServiceAuth()`: vault-first, env-var fallback with deprecation warning. `processId` threaded through both execution paths (integration steps + tool use). CLI: `ditto credential add/list/remove`. `credentials` table in schema. Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol`/`toolCalls` on stepRuns. **Process I/O (Brief 036):** `src/engine/process-io.ts` — polling-based triggers (`startPolling`/`stopPolling`/`getPollingStatus`) and output delivery (`deliverOutput`). `source` and `outputDelivery` fields on `processes` table + `ProcessSourceConfig`/`ProcessOutputDeliveryConfig` types. Process loader validates service refs via `validateProcessIo()`. Heartbeat calls `deliverOutput()` after run completes (trust gate passed). Delivery payload includes collected approved step outputs + params. CLI: `ditto trigger start/stop/status`. Polling creates work items with `triggeredBy: "trigger"`. (ADR-005, Insight-065)
 - **Agent tool use (Brief 025)** — Step-level `tools: [service.tool_name]` in process YAML. Tool resolver (`src/engine/tool-resolver.ts`) maps qualified names to `LlmToolDefinition[]` + execution dispatch function. Memory-assembly handler resolves tools → `HarnessContext.resolvedTools`. Claude adapter merges integration tools with codebase tools; dispatches integration calls via `executeIntegrationTool()`, codebase calls via existing `executeTool()`. Tool calls logged on `stepRuns.toolCalls` (name, args, resultSummary, timestamp). Process loader validates `service.tool_name` format against registry at sync time. Tools are Ditto-native (`LlmToolDefinition`), works with any LLM provider — MCP deferred (Insight-065). 2 integrations with tools: GitHub (4 CLI tools), Slack (2 REST tools). Provenance: ADR-005, Insight-065, Nango git-tracked approach.
-- **Process loader** — YAML parsing, parallel_group containers, dependency validation, cycle detection, integration step validation (config.service required). Supports route_to, default_next, retry_on_failure fields (Brief 016b).
-- **CLI** — citty + @clack/prompts. 12 commands: sync, start, heartbeat, status, review, approve, edit, reject, trust, capture, complete, debt. TTY-aware, --json on listings. Unified task surface.
+- **Process loader** — YAML parsing, parallel_group containers, dependency validation, cycle detection, integration step validation (config.service required). Supports route_to, default_next, retry_on_failure fields (Brief 016b). Source/output_delivery validation against integration registry (Brief 036).
+- **CLI** — citty + @clack/prompts. 14 commands: sync, start, heartbeat, status, review, approve, edit, reject, trust, capture, complete, debt, credential (add/list/remove), trigger (start/stop/status). TTY-aware, --json on listings. Unified task surface.
 - **Work items** — workItems table (type, status, goalAncestry, assignedProcess, spawnedFrom). Conditional flow (Insight-039).
 - **Harness pipeline** — 7 handlers: memory-assembly → step-execution → metacognitive-check → review-pattern → routing → trust-gate → feedback-recorder. Metacognitive check (Brief 034b): post-execution self-review via LLM (maxTokens: 512). Auto-enabled for supervised+critical tiers, opt-in for others via `harness.metacognitive: true`. Flags issues for human review; does not re-execute. Shared `parseHarnessConfig()` in `harness-config.ts`. Review-pattern handler guards prior flags and merges reviewDetails. Routing handler (Brief 016b) evaluates route_to conditions via substring matching (Mode 1).
 - **Trust gate** — 4 tiers: supervised, spot-checked (~20%), autonomous, critical. Deterministic SHA-256 sampling. Confidence override: `low` always pauses regardless of tier (ADR-011, Brief 016d).
@@ -31,7 +31,7 @@
 - **Human steps** — `executor: human` suspends execution, creates action work item with input_fields, `aos complete` resumes with human input.
 - **Pattern notification** — After 3+ corrections of same pattern, read-only notification surfaced. Precursor to Phase 8 "Teach this".
 - **Parallel execution** — Promise.all for parallel groups, depends_on resolution
-- **Heartbeat** — Routes through harness. Sequential + parallel. Human step suspend/resume. Conditional routing (route_to/default_next). Retry with feedback injection (retry_on_failure). Routing skips mark non-target siblings as "skipped".
+- **Heartbeat** — Routes through harness. Sequential + parallel. Human step suspend/resume. Conditional routing (route_to/default_next). Retry with feedback injection (retry_on_failure). Routing skips mark non-target siblings as "skipped". Output delivery hook after run completion (Brief 036).
 - **Harness events** — `src/engine/events.ts`. Typed event emitter: step-start, step-complete, gate-pause, gate-advance, routing-decision, retry, step-skipped, run-complete, run-failed. Provenance: Trigger.dev event pattern.
 - **Agent tools (Brief 031)** — 4 tools: read_file, search_files, list_files (read-only), write_file (read-write). Path traversal prevention, secret deny-list, symlink protection. Exported as `readOnlyTools` (3) and `readWriteTools` (4).
 - **DB schema enforcement** — `pnpm cli sync` runs drizzle-kit push. Handles first-run and evolution.
@@ -43,7 +43,7 @@
 - **Goal-directed orchestrator (Brief 021+022)** — Decomposes goals into child work items using process step list as blueprint. `orchestratorHeartbeat()` iterates spawned tasks, routes around trust gate pauses to independent work. Confidence-based stopping: low confidence triggers escalation (Types 1/3/4). CLI: scope negotiation in `capture`, goal tree in `status`, escalation display. Schema: `decomposition` on workItems, `orchestratorConfidence` on processRuns.
 - **Process templates (Brief 020)** — 3 non-coding templates in `templates/`: invoice-follow-up (4 steps, 1 human), content-review (3 steps, all AI), incident-response (4 steps, 2 human). All include governance declarations (trust, quality_criteria, feedback). Loaded as `status: draft` via `aos sync`. Process loader reads from both `processes/` and `templates/`.
 - **Auto-classification capture (Brief 014b)** — `aos capture` auto-classifies work item type (keyword patterns) and auto-routes to best matching process (LLM). Falls back to interactive @clack/prompts on low confidence. System processes filtered from routing targets.
-- **Test infrastructure (Brief 017)** — vitest + 236 tests across 17 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032), metacognitive check + harness config + flag survival (21 tests, Brief 034b), model routing + hint resolution + recommendations (20 tests, Brief 033), tool resolver + tool name validation + authorisation (8 tests, Brief 025), REST handler + auth injection + credential scrubbing (10 tests, Brief 025). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
+- **Test infrastructure (Brief 017)** — vitest + 257 tests across 19 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032), metacognitive check + harness config + flag survival (21 tests, Brief 034b), model routing + hint resolution + recommendations (20 tests, Brief 033), tool resolver + tool name validation + authorisation (8 tests, Brief 025), REST handler + auth injection + credential scrubbing (10 tests, Brief 025), credential vault + scoping + auth resolution (11 tests, Brief 035), process I/O + polling + delivery + validation (10 tests, Brief 036). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.5s.
 - **E2E verification (Brief 020)** — Full work evolution cycle verified: capture → classify → route → orchestrate → execute → human step → resume → review → trust update. All 6 architecture layers proven working. Report at `docs/verification/phase-5-e2e.md`.
 
 ## What Needs Rework
@@ -55,6 +55,8 @@
 
 ## Recently Completed
 
+- **Brief 036 complete** (Process I/O: Triggers + Output Delivery, Phase 6c-2) — `src/engine/process-io.ts`: polling-based triggers (`startPolling`/`stopPolling`/`stopAllPolling`/`getPollingStatus`), output delivery (`deliverOutput`). `source` and `outputDelivery` fields on `processes` table. Process loader: `ProcessSourceConfig`/`ProcessOutputDeliveryConfig` types, `validateProcessIo()` validates service references against registry. Heartbeat: `deliverOutput()` called after run completion (trust gate passed). Output delivery payload includes collected approved step outputs + delivery params. CLI: `ditto trigger start/stop/status` (14 commands total). `templates/invoice-follow-up.yaml` updated with `source:` (email check) and `output_delivery:` (accounting post). 10 new tests (257 total, 19 test files). Reviewed: PASS WITH FLAGS (5 flags, all fixed: resolveServiceAuth comment added, outputs passed to delivery, capture bypass documented, approved-only test added, result filtering improved). Approved 2026-03-23. Phase 6 complete.
+- **Brief 035 complete** (Credential Vault + Auth Unification, Phase 6c-1) — `src/engine/credential-vault.ts`: AES-256-GCM encrypted credential storage, HKDF key derivation from `DITTO_VAULT_KEY`, per-(processId, service) scoping with UNIQUE constraint. Unified `resolveServiceAuth()`: vault-first, env-var fallback with deprecation warning. `credentials` table in schema. `processId` threaded through both execution paths: integration steps (`step-execution.ts` → `step-executor.ts` → `index.ts` → `cli.ts`/`rest.ts`) and tool use (`memory-assembly.ts` → `tool-resolver.ts` → `cli.ts`/`rest.ts`). `resolveAuth()` and `resolveRestAuth()` now async, backed by vault. CLI: `ditto credential add/list/remove` (masked input via @clack/prompts). 11 new tests (247 total, 18 test files). Reviewed: PASS WITH FLAGS (1 must-fix fixed: resolveServiceAuth silent catch; 2 should-fix fixed: UNIQUE constraint added, architecture.md + ADR-005 updated; 1 note acknowledged). Approved 2026-03-23.
 - **Brief 025 complete** (Integration Tools + Agent Tool Use, Phase 6b) — Ditto-native integration tools (Insight-065): tool definitions in integration YAML, tool resolver (`src/engine/tool-resolver.ts`) maps `service.tool_name` → `LlmToolDefinition[]` + dispatch. REST handler (`src/engine/integration-handlers/rest.ts`): native fetch, auth injection, credential scrubbing. Memory-assembly handler resolves step tools → `HarnessContext.resolvedTools`. Claude adapter merges integration + codebase tools, dispatches via `executeIntegrationTool()`. `toolCalls` JSON field on stepRuns, recorded in both advance/pause paths. Process loader validates `service.tool_name` format against registry. GitHub integration: 4 CLI-backed tools. Slack integration: 2 REST-backed tools. MCP deferred (Insight-065). 18 new tests (236 total, 17 test files). Reviewed: PASS WITH FLAGS (1 must-fix fixed: REST success path credential scrubbing; 2 should-fix: REST error scrubbing fixed, architecture.md deferred to Documenter; 2 notes acknowledged). Approved 2026-03-23.
 - **Brief 033 complete** (Model Routing Intelligence) — `src/engine/model-routing.ts`: `resolveModel(hint)` maps `fast`/`capable`/`default` to provider-specific models (Anthropic, OpenAI; Ollama falls back to default). `generateModelRecommendations(db)` analyzes accumulated step run data (20+ runs threshold) — recommends cheaper model when quality comparable (within 5%), recommends upgrade when quality low (<80%). Current model determined from most recent 5 runs. Cost calculated on actual model from API response. `model` field added to `LlmCompletionResponse`, `StepExecutionResult`, `stepRuns` table. Claude adapter uses `resolveModel(step.config?.model_hint)`. CLI adapter returns model. Heartbeat records model in both advance and pause paths. Process loader validates `model_hint` on `ai-agent` steps. 20 new tests (218 total, 15 test files). Reviewed: PASS WITH FLAGS (1 should-fix: docs deferred to Documenter; 3 notes, 2 fixed: cost on actual model, recent-5 for current model). Approved 2026-03-23.
 - **Brief 034b complete** (Harness-Level Metacognitive Check) — `metacognitiveCheckHandler` in harness pipeline (after step-execution, before review-pattern). Auto-enabled for supervised+critical trust tiers. Opt-in via `harness.metacognitive: true` for spot_checked/autonomous. LLM self-check (maxTokens: 512) catches unsupported assumptions, missing edge cases, scope creep, contradictions. Issues → `context.reviewResult = 'flag'`. Shared `parseHarnessConfig()` extracted to `harness-config.ts`. Review-pattern handler updated: guards prior flag, merges reviewDetails. StepDefinition.harness type extended. 21 new tests (198 total, 14 test files). Reviewed: PASS WITH FLAGS (3 notes + 1 should-fix fixed: string output branch test added). Approved 2026-03-23. Insight-063 fully absorbed.
@@ -115,26 +117,70 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 
 ## Active Briefs
 
-| Brief | Phase | Status |
-|-------|-------|--------|
-| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024+025 complete. 026 split into 035+036. |
-| 025 — Integration Tools + Agent Tool Use (Phase 6b) | 6b | Complete — approved 2026-03-23. Ditto-native tools, REST handler. 236 tests (18 new). |
-| 026 — Credentials + Process I/O (Phase 6c, parent) | 6c | Reconciled 2026-03-23 — split into sub-briefs 035 + 036 per Insight-004 sizing. |
-| 035 — Credential Vault + Auth Unification (Phase 6c-1) | 6c | Ready — approved 2026-03-23. Build next. |
-| 036 — Process I/O: Triggers + Output Delivery (Phase 6c-2) | 6c | Ready — approved 2026-03-23. Depends on 035. |
+No active briefs. Phase 6 complete. PM triages next work.
 
 ## Next Steps
 
-1. **NOW:** Brief 035 approved. Invoke `/dev-builder` to implement. Then Brief 036.
-2. **STILL NEEDED:** Architecture.md Layer 2 update for integration tool merging + ADR-005 post-implementation note (Insight-065).
-4. **Insight-064 active:** Benchmark Before Keep — metacognitive check handler must prove its value after 50 supervised runs (flag rate, catch rate, false positive rate). Decision thresholds defined.
-5. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite.
-7. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
-8. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
-9. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
-10. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
-11. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
-12. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+1. **Phase 6 complete.** All external integration briefs done (024+025+035+036).
+2. **Insight-070 captured:** Dashboard as engine proving ground. Phase 10 moves immediately after Phase 6c. Future engine phases (7, 8, Cognitive A1) prioritized by what the dashboard reveals.
+3. **Phase 10 research complete:** `docs/research/phase-10-dashboard-workspace.md`. Reviewed: PASS WITH FLAGS (all fixed). landscape.md updated (AG-UI → MEDIUM-HIGH).
+4. **Integration generation research complete:** `docs/research/api-to-tool-generation.md`. OpenAPI→YAML codegen (~200 LOC), generate-then-curate pattern, fastify-swagger convention for Ditto-built apps. CLI-first validated by market (Insight-065 confirmed). Needs brief (037?) after Phase 6 closes.
+5. **Insights 071+072 active:** No hand authoring (generation is the creation path). Sufficiently detailed spec is code (generation must use structured sources). Together constrain the integration+process generation design.
+6. **Insight-064 active:** Benchmark Before Keep — metacognitive check handler must prove its value after 50 supervised runs.
+7. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite.
+8. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047). Integration generation brief strengthens the case.
+9. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
+10. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
+11. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
+12. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
+13. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+
+## Documenter Retrospective (2026-03-23 — Integration Generation Architecture)
+
+**What was produced this session:**
+1. Architect evaluated Ditto's ability to drive external applications natively — three scenarios analyzed (platforms Ditto didn't build, platforms another agent built, platforms Ditto built).
+2. Insight-071 captured: No Hand Authoring — generation is the creation path for both integrations and processes. YAML is intermediate representation, not user interface.
+3. Research report produced: `docs/research/api-to-tool-generation.md` — API spec→tool generation (Composio, LangChain, Taskade, FastMCP, Neon), source code→API discovery (tsoa, fastify-swagger, Prisma), agent-as-operator platforms. 30+ sources.
+4. Insight-072 captured: Sufficiently Detailed Spec Is Code — generation must consume structured sources (OpenAPI, code analysis, templates), not natural language alone. Grounded by external blog post.
+5. MCP vs CLI landscape research added to report — validates ADR-005 CLI-first approach and Insight-065 MCP deferral. Perplexity, Cloudflare, Scalekit benchmarks all confirm CLI advantage.
+
+**What worked:**
+- Architect → Researcher → Architect pipeline worked cleanly. Research ran in background while conversation continued.
+- User's provocation ("no one writes by hand") immediately sharpened the architectural question from "is the integration layer right?" to "where's the generation layer?"
+- External blog post (Haskell for All) provided theoretical grounding for a practical design constraint.
+
+**What surprised:**
+- The MCP backlash is stronger than expected. Perplexity's 72% context waste finding is striking. ADR-005's CLI-first approach was prescient.
+- The generation layer is smaller than expected (~200 LOC for core OpenAPI→YAML codegen). The hard part is curation, not generation.
+- Insight-071 and 072 are tightly coupled — together they say "automate creation AND use structured sources." Neither alone is complete.
+
+**What to change:**
+- The roadmap doesn't yet have a slot for integration/process generation. PM should triage where it lands (post-Phase 6 brief, or part of Phase 7).
+- Research README needs updating with the new report.
+
+---
+
+## Documenter Retrospective (2026-03-23 — Brief 035 Build)
+
+**What was produced this session:**
+1. Builder implemented Brief 035: credential-vault.ts (encryption, storage, resolveServiceAuth), credentials table (schema + test-utils), CLI credential commands (add/list/remove), vault-backed auth in CLI + REST handlers, processId threading through both execution paths (integration steps + tool use). 11 new tests (247 total, 18 test files).
+2. Builder review: PASS WITH FLAGS (1 must-fix fixed: resolveServiceAuth silent catch; 2 should-fix fixed: UNIQUE constraint, architecture.md + ADR-005 updated; 1 note acknowledged).
+3. Brief 035 moved to `docs/briefs/complete/`.
+4. Architecture.md credential scoping language updated. ADR-005 Section 3 updated with post-implementation note.
+5. Dictionary.md: "Credential Vault" entry added.
+
+**What worked:**
+- **The brief was exceptionally detailed.** The "What Changes" table listed every file with specific actions, making implementation nearly mechanical. The processId threading diagram (which files pass to which) eliminated guesswork.
+- **Reviewer caught a real issue.** The `resolveServiceAuth()` try/catch silently swallowing missing `DITTO_VAULT_KEY` would have been a subtle bug in production — the system would appear to work while silently using env vars instead of vault credentials.
+- **The UNIQUE constraint catch was valuable.** The brief specified it, the Builder missed it, the Reviewer caught it. Three eyes on the same work product.
+
+**What surprised:**
+- **Async migration was smooth.** Converting `resolveAuth()` and `resolveRestAuth()` from sync to async (because vault operations are async) required updating existing tests but caused no cascading issues. The adapter pattern isolated the change well.
+
+**What to change:**
+- **Nothing structural.** The brief quality drove clean execution. The "STILL NEEDED: architecture.md + ADR-005" items from the Brief 025 retro are now resolved — Brief 035 addressed them as part of its own work products.
+
+---
 
 ## Documenter Retrospective (2026-03-23 — Brief 025 Build)
 

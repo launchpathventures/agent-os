@@ -10,7 +10,7 @@ description: Slack messaging — search messages, send messages to channels
 interfaces:
   rest:
     base_url: https://slack.com/api
-    auth: bearer_token  # SLACK_BOT_TOKEN env var
+    auth: bearer_token  # SLACK_BOT_TOKEN env var. Vault-backed auth (Brief 035): env var fallback preserved.
     headers:
       Content-Type: application/json; charset=utf-8
 preferred: rest
