@@ -180,6 +180,18 @@
 - **Ditto relevance:** MEDIUM for Phase 7+ when entity-relationship memory is needed (Insight-037 relational context dimension). Temporal invalidation pattern noted in ADR-003 as deferred alternative. See `docs/research/memory-systems.md` and `docs/research/context-and-token-efficiency.md`.
 - **Limitation:** Requires Neo4j. Heavy infrastructure. Python-only.
 
+**ReMe** — github.com/agentscope-ai/ReMe
+- Active March 2026 | Python | FlowLLM-based
+- Three memory types (Personal, Procedural, Tool). Dual backends: file-based (ReMeLight — Markdown + JSONL) and vector-based (Qdrant/Chroma/Elasticsearch). Hybrid retrieval (0.7 vector + 0.3 BM25). Incremental session summaries that merge into structured sections (Goal/Progress/Decisions/Next Steps). Pre-reasoning hook chain (compact tool results → check token budget → compact messages → persist summaries). Memory target namespacing per user/task/tool. Profile deduplication with LRU eviction (50/user). SOTA on LoCoMo (86.23%) and HaluMem QA (88.78%).
+- **Ditto relevance:** HIGH for Conversational Self (Insight-056). Three patterns identified for adoption: (1) incremental session summaries — session continuity without full replacement, (2) memory target namespacing — supports `self` scope for persistent identity, (3) pre-reasoning context hook — maps to new harness handler between memory-assembly and step-execution. File-based path aligns with composition principle and auditability.
+- **Limitation:** Python-only. FlowLLM runtime dependency (not applicable — Ditto has own harness). LLM-based summarization adds cost. Vector DB needed at scale (aligns with ADR-003 deferral).
+
+**AutoResearch** — github.com/karpathy/autoresearch
+- Active March 2026 | Python | Single-GPU ML experiment runner
+- Stateless autonomous agent loop: modify single file → commit → run (5 min bounded) → evaluate → keep/discard. Git branch isolation per experiment. Markdown instructions as control plane. No memory, no identity, no session continuity.
+- **Ditto relevance:** LOW. Bounded execution and outcome-driven loops already covered by trust tiers (ADR-007) and feedback recorder. Evaluated for Conversational Self — no applicable patterns. Useful reference for autonomous batch execution but not for persistent identity.
+- **Limitation:** No memory architecture. No multi-session continuity. Single-domain only.
+
 ### Model Routing
 
 **RouteLLM** — github.com/lm-sys/RouteLLM

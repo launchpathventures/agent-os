@@ -17,14 +17,17 @@ import fs from "fs";
 import path from "path";
 import type { ProcessDefinition, StepDefinition } from "../engine/process-loader";
 import type { StepExecutionResult } from "../engine/step-executor";
+import { getConfiguredModel } from "../engine/llm";
 
 const execFileAsync = promisify(execFile);
 
 /** Default CLI binary */
 const DEFAULT_CLI = "claude";
 
-/** Default model for CLI adapter (parity with interactive Claude Code) */
-const DEFAULT_MODEL = "opus";
+/** Default model — resolved lazily from deployment config (Brief 032: no hardcoded default) */
+function getDefaultModel(): string {
+  return getConfiguredModel();
+}
 
 /**
  * Load a role contract from .claude/commands/ as system prompt source.
@@ -124,7 +127,7 @@ export const cliAdapter = {
     memories?: string,
   ): Promise<StepExecutionResult> {
     const cli = (step.config?.cli as string) || DEFAULT_CLI;
-    const model = (step.config?.model as string) || DEFAULT_MODEL;
+    const model = (step.config?.model as string) || getDefaultModel();
     const agentRole = step.agent_role || "general";
 
     console.log(`    CLI adapter: ${agentRole} agent via ${cli}`);

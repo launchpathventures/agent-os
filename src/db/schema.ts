@@ -379,7 +379,7 @@ export const feedback = sqliteTable("feedback", {
 });
 
 /** Memory scope type values */
-export const memoryScopeTypeValues = ["agent", "process"] as const;
+export const memoryScopeTypeValues = ["agent", "process", "self"] as const;
 export type MemoryScopeType = (typeof memoryScopeTypeValues)[number];
 
 /** Memory type values */
@@ -397,8 +397,8 @@ export type MemorySource = (typeof memorySourceValues)[number];
 
 /**
  * Memories — learned patterns that persist across runs.
- * Two-scope model: agent-scoped (travels with agent) + process-scoped (stays with process).
- * Provenance: ADR-003, Mem0 scope filtering, memU reinforcement counting.
+ * Three-scope model: agent-scoped (travels with agent) + process-scoped (stays with process) + self-scoped (spans all, per user).
+ * Provenance: ADR-003, ADR-016 (self scope), Mem0 scope filtering, memU reinforcement counting.
  */
 export const memories = sqliteTable("memories", {
   id: text("id")
@@ -701,4 +701,42 @@ export const activities = sqliteTable("activities", {
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
+});
+
+// ============================================================
+// Sessions — Conversational Self persistence (ADR-016)
+// ============================================================
+
+export const sessionSurfaceValues = ["cli", "telegram", "web"] as const;
+export type SessionSurface = (typeof sessionSurfaceValues)[number];
+
+export const sessionStatusValues = ["active", "suspended", "closed"] as const;
+export type SessionStatus = (typeof sessionStatusValues)[number];
+
+/**
+ * Sessions — persistent conversation state for the Conversational Self.
+ * Turns stored as JSON array (not separate rows).
+ * Provenance: LangGraph checkpointing, Mastra suspend/resume, ADR-016 section 4.
+ */
+export const sessions = sqliteTable("sessions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => randomUUID()),
+  userId: text("user_id").notNull(),
+  surface: text("surface").notNull().$type<SessionSurface>(),
+  startedAt: integer("started_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  status: text("status")
+    .notNull()
+    .$type<SessionStatus>()
+    .default("active"),
+  summary: text("summary"),
+  turns: text("turns", { mode: "json" })
+    .notNull()
+    .$type<Array<{ role: string; content: string; timestamp: number; surface: string }>>()
+    .default([]),
 });

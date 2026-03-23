@@ -16,33 +16,13 @@
  * - spec-testing: Original — no source validates against quality criteria
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { HarnessHandler, HarnessContext } from "../harness";
 import type { StepDefinition } from "../process-loader";
 import { executeStep } from "../step-executor";
-
-const client = new Anthropic();
-const MODEL = process.env.DEFAULT_AGENT_MODEL || "claude-sonnet-4-6";
+import { createCompletion, extractText, getConfiguredModel } from "../llm";
 
 /** Default max retries for maker-checker/adversarial retry results */
 const DEFAULT_MAX_RETRIES = 2;
-
-/**
- * Model pricing per million tokens (input/output in dollars).
- * Used for review cost tracking in harnessDecisions.
- */
-const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number }> = {
-  "claude-sonnet-4-6": { inputPerM: 3, outputPerM: 15 },
-  "claude-opus-4-6": { inputPerM: 15, outputPerM: 75 },
-  "claude-haiku-4-5-20251001": { inputPerM: 0.8, outputPerM: 4 },
-};
-
-function calculateCostCents(inputTokens: number, outputTokens: number): number {
-  const pricing = MODEL_PRICING[MODEL] || MODEL_PRICING["claude-sonnet-4-6"];
-  return Math.ceil(
-    (inputTokens * pricing.inputPerM + outputTokens * pricing.outputPerM) / 100000
-  );
-}
 
 // ============================================================
 // YAML harness field parsing
@@ -143,9 +123,8 @@ Respond with a JSON object:
 - "flag": issues found that require human review
 - "retry": issues found that the producer agent can likely fix — provide specific feedback`;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
+  const response = await createCompletion({
+    model: getConfiguredModel(),
     system: systemPrompt,
     messages: [
       {
@@ -153,16 +132,12 @@ Respond with a JSON object:
         content: `Review this output:\n\n${outputText}`,
       },
     ],
+    maxTokens: 2048,
   });
 
-  const inputTokens = response.usage.input_tokens;
-  const outputTokens = response.usage.output_tokens;
-  const costCents = calculateCostCents(inputTokens, outputTokens);
+  const costCents = response.costCents;
 
-  const responseText = response.content
-    .filter((block) => block.type === "text")
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("");
+  const responseText = extractText(response.content);
 
   // Parse the JSON response
   try {
@@ -246,9 +221,8 @@ Respond with a JSON object:
   "overallPass": true/false
 }`;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
+  const response = await createCompletion({
+    model: getConfiguredModel(),
     system: systemPrompt,
     messages: [
       {
@@ -256,16 +230,12 @@ Respond with a JSON object:
         content: `Evaluate this output:\n\n${outputText}`,
       },
     ],
+    maxTokens: 2048,
   });
 
-  const inputTokens = response.usage.input_tokens;
-  const outputTokens = response.usage.output_tokens;
-  const costCents = calculateCostCents(inputTokens, outputTokens);
+  const costCents = response.costCents;
 
-  const responseText = response.content
-    .filter((block) => block.type === "text")
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("");
+  const responseText = extractText(response.content);
 
   try {
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);

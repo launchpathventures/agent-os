@@ -23,7 +23,14 @@
  */
 
 import "dotenv/config";
+import { initLlm } from "./engine/llm";
 import { defineCommand, runMain } from "citty";
+
+// Initialize LLM provider if configured (Brief 032: fail early for LLM commands)
+// Non-LLM commands (sync, status, debt) work without LLM configuration.
+if (process.env.LLM_PROVIDER) {
+  initLlm();
+}
 
 import { syncCommand } from "./cli/commands/sync";
 import { startCommand } from "./cli/commands/start";

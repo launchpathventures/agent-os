@@ -3,7 +3,7 @@
 **Date:** 2026-03-22
 **Trigger:** Creator question: "Who am I talking to when I start a conversation?" Exposed that there is no unified Ditto entity — users interact with raw Claude + slash commands, CLI commands, or Telegram buttons. Nothing composes into a coherent "someone" with persistent identity, accumulated understanding, or cognitive continuity.
 **Layers affected:** L1 Process, L2 Agent, L3 Harness, L5 Learning, L6 Human
-**Status:** active
+**Status:** archived — absorbed into ADR-016 (Conversational Self, accepted 2026-03-23)
 
 ## The Insight
 

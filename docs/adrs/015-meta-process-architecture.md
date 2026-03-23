@@ -1,7 +1,7 @@
 # ADR-015: Meta Process Architecture — The Platform Backbone
 
 **Date:** 2026-03-22
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 
@@ -112,9 +112,7 @@ The four meta processes are not peers. They have a structural hierarchy, operati
 
 ### 2a. Code is an encoded process
 
-A foundational observation: the platform's source code is itself an encoded process. Every file, function, and configuration is the output of a Build process run. The distinction between "code" and "process definition" is one of encoding, not kind. A YAML process definition and a TypeScript module are both outputs of Build — both evolve through the same meta process pipeline (Goal Framing → Build → Execution → Feedback).
-
-This means the platform literally runs on itself at every level: meta processes govern the creation of the code that implements meta processes. The dev pipeline doesn't just validate the meta process architecture — it IS the meta process architecture operating on its own substrate.
+See Insight-057. The distinction between "code" and "process definition" is one of encoding, not kind — both are Build outputs that evolve through the same meta process pipeline. This principle clarifies why self-referential Build works and why the dev pipeline is the right first validation target.
 
 ### 3. Define Goal Framing as a consultative process
 
@@ -140,9 +138,26 @@ Goal Framing is not routing or classification. It is a **consultative conversati
 
 **Output:** A confirmed brief — a goal statement the human has explicitly approved. The brief includes: what success looks like, what constraints apply, and what the human cares about (not just what they said).
 
-**Trust:** Goal Framing starts supervised (every brief is confirmed by the human). As the system learns the human's patterns, it may suggest briefs with higher confidence — but the human always confirms the brief before Build or Execution proceeds.
+**Trust and the brief gate:** Whether Goal Framing's confirmed brief requires explicit human confirmation before proceeding is a **governance parameter on the process**, not a universal rule. The human sets this when defining the process, and can adjust it as trust changes:
 
-**Implementation:** The existing intake-classifier and router become the first two steps of Goal Framing. But Goal Framing adds the consultative conversation layer above them — the part that currently doesn't exist.
+| Process type | Brief gate behavior |
+|---|---|
+| **Routine (e.g. invoice reconciliation)** | No brief per invocation. Trigger fires, process executes, output goes to review queue per trust tier. The process definition IS the brief — created once during the original framing conversation. |
+| **Triggered (e.g. quote generation)** | No brief per quote. The enquiry triggers the process directly. |
+| **Complex build (e.g. dev pipeline, supervised)** | Brief confirmed per goal. The Self frames the goal consultatively, human confirms, then Build executes. |
+| **Complex build (high autonomy)** | Brief confirmed implicitly — Self frames, proposes, continues without waiting. Human reviews at trust gates during execution, not before. |
+
+**Decomposition governance:** When a goal decomposes into multiple sub-briefs (e.g. "build external integrations" → 3 sub-briefs), the trust tier governs where in the decomposition chain the human confirms:
+
+| Build trust tier | Decomposition behavior |
+|---|---|
+| **Supervised** | Goal confirmed → Build proposes decomposition → human approves each sub-brief before Build proceeds to it |
+| **Spot-checked** | Goal confirmed → Build decomposes and proceeds → human reviews a sample of sub-briefs, auto-proceeds on others |
+| **Autonomous** | Goal confirmed → Build decomposes, executes the full chain, loops as needed → human sees outputs at trust gates during execution |
+
+The confirmed brief is the **goal**, not the decomposition. The decomposition is Build's job. The orchestrator's existing pattern (decompose → schedule → execute → escalate at confidence-based stopping points) handles the multi-brief case. If the outcome isn't achieved after one cycle, the orchestrator re-evaluates and loops — without returning to Goal Framing unless the goal itself needs reframing (which is an escalation, not a loop).
+
+**Implementation:** The existing intake-classifier and router become internal tools of Goal Framing. The Conversational Self (ADR-016) is the entity that executes Goal Framing — the Self's consultative conversation IS Goal Framing. The Self delegates to the intake-classifier and router as internal mechanisms, not user-facing entry points.
 
 ### 4. Define Build as the generative core
 
@@ -299,7 +314,7 @@ Meta processes that can modify the platform represent the highest-risk capabilit
 | **L3: Harness** | Meta processes go through the same harness pipeline. Breaking change detection added as a trust gate modifier — breaking changes always pause regardless of trust tier. | Trust gate extension |
 | **L4: Awareness** | Meta process dependency graph (Goal Framing → Build → Execution, Feedback → Build) is a new awareness layer concern. | Dependency tracking |
 | **L5: Learning** | Feedback & Evolution IS the meta process embodiment of L5. No structural change — but the primary consumer (Build) is now explicit. | Consumer clarity |
-| **L6: Human** | Goal Framing is the primary human entry point. The consultative conversation pattern is a new L6 interaction. | New interaction pattern |
+| **L6: Human** | The Conversational Self (ADR-016) is the human entry point. Goal Framing is the Self's primary mode. All meta processes interact with the human through the Self. | ADR-016 integration |
 
 ## Provenance
 
@@ -333,8 +348,8 @@ Meta processes that can modify the platform represent the highest-risk capabilit
 
 ### Follow-up decisions needed
 
-1. **Brief: Goal Framing process definition** — Define the Goal Framing process as a YAML process with the consultative conversation pattern. This is the first build target.
-2. **Brief: PM skill redesign** — Rewrite `/dev-pm` to embody consultative framing for the dev pipeline specifically (the first Goal Framing implementation).
-3. **architecture.md update** — Add meta process layer above system agents. Update the "System Runs ON Itself" section.
+1. **Conversational Self MVP brief (ADR-016)** — The Self is the entity through which Goal Framing operates. The MVP brief should implement both the Self and minimal Goal Framing in one build.
+2. **Brief: PM skill redesign** — Rewrite `/dev-pm` to embody consultative framing for the dev pipeline specifically (the first Goal Framing implementation via the Self).
+3. **architecture.md update** — Add meta process layer above system agents. Update the "System Runs ON Itself" section. Add Self to babushka diagram (ADR-016).
 4. **ADR-008 update** — Add meta process mapping column to the system agent table.
-5. **Roadmap update** — Insert meta process maturity milestones.
+5. **Roadmap update** — Insert meta process maturity milestones and Conversational Self MVP.

@@ -1,0 +1,46 @@
+# Standalone Designer process — single-step delegation target for the Conversational Self.
+# Runs the Designer role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Designer (Standalone)
+id: dev-designer-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Designer role. Designs UX interaction specs.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The feature or interaction to design
+
+steps:
+  - id: designer-execute
+    name: Designer Execute
+    executor: ai-agent
+    agent_role: designer
+    config:
+      role_contract: .claude/commands/dev-designer.md
+      tools: read-only
+    description: >
+      Execute the Designer role: research UX patterns,
+      produce interaction specs and wireframe descriptions.
+    inputs: [task]
+    outputs: [interaction_spec]
+
+outputs:
+  - name: interaction_spec
+    type: text
+    destination: conversation
+    description: UX interaction specification
+
+trust:
+  initial_tier: supervised

@@ -1,7 +1,7 @@
 # Ditto — Current State
 
-**Last updated:** 2026-03-22
-**Current phase:** PM triage identified the Conversational Self as the foundational missing piece. Insight-056 captured. The product has no unified entity — users talk to raw Claude + slash commands, not to "Ditto." This must be designed before Phase 10 (web dashboard) and alongside Cognitive Architecture A1. Next: `/dev-designer` (interaction spec) + `/dev-researcher` (patterns for persistent AI identity) in parallel, then `/dev-architect` for ADR + brief.
+**Last updated:** 2026-03-23
+**Current phase:** Brief 032 complete. Multi-provider LLM support (Anthropic, OpenAI, Ollama). No hardcoded default — user configures provider and model at deployment. Ditto-native types replace all Anthropic SDK leaks. Next: `/dev-pm` to triage — Brief 033 (Model Routing Intelligence) or Briefs 025+026 (Phase 6b/6c).
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
@@ -9,8 +9,9 @@
 ## What's Working
 
 - **Storage** — SQLite + Drizzle ORM + better-sqlite3. WAL mode. Auto-created at `data/ditto.db`. (ADR-001)
-- **Process definitions** — 11 YAML processes in `processes/` (7 domain + 4 system). Parallel groups, depends_on, human steps, conditional routing (route_to/default_next). System processes have `system: true`.
-- **Claude adapter** — 10 role-based system prompts, tool use loop (read_file/search_files/list_files, max 25 calls). Categorical confidence (high/medium/low per ADR-011).
+- **Process definitions** — 18 YAML processes in `processes/` (7 domain + 4 system + 7 standalone delegation roles). Parallel groups, depends_on, human steps, conditional routing (route_to/default_next). System processes have `system: true`. Standalone role processes (Brief 029, migrated Brief 031) are single-step `ai-agent` delegations with `config.role_contract` and `config.tools` (read-only or read-write).
+- **LLM provider abstraction (Briefs 029+032)** — `src/engine/llm.ts`. Multi-provider registry: Anthropic, OpenAI, Ollama (via OpenAI-compatible API). Ditto-native types (`LlmToolDefinition`, `LlmContentBlock`, `LlmMessage` etc.) — no SDK types leak beyond `llm.ts`. `createCompletion()`, `extractText()`, `extractToolUse()`, `getConfiguredModel()`, `getProviderName()`. Tool format translation (Anthropic ↔ OpenAI) internal. `initLlm()` startup validation — fails clearly if `LLM_PROVIDER` or `LLM_MODEL` not set. Per-provider cost tracking ($0 for Ollama). No hardcoded default model or provider. Provenance: Vercel AI SDK pattern, 12-factor app, Insight-060, Insight-062.
+- **Claude adapter (Brief 031)** — Role contract loading from `.claude/commands/dev-*.md` via `step.config.role_contract` (fallback to hardcoded prompts). Tool subset selection: `step.config.tools` → `readOnlyTools` or `readWriteTools`. Confidence parsing from response text (`CONFIDENCE: high|medium|low`). Tool use loop (read_file/search_files/list_files/write_file, max 25 calls). Uses `createCompletion()` from `llm.ts`.
 - **CLI adapter (Brief 016a)** — `src/adapters/cli.ts`. Spawns `claude -p` as subprocess. Loads role contracts from `.claude/commands/dev-*.md`. Parses CONFIDENCE from output. costCents: 0 (subscription-based). Provenance: ralph (subprocess), Paperclip (adapter pattern).
 - **Script adapter** — Deterministic steps with on_failure
 - **Integration infrastructure (Brief 024)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. `integration` executor type in step-executor switch. `resolveAuth(service, cliInterface, processId?)` reads env vars (Brief 026 swaps to vault). Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol` on stepRuns. (ADR-005)
@@ -21,31 +22,44 @@
 - **Trust gate** — 4 tiers: supervised, spot-checked (~20%), autonomous, critical. Deterministic SHA-256 sampling. Confidence override: `low` always pauses regardless of tier (ADR-011, Brief 016d).
 - **Trust earning** — Sliding window (20 runs), conjunctive upgrades, disjunctive downgrades, grace period, simulation, override. (ADR-007)
 - **Review patterns** — Maker-checker, adversarial, spec-testing. Retry with feedback injection.
-- **Memory** — Three-scope: agent-scoped + process-scoped (durable, ADR-003) + intra-run context (ephemeral, Brief 027). Salience sorting, token-budgeted assembly (2000 tokens durable, 1500 tokens run context), feedback-to-memory bridge.
+- **Memory** — Three durable scopes: agent-scoped + process-scoped + self-scoped (ADR-003, ADR-016, Brief 029) + intra-run context (ephemeral, Brief 027). Salience sorting, token-budgeted assembly (2000 tokens durable, 1500 tokens run context), feedback-to-memory bridge.
+- **Sessions (Briefs 029+030)** — `sessions` table with full lifecycle: create, append turns, resume within timeout, suspend after 30min idle (summary generated). Cross-surface resumption (ADR-016). DB-backed, not in-memory.
+- **Cognitive framework (Brief 029)** — `cognitive/self.md` (~1090 words). Consultative framing protocol, communication principles (competent/direct/warm/purposeful), trade-off heuristics, escalation sensitivity, dev pipeline domain context. Identity substrate for the Conversational Self.
+- **Conversational Self (Brief 030)** — `src/engine/self.ts` + `self-context.ts` + `self-delegation.ts`. The outermost harness ring: persistent identity, tiered context assembly (~4K token budget), `selfConverse()` conversation loop with tool_use delegation, session lifecycle. 4 delegation tools: `start_dev_role`, `approve_review`, `edit_review`, `reject_review`. Delegated roles run through full harness (trust, memory, feedback). Telegram bot routes free-text through the Self. 22 integration tests.
 - **Human steps** — `executor: human` suspends execution, creates action work item with input_fields, `aos complete` resumes with human input.
 - **Pattern notification** — After 3+ corrections of same pattern, read-only notification surfaced. Precursor to Phase 8 "Teach this".
 - **Parallel execution** — Promise.all for parallel groups, depends_on resolution
 - **Heartbeat** — Routes through harness. Sequential + parallel. Human step suspend/resume. Conditional routing (route_to/default_next). Retry with feedback injection (retry_on_failure). Routing skips mark non-target siblings as "skipped".
 - **Harness events** — `src/engine/events.ts`. Typed event emitter: step-start, step-complete, gate-pause, gate-advance, routing-decision, retry, step-skipped, run-complete, run-failed. Provenance: Trigger.dev event pattern.
-- **Agent tools** — 3 read-only tools (read_file, search_files, list_files). Path traversal prevention, secret deny-list.
+- **Agent tools (Brief 031)** — 4 tools: read_file, search_files, list_files (read-only), write_file (read-write). Path traversal prevention, secret deny-list, symlink protection. Exported as `readOnlyTools` (3) and `readWriteTools` (4).
 - **DB schema enforcement** — `pnpm cli sync` runs drizzle-kit push. Handles first-run and evolution.
 - **Debt tracking** — `docs/debts/` markdown files. `pnpm cli debt` to list.
-- **Dev process** — 7 roles as skills. Brief template. 29 active insights, 24 archived. 31 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
-- **Dev pipeline** — `claude -p` orchestrator + Telegram bot. Full Claude workspace on mobile. (Brief 015). Engine-integrated: `processes/dev-pipeline.yaml` runs 7 roles through the real harness with conditional routing (Brief 016c). Telegram bot routes through engine harness pipeline (Brief 027): `startProcessRun()` + `fullHeartbeat()` loop, review actions via `approveRun()`/`editRun()`/`rejectRun()`, intra-run context passing. Memory, trust, feedback all active.
+- **Dev process** — 7 roles as skills. Brief template. 38 active insights, 26 archived. 33 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
+- **Dev pipeline** — `claude -p` orchestrator + Telegram bot. Full Claude workspace on mobile. (Brief 015). Engine-integrated: `processes/dev-pipeline.yaml` runs 7 roles through the real harness with conditional routing (Brief 016c). Telegram bot routes free-text through the Conversational Self (Brief 030): `selfConverse()` assembles context, converses via LLM, delegates to dev roles via tool_use. Engine bridge (Brief 027) for explicit `/start` commands: `startProcessRun()` + `fullHeartbeat()` loop, review actions. Memory, trust, feedback all active.
 - **Review actions (Brief 027)** — `src/engine/review-actions.ts`. Shared approve/edit/reject logic extracted from CLI commands. Pure engine functions (no TTY, no process.exit). Step-level granularity via `findWaitingStepRun()`. Used by both CLI commands and Telegram bot.
-- **System agents (Brief 014a+014b+021)** — 4 system agents running through the harness pipeline: trust-evaluator (wraps Phase 3 code, spot-checked), intake-classifier (keyword matching, supervised), router (LLM-based via Anthropic SDK, supervised), orchestrator (goal-directed — decomposes goals into tasks, routes around paused items, confidence-based stopping; supervised). `category: system` + `systemRole` on agents table. System agent registry dispatches via `script` executor + `systemAgent` config (Insight-044). `startSystemAgentRun()` for programmatic triggering.
+- **System agents (Brief 014a+014b+021)** — 4 system agents running through the harness pipeline: trust-evaluator (wraps Phase 3 code, spot-checked), intake-classifier (keyword matching, supervised), router (LLM-based via `llm.ts`, supervised), orchestrator (goal-directed — decomposes goals into tasks, routes around paused items, confidence-based stopping; supervised). `category: system` + `systemRole` on agents table. System agent registry dispatches via `script` executor + `systemAgent` config (Insight-044). `startSystemAgentRun()` for programmatic triggering.
 - **Goal-directed orchestrator (Brief 021+022)** — Decomposes goals into child work items using process step list as blueprint. `orchestratorHeartbeat()` iterates spawned tasks, routes around trust gate pauses to independent work. Confidence-based stopping: low confidence triggers escalation (Types 1/3/4). CLI: scope negotiation in `capture`, goal tree in `status`, escalation display. Schema: `decomposition` on workItems, `orchestratorConfidence` on processRuns.
 - **Process templates (Brief 020)** — 3 non-coding templates in `templates/`: invoice-follow-up (4 steps, 1 human), content-review (3 steps, all AI), incident-response (4 steps, 2 human). All include governance declarations (trust, quality_criteria, feedback). Loaded as `status: draft` via `aos sync`. Process loader reads from both `processes/` and `templates/`.
 - **Auto-classification capture (Brief 014b)** — `aos capture` auto-classifies work item type (keyword patterns) and auto-routes to best matching process (LLM). Falls back to interactive @clack/prompts on low confidence. System processes filtered from routing targets.
-- **Test infrastructure (Brief 017)** — vitest + 88 integration tests across 10 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027). Real SQLite per test (no mocks). Anthropic SDK mocked at module level. `pnpm test` runs in ~3.3s.
+- **Test infrastructure (Brief 017)** — vitest + 161 tests across 13 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032 — startup validation, tool translation, cost tracking, message format conversion). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
 - **E2E verification (Brief 020)** — Full work evolution cycle verified: capture → classify → route → orchestrate → execute → human step → resume → review → trust update. All 6 architecture layers proven working. Report at `docs/verification/phase-5-e2e.md`.
 
 ## What Needs Rework
 
-- Architecture "First Implementation" section still frames everything as processes, not work items
+- ~~Architecture.md "First Implementation" section~~ — **Resolved 2026-03-23:** Added historical note, updated to reference actual dev role processes
+- ~~ADR-006 naming conflict~~ — **Resolved 2026-03-23:** `006-runtime-deployment.md` renumbered to ADR-018
+- ~~ADR-017 needs update post Brief 031~~ — **Resolved 2026-03-23:** Section 3 updated with post-implementation note
+- ~~CLI adapter `DEFAULT_MODEL = "opus"`~~ — **Resolved 2026-03-23:** Now uses `getConfiguredModel()` from llm.ts
 
 ## Recently Completed
 
+- **Brief 032 complete** (LLM Provider Extensibility) — Multi-provider `llm.ts` rewrite: Anthropic, OpenAI, Ollama. Ditto-native LLM types replace all Anthropic SDK type leaks across 6 caller files. `initLlm()` startup validation. Tool format translation (Anthropic ↔ OpenAI). Per-provider cost tracking (fixed pre-existing 10x underreporting bug). `getConfiguredModel()` replaces `DEFAULT_AGENT_MODEL` env var in all callers. `openai` dependency added. 31 new tests (161 total, 13 test files). Reviewed: PASS WITH FLAGS (4 flags: cost bug fixed, CLI adapter default tracked as debt, brief scope wording, docs deferred to Documenter). Approved 2026-03-23.
+- **Brief 031 complete** (Ditto Execution Layer) — All 7 dev roles migrated from `cli-agent` to `ai-agent` with Ditto's own tools. `write_file` tool added to `tools.ts` with same security model (path validation, secret deny-list, symlink protection). `readOnlyTools`/`readWriteTools` exports. Claude adapter: role contract loading from `.claude/commands/dev-*.md`, tool subset selection via `step.config.tools`, confidence parsing from response text. All 7 standalone YAMLs updated to version 2. 20 new tests (130 total). Reviewed: PASS WITH FLAGS (3 flags: smoke test needs live confirmation, ADR-017 Section 3 update, Ditto-native types deferred to 032). Approved 2026-03-23.
+- **ADR-017 accepted** (Delegation Weight Classes) — Three execution levels: Inline (Self reasons directly), Light (`ai-agent` → Claude, ~10-30s), Heavy (`cli-agent` → Claude Code, ~5-10min). Process definitions declare capabilities, runtime resolves execution mode. Light roles: PM, Researcher, Designer, Architect. Heavy roles: Builder, Reviewer, Documenter. OpenClaw-informed user choice model. Model routing deferred to ADR-012 extension. Reviewed: PASS WITH FLAGS (4 flags, all addressed). Approved 2026-03-23.
+- **Brief 030 complete** (Self Engine) — Conversational Self: `self.ts` (assembleSelfContext + selfConverse), `self-context.ts` (work state summary, self memories, session lifecycle), `self-delegation.ts` (4 delegation tools via tool_use). Telegram bot routes free-text through the Self. DB-backed sessions with cross-surface resumption. 22 new tests (110 total). Reviewed: PASS WITH FLAGS (1 significant flag fixed: cross-surface session lookup). Approved 2026-03-23.
+- **Brief 029 complete** (Self Foundation) — LLM provider abstraction (`src/engine/llm.ts`), `self` memory scope, `sessions` table, `cognitive/self.md`, 7 standalone role process YAMLs. 3 existing `new Anthropic()` call sites migrated to `createCompletion()`. 88 tests pass, 0 type errors. Reviewed: PASS WITH FLAGS (Anthropic type leakage noted as acceptable for single-provider MVP; stale comment fixed). Insight-060 absorbed. Approved 2026-03-23.
+- **ADR-016 accepted** (Conversational Self) — The Self is the outermost babushka ring: persistent identity, tiered context assembly, `self` memory scope, session persistence, cross-surface coherence, cognitive framework as thinking substrate. MVP on dev pipeline via Telegram. Research: 12 systems surveyed (`docs/research/persistent-conversational-identity.md`). UX spec: 4 persona encounters, communication principles, error recovery (`docs/research/conversational-self-ux.md`). Reviewed: PASS WITH FLAGS (7 flags, 3 substantive — all addressed). Approved 2026-03-23.
+- **ADR-015 accepted** (Meta Process Architecture) — 4 meta processes (Goal Framing, Build, Execution, Feedback & Evolution) within the Cognitive Framework environment. Build as generative core. Brief gate as governance parameter (not universal rule). Decomposition governance via trust tiers. Security model. Section 2a extracted to Insight-057. ADR-016 cross-references added. Approved 2026-03-23.
 - **Brief 027 complete** (Telegram Bot Engine Bridge) — Telegram bot routes through engine harness pipeline. Review-actions extraction (`approveRun`/`editRun`/`rejectRun`), memory-assembly intra-run context (1500-token budget), dev-bot engine heartbeat loop. 14 AC, 6 new tests (88 total). Reviewed: CONDITIONAL PASS (1 must-fix applied: step-level granularity in CLI edit path). Insight-032 archived, Debt-005 resolved. Approved 2026-03-21.
 - **Brief 024 complete** (Phase 6a: Integration Foundation + CLI) — Integration registry (YAML loader + validation), CLI protocol handler (exec + retry + credential scrubbing), `integration` executor type, harness `integration.call` logging, process loader validation. ADR-005 accepted. 13 AC, 16 new tests (82 total). Reviewed: PASS WITH FLAGS (4 flags, 2 addressed inline). Approved 2026-03-21.
 - **ADR-014 accepted** (Agent Cognitive Architecture) — Three-layer cognitive architecture (infrastructure + toolkit + context), orchestrator as executive function, adaptive scaffolding, cognitive quality in trust. 6-phase build plan (A1-D). Research report: 30+ sources. Approved 2026-03-21.
@@ -70,8 +84,8 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | Decision | ADR | Status |
 |----------|-----|--------|
 | SQLite via Drizzle + better-sqlite3 | ADR-001 | Done |
-| Research reports as durable artifacts | ADR-002 | Proposed |
-| Memory architecture (two-scope, phased) | ADR-003 | Done (Phase 2b scope) |
+| Research reports as durable artifacts | ADR-002 | Accepted |
+| Memory architecture (three-scope, phased) | ADR-003 | Accepted (Phase 2b done; self scope done Brief 029, ADR updated; LLM reconciliation pending) |
 | Harness as middleware pipeline | Phase 2a | Done |
 | Trust gate (4 tiers, deterministic sampling) | Phase 2a | Done |
 | Review patterns (composable layers) | Phase 2b | Done |
@@ -80,8 +94,8 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | Trust earning algorithm | ADR-007 | Accepted |
 | Integration architecture (multi-protocol) | ADR-005 | Accepted |
 | Analyze as first-class mode + org data model | ADR-006 | Accepted |
-| Two-track deployment | ADR-006 | Accepted |
-| AGPL-3.0 license | ADR-006 | Accepted |
+| Two-track deployment | ADR-018 (was ADR-006) | Accepted |
+| AGPL-3.0 license | ADR-018 (was ADR-006) | Accepted |
 | Workspace interaction model | ADR-010 | Accepted |
 | System agents + templates + cold-start | ADR-008 | Accepted |
 | Runtime composable UI (no ViewSpec, React) | ADR-009 | Proposed |
@@ -89,26 +103,167 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | Context engineering, model routing, cost | ADR-012 | Accepted |
 | Cognitive model (mode, feedback, escalation) | ADR-013 | Accepted |
 | Agent cognitive architecture (toolkit, executive function, judgment hierarchy) | ADR-014 | Accepted |
+| Meta process architecture (4 meta processes + cognitive framework environment) | ADR-015 | Accepted |
+| Conversational Self (outermost harness, self memory scope, session persistence) | ADR-016 | Accepted |
+| Delegation weight classes (Inline/Light/Heavy, Claude vs Claude Code, runtime resolution) | ADR-017 | Accepted |
 
 ## Active Briefs
 
 | Brief | Phase | Status |
 |-------|-------|--------|
-| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024 complete |
-| 025 — MCP + Agent Tool Use (Phase 6b) | 6b | Ready — approved 2026-03-21 |
-| 026 — Credentials + Process I/O (Phase 6c) | 6c | Ready — approved 2026-03-21 |
-| 027 — Telegram Bot Engine Bridge | — | Complete — approved 2026-03-21 |
+| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024 complete. Reconciled with Self 2026-03-23. |
+| 025 — MCP + Agent Tool Use (Phase 6b) | 6b | Ready — reconciled and re-approved 2026-03-23 |
+| 026 — Credentials + Process I/O (Phase 6c) | 6c | Ready — reconciled and re-approved 2026-03-23 |
+| 031 — Ditto Execution Layer | L2 | Complete — approved 2026-03-23. |
+| 032 — LLM Provider Extensibility | L2 | Complete — approved 2026-03-23. Multi-provider llm.ts, Ditto-native types, no default. |
+| 033 — Model Routing Intelligence | L2+L5 | Ready — approved 2026-03-23. Model hints, tracking, Self recommends. Depends on 032 (complete). |
+| 034a — Self Consultation + Decision Tracking | L2+L5 | Planned — consult_role tool, Self decision tracking, Self-correction memories. Insight-063. |
+| 034b — Harness-Level Metacognitive Check | L3 | Planned — metacognitive check handler for all agents. Auto-enabled for supervised tier. Insight-063. |
 
 ## Next Steps
 
-1. **NOW:** Design the Conversational Self (Insight-056). `/dev-designer` for interaction spec + `/dev-researcher` for persistent AI identity patterns (parallel), then `/dev-architect` for ADR + brief. This is the foundational missing piece — the product has no unified entity. Must be designed before Phase 10 and alongside Cognitive Architecture A1.
-2. **Still needed:** Architecture.md Layer 2 needs intra-run context documented (Brief 027 After Completion item 6).
-3. **Paused:** Brief 025 (MCP + Agent Tool Use) and 026 (Credentials) — ready for build but deprioritised. Adding tools to agents without a coherent invoker is infrastructure without a user.
-4. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047). Outcome owner reframe means process creation tools are core, not late-stage.
-5. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
-6. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8. Extended by ADR-014 for agent-execution cognitive framing.
-7. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
-8. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
+1. **NOW:** Brief 032 complete. Execution layer transition done: all roles via `ai-agent`, Ditto-native types, multi-provider LLM. Next: `/dev-pm` to triage — Brief 033 (Model Routing Intelligence) is the natural continuation, or Briefs 025+026 (Phase 6b/6c) for the parallel track.
+2. **PARALLEL TRACK:** Briefs 025+026 (Phase 6b/6c) remain ready. Touch different subsystems (integration registry) from 033 (model routing). Can run in parallel.
+3. **Insight-062 partially absorbed:** Items 1-4 (multi-provider, tools, all-roles-ai-agent, cli-agent-optional) complete via Briefs 031+032. Items 5-7 (model routing as learned capability) remain for Brief 033.
+4. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite (now should reflect multi-provider). ADR-017 update/supersession.
+5. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
+6. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
+7. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
+8. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
+9. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
+10. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+11. **Insight-063 actioned:** Cognitive framework updated with metacognitive checks section (`cognitive/self.md`). Briefs 034a (Self consultation + decision tracking) and 034b (harness-level metacognitive check) planned. Independent — can build in parallel.
+
+## Documenter Retrospective (2026-03-23 — Brief 032 Build)
+
+**What was produced this session:**
+1. Brief 032 implemented: `llm.ts` full rewrite with provider registry (Anthropic, OpenAI, Ollama), Ditto-native LLM types replacing all Anthropic SDK type leaks, `initLlm()` startup validation, tool format translation, per-provider cost tracking.
+2. Caller updates: 6 files migrated from Anthropic SDK types to Ditto-native types (`claude.ts`, `self.ts`, `self-delegation.ts`, `tools.ts`, `review-pattern.ts`, `router.ts`). `DEFAULT_AGENT_MODEL` env var eliminated — all callers use `getConfiguredModel()`.
+3. Startup integration: `initLlm()` added to `dev-bot.ts` (mandatory) and `cli.ts` (conditional).
+4. 31 new tests (161 total, 13 test files). OpenAI SDK mock added to `test-setup.ts`.
+5. `.env.example` updated with all 3 provider configurations.
+6. Pre-existing cost calculation bug fixed (divisor 100,000 → 10,000, was 10x underreporting).
+7. Reviewed: PASS WITH FLAGS (4 flags, 1 fixed inline).
+
+**What worked:**
+- **The brief was precise.** Provider registry design, tool format examples, env var names, cost tracking formula — all specified. The Builder had zero design decisions to make. This is the brief template continuing to prove its value.
+- **The existing abstraction was well-placed.** Brief 029 created `llm.ts` with the right interface (`LlmCompletionRequest`/`LlmCompletionResponse`). The rewrite was surgical: same interface, new implementation. Callers only changed their type imports, not their logic.
+- **The OpenAI SDK's type system was the only surprise.** SDK v6 uses union types (`ChatCompletionTool = ChatCompletionFunctionTool | ChatCompletionCustomTool`) that required explicit narrowing. Resolved quickly.
+- **The reviewer caught a real pre-existing bug.** The cost calculation divisor was wrong since Brief 029. This validates the maker-checker pattern — the Builder carried forward the same bug from the original code, and the fresh-context Reviewer caught it.
+
+**What surprised us:**
+- **The cost calculation bug.** It was in the original code, the new code carried it forward, and the tests were written to match the buggy formula. Only the Reviewer's independent math caught it. This is a strong argument for the separate-agent review pattern.
+- **Ollama was trivial.** The `OllamaProvider extends OpenAIProvider` pattern worked perfectly — 5 lines of code. Ollama's OpenAI-compatible API means one implementation covers both.
+
+**What to change:**
+- **Brief constraint wording matters.** The brief said "MUST NOT require changes to the Self, delegation, or harness code — only `llm.ts` changes." But removing Anthropic SDK type leaks inherently required touching callers. Future briefs should say "callers don't change their behavioral logic" rather than "only X file changes."
+- **Cost formulas should have a verification test with known expected values.** The existing pattern of "calculate and assert" hides bugs if the assertion is derived from the same formula. Better: assert specific known costs from provider pricing pages.
+
+---
+
+## Documenter Retrospective (2026-03-23 — Brief 031 Build)
+
+**What was produced this session:**
+1. Brief 031 implemented: `write_file` tool in `tools.ts`, tool subset exports (`readOnlyTools`/`readWriteTools`), Claude adapter role contract loading + tool subset selection + confidence parsing, all 7 standalone YAMLs migrated to `ai-agent` v2.
+2. 20 new tests (130 total, 12 test files): 9 tools tests (write_file security, subsets, backward compat), 11 YAML structure tests.
+3. Reviewed: PASS WITH FLAGS (3 non-blocking).
+
+**What worked:**
+- **The brief was exceptionally buildable.** Every file, every change, every test was specified. The Builder had zero ambiguity — no design decisions needed during implementation. This is the brief template working as intended.
+- **The existing infrastructure absorbed the changes gracefully.** `validatePath()` and `isSecretFile()` applied to `write_file` without modification. The `claudeAdapter.execute()` tool_use loop handled write tools with zero changes to the loop itself — just a different tools array passed in. The step-executor routing was untouched. This validates the adapter pattern from Phase 2.
+- **The YAML migration was mechanical.** All 7 YAMLs follow the same pattern change: swap executor, remove repository input, add config block. This is what good architecture feels like — the risky decision (ADR-017) was made once, and the implementation was a template application.
+- **Test-first verification.** 20 new tests written alongside the code, all passing before review. The YAML structure tests are particularly valuable — they verify the migration was consistent across all 7 roles without needing to run each role.
+
+**What surprised us:**
+- **Nothing.** This is the first build session where nothing surprised the Builder. The brief anticipated every detail. The reviewer found no blocking issues. This is a sign that the design phase (Briefs 031/032/033 designed in the previous session) was thorough.
+- **The confidence parsing was simpler than expected.** A single regex and a default value. The existing CLI adapter already had this pattern, so it was a direct port.
+
+**What to change:**
+- **Smoke test should be automated.** AC15 (Telegram PM delegation <60s) can't be verified in CI. Consider a lightweight integration test that runs `selfConverse()` → delegation → `claudeAdapter.execute()` with a mock LLM, verifying the full path without Telegram. This would catch regressions without needing a live bot.
+- **The "Execution Layer Redesign" retro below covers the design session.** Having two retros for one logical piece of work (design + build) is natural but verbose. The PM should consider whether the design-only retro pattern (retro after architect, then another after builder) is adding value or just adding words.
+
+---
+
+## Documenter Retrospective (2026-03-23 — Execution Layer Redesign)
+
+**What was produced this session:**
+1. PM triage: identified ADR-017 implementation as highest-priority next work (latency is the #1 UX bottleneck).
+2. Architect session: the human challenged the Light/Heavy role split through a chain of questions that escalated from "why only 4 roles?" → "don't all roles need file access?" → "how does this work in the cloud?" → "users must choose their own models." Each question revealed a deeper architectural assumption to fix.
+3. Insight-062 captured (Ditto Owns Its Execution Layer) — the foundational insight that `cli-agent` (Claude Code) is dogfood debt, not architecture. Ditto must own its tools and be LLM-provider-agnostic.
+4. Brief 031 designed (Ditto Execution Layer) — write_file tool, all 7 roles via `ai-agent`, role contract loading. 15 AC.
+5. Brief 032 designed (LLM Provider Extensibility) — multi-provider `llm.ts` for Anthropic/OpenAI/Ollama, no hardcoded default. 14 AC.
+6. Brief 033 designed (Model Routing Intelligence) — step-level model hints, model tracking in trust data, Self recommends optimal routing. 10 AC.
+7. All three briefs reviewed (CONDITIONAL PASS — 2 blocking, 7 significant flags). Approved by human.
+8. Two feedback memories saved: no vendor lock-in, Ditto owns execution layer.
+9. Roadmap updated with execution layer capabilities.
+
+**What worked:**
+- **The human's questioning chain was the session's most valuable contribution.** The architect started with a narrow brief (4 roles go light), and the human's escalating questions — each building on the previous — drove the design from a tactical fix to a foundational architectural shift. The PM triage was correct (latency is the problem) but the solution needed to go much deeper than the PM identified.
+- **The "composition over invention" principle held under pressure.** At each escalation point, the answer was "we already have this infrastructure" — `ai-agent` executor exists, `createCompletion()` exists, `tools.ts` exists, OpenAI-compatible APIs exist. The work is connecting and extending, not inventing.
+- **The brief chain (031→032→033) has clean dependency seams.** Each brief is independently shippable. 031 works with current Anthropic-only LLM. 032 adds providers without touching tools. 033 adds routing without touching providers. A builder can ship 031 and the system improves immediately.
+
+**What surprised us:**
+- **The deepest insight came from a deployment question, not a code question.** "How will this work in the cloud?" revealed that `cli-agent` is fundamentally local-only — it can't exist in a managed cloud deployment. This is not a code quality issue; it's an architectural constraint that was invisible when we only thought about local development.
+- **Insight-041 was absorbed but not acted on.** "Users Bring Their Own AI" was captured and marked absorbed back in Brief 016a, but `llm.ts` still hardcodes `claude-sonnet-4-6` as the default. An absorbed insight that hasn't changed the code is not actually absorbed. The Documenter should check for this pattern: insights marked "absorbed" whose implications haven't materialized.
+- **The brief that started as "make 4 roles faster" became "Ditto owns its execution layer."** The scope expanded 3x (from 1 brief to 3) but the clarity improved enormously. Each brief is more focused than the original single brief because the architectural thinking is sharper.
+
+**What to change:**
+- **Challenge architectural assumptions earlier.** The PM recommended a narrow "implement ADR-017" brief. The Architect designed exactly that. It took the human's questions to reveal the deeper issue. The PM/Architect skills should include "challenge the framing" as a step — ask "does this design work in all deployment contexts?" before finalizing.
+- **Insight absorption audit should be more rigorous.** Insight-041 was "absorbed" but the code didn't change. The Documenter should verify: does "absorbed" mean the code reflects the insight, or just that the insight was acknowledged in a doc? These are different things.
+- **The `cli-agent` shortcut should have been flagged as debt earlier.** The retrospective from Brief 029 noted "Anthropic type leakage" as acceptable for single-provider MVP. That was a signal that vendor coupling was accumulating. Debt items should be checked against the roadmap to see if they'll block upcoming phases.
+
+---
+
+## Documenter Retrospective (2026-03-23 — ADR-017 Delegation Weight Classes)
+
+**What was produced this session:**
+1. Insight-061 captured (Delegation Weight Classes) — triggered by live testing of the Self on Telegram. PM delegation took 5+ minutes, bot blocked.
+2. ADR-017 designed and reviewed (PASS WITH FLAGS, 4 flags addressed). Three execution levels (Inline/Light/Heavy), Claude vs Claude Code distinction, runtime mode resolution, OpenClaw user choice pattern.
+3. Three post-build fixes to `dev-bot.ts` during live testing: (a) removed blocking auto-PM, (b) replaced emoji with native typing indicator + Markdown parse_mode, (c) added intermediate text callbacks + non-blocking message handler.
+
+**What worked:**
+- **Live testing drove the architecture.** The ADR came from actually using the product, not from theoretical analysis. The 5-minute PM delegation latency was immediately obvious in conversation. The bot blocking on long-running delegations was only visible when the user tried to send a follow-up. This validates the "use the product to build the product" strategy.
+- **The infrastructure already existed.** The `ai-agent` executor already calls `createCompletion()` directly, already conditionally excludes codebase tools, already goes through the full harness. The ADR's core contribution is recognizing this and using it — not inventing something new. Composition over invention.
+- **The human brought critical clarity.** Three specific interventions shaped the ADR: (1) "Claude vs Claude Code — you're getting confused" forced the technical distinction that anchors the design, (2) "OpenClaw lets users choose" introduced the runtime resolution pattern, (3) "What if we wanted Codex?" surfaced the model routing orthogonality. Each intervention sharpened the architecture.
+
+**What surprised us:**
+- **The biggest UX problem wasn't the Self's intelligence — it was latency.** The Self's consultative framing, delegation decisions, and work state awareness all worked well. The experience was ruined by the 5-minute wait. Architecture matters less than responsiveness for the first impression.
+- **grammY's sequential message processing was a hidden blocker.** The bot framework processes one message at a time by default. A long-running delegation blocked ALL incoming messages — the user couldn't even ask for status. The fix (fire-and-forget pattern) was simple but non-obvious.
+- **The distinction between Claude and Claude Code is not widely understood.** Even within this project, the terms were being used interchangeably. Making this distinction explicit in the ADR is one of its most valuable contributions.
+
+**What to change:**
+- **Live testing should happen earlier.** The PM triage via `cli-agent` latency issue would have been caught immediately if the Self had been tested conversationally during Brief 030's build. The smoke test in the brief describes this scenario but it was deferred. Build → live test → fix should be one cycle, not sequential phases.
+- **Architecture.md needs the execution mode resolution concept.** Layer 2 currently describes executor types as static declarations. ADR-017 introduces runtime resolution. This is an architecture.md update, not just an ADR.
+- **The `ai-agent` executor's hardcoded role prompts need alignment with the `.claude/commands/dev-*.md` role contracts.** Two different prompt sources for the same roles is a maintenance risk. The implementation brief should resolve this.
+
+---
+
+## Documenter Retrospective (2026-03-23 — Conversational Self MVP Session)
+
+**What was produced this session:**
+1. PM triage: confirmed Brief 030 as next work. All dependencies met, no blockers, no research or design gaps.
+2. Builder: Brief 030 implemented. 3 new engine files (`self.ts`, `self-context.ts`, `self-delegation.ts`), `dev-bot.ts` modified, 22 new tests (110 total). Type-check and tests pass.
+3. Reviewer (separate agent): PASS WITH FLAGS. 1 significant flag (cross-surface session lookup filtered by surface, contradicting ADR-016). Fixed same cycle.
+4. Live verification on Telegram: Self responds conversationally, uses work state from context, delegates only when appropriate.
+5. Two post-review fixes during live testing: (a) removed blocking auto-PM on startup that delegated to PM subprocess, (b) replaced ⏳ emoji with native Telegram typing indicator + added Markdown parse_mode for message formatting.
+
+**What worked:**
+- **The brief was well-specified enough for a clean build.** All 11 acceptance criteria were verifiable. The file-level work product table in the brief meant no guessing about what to create. The brief's provenance table traced every pattern. Result: zero ambiguity pauses during implementation.
+- **The reviewer caught a real spec deviation.** Cross-surface session lookup was filtering by surface, contradicting ADR-016's explicit cross-surface continuity design. One-line fix, but it would have been a subtle bug in production — sessions started on Telegram wouldn't resume on CLI. The maker-checker pattern continues to deliver.
+- **Live testing surfaced issues that unit tests cannot.** The auto-PM delegation and the missing typing indicator were UX issues that only became visible when the human actually used the bot. The fix cycle was fast (identify → fix → restart → verify) because the code was already clean.
+- **The Self's delegation guidance prompt was the right abstraction level.** Rather than hard-coding "don't delegate for greetings," the guidance tells the LLM when delegation is appropriate vs not. This scales — new conversation types don't need new rules.
+
+**What surprised us:**
+- **The auto-PM on startup was a blocking trap.** `sendSelfResponse()` called `selfConverse()` which let the LLM decide to delegate, which spawned `claude -p` — a minutes-long subprocess. This blocked the entire bot from responding to user messages. The fix was simple (remove auto-PM), but the failure mode was non-obvious: the Self's autonomy about when to delegate meant it could choose to delegate at startup, which the original code assumed would be fast.
+- **Stale sessions from previous bot runs caused confusion.** DB-backed sessions persisted across bot restarts. The Self resumed old sessions with old context, influencing the LLM's delegation decisions. Required a manual `UPDATE sessions SET status = 'closed'` to clear. This is a deployment concern — the bot should probably close active sessions on startup.
+- **Telegram Markdown rendering requires explicit `parse_mode`.** grammY doesn't default to Markdown — bold text shows as raw asterisks without `parse_mode: "Markdown"`. The fallback to plain text on parse failure is important because LLM output can contain characters that break Telegram's Markdown parser.
+
+**What to change:**
+- **The bot should close stale sessions on startup.** When the bot process restarts, any "active" sessions from the previous run should be suspended. This prevents the Self from resuming stale context. A simple `UPDATE sessions SET status = 'suspended'` on startup would handle this.
+- **Delegation latency is the primary UX bottleneck.** When the Self does delegate (correctly), `fullHeartbeat()` for a `cli-agent` step spawns `claude -p` which takes minutes. The typing indicator disappears after ~5 seconds. Consider: (a) periodic re-sending of typing indicator during delegation, (b) a "Working on this..." message before delegation starts, or (c) async delegation with progress notifications.
+- **The cognitive framework + delegation guidance should be consolidated.** Currently, delegation guidance is in the system prompt assembly (`self.ts`) and the cognitive framework is in `cognitive/self.md`. The delegation guidance is essentially part of the cognitive framework — it tells the Self how to behave. Consider moving it into `cognitive/self.md` in a future iteration.
+
+---
 
 ## Documenter Retrospective (2026-03-21 — Brief 027 Engine Bridge Session)
 

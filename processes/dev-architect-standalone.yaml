@@ -1,0 +1,46 @@
+# Standalone Architect process — single-step delegation target for the Conversational Self.
+# Runs the Architect role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Architect (Standalone)
+id: dev-architect-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Architect role. Designs solutions, produces briefs and ADRs.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The problem or feature to design a solution for
+
+steps:
+  - id: architect-execute
+    name: Architect Execute
+    executor: ai-agent
+    agent_role: architect
+    config:
+      role_contract: .claude/commands/dev-architect.md
+      tools: read-write
+    description: >
+      Execute the Architect role: design the solution,
+      produce a brief or ADR with provenance.
+    inputs: [task]
+    outputs: [brief]
+
+outputs:
+  - name: brief
+    type: text
+    destination: conversation
+    description: Design brief or ADR
+
+trust:
+  initial_tier: supervised

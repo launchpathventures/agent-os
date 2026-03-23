@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
-**Last updated:** 2026-03-21
-**Current phase:** Phase 6 in progress — Brief 024 (Integration Foundation + CLI) complete. Brief 027 (Telegram Bot Engine Bridge) complete — bot routes through engine harness with memory, trust, feedback. Next: dogfood via Telegram, Brief 025 (MCP + Agent Tool Use). Cognitive architecture phases (A1-D) interleave with existing roadmap.
+**Last updated:** 2026-03-23
+**Current phase:** LLM provider extensibility complete (Brief 032). Multi-provider support: Anthropic, OpenAI, Ollama. No hardcoded default. Ditto-native types. Next: Brief 033 (Model Routing Intelligence) or Briefs 025+026 (Phase 6b/6c).
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -259,6 +259,41 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 
 ---
 
+## Conversational Self MVP (parallel with Phase 6, before Phase 10)
+
+**Objective:** Give Ditto a persistent identity — the outermost harness ring that mediates between the human and the platform. Proven on the dev pipeline via Telegram first.
+**Re-entry condition:** ADR-016 accepted ✓. Research + UX spec complete ✓.
+**Relationship:** The Self is where ADR-015's meta processes get a face, ADR-014's cognitive framework materializes, and ADR-003's memory becomes personality. Phase 6b/6c (tools, credentials) become more valuable once the Self exists as a coherent invoker.
+
+| Capability | Status | Source doc | Build from | Deliverable |
+|-----------|--------|-----------|------------|-------------|
+| LLM provider abstraction | done | Insight-060 | Vercel AI SDK pattern | `src/engine/llm.ts` (Brief 029) |
+| `self` memory scope (third scope type) | done | ADR-016, ADR-003 | Mem0 reconciliation + Letta self-editing | `src/db/schema.ts` (Brief 029) |
+| `sessions` table + session persistence schema | done | ADR-016 | LangGraph checkpointing | `src/db/schema.ts` (Brief 029) |
+| `cognitive/self.md` — core identity content | done | ADR-016, ADR-014 | Original | `cognitive/self.md` (Brief 029) |
+| Standalone role delegation processes (7) | done | ADR-016 | Option A delegation model | `processes/dev-*-standalone.yaml` (Brief 029) |
+| `assembleSelfContext()` — tiered context loading | done | ADR-016 | Letta tiered memory + Anthropic just-in-time | `src/engine/self.ts` (Brief 030) |
+| `selfConverse()` — core conversation loop | done | ADR-016 | Original | `src/engine/self.ts` (Brief 030) |
+| Self-editing memory (post-conversation reconciliation) | deferred | ADR-016 | Mem0 + Claude auto-memory | Re-entry: follow-up brief after Self MVP proven |
+| Session lifecycle (start/suspend/resume/close) | done | ADR-016 | Mastra suspend/resume | `src/engine/self-context.ts` (Brief 030) |
+| Dev pipeline as first proof (Telegram) | done | ADR-016, Insight-052 | Existing Telegram bot + engine bridge (Brief 027) | `src/dev-bot.ts` (Brief 030) |
+| Surface adaptation (Telegram density vs CLI) | deferred | ADR-016 | Original | Re-entry: when CLI or web surface added to Self |
+| **Ditto Execution Layer (Brief 031)** | | | | |
+| `write_file` tool with security model | done | ADR-017, Insight-062 | Claude Code Write tool pattern | `src/engine/tools.ts` (Brief 031) |
+| All 7 roles via `ai-agent` with Ditto's tools | done | ADR-017, Insight-062 | OpenClaw execution model | `processes/dev-*-standalone.yaml` (Brief 031) |
+| Role contract loading in Claude adapter | done | ADR-017, Insight-062 | OpenClaw SOUL.md pattern | `src/adapters/claude.ts` (Brief 031) |
+| `cli-agent` deprecated as default (optional fallback) | done | Insight-062 | — | Brief 031 |
+| **LLM Provider Extensibility (Brief 032)** | | | | |
+| Multi-provider `llm.ts` (Anthropic, OpenAI, Ollama) | done | Insight-062, Insight-041 | Vercel AI SDK pattern | `src/engine/llm.ts` (Brief 032) |
+| No hardcoded default model — user configures at deployment | done | Insight-062 | 12-factor app pattern | `src/engine/llm.ts` (Brief 032) |
+| Startup validation (fail clearly if LLM not configured) | done | Insight-062 | Existing DB sync pattern | `src/engine/llm.ts` (Brief 032) |
+| **Model Routing Intelligence (Brief 033)** | | | | |
+| Step-level `model_hint` in process definitions | not started | ADR-017, ADR-014 | ADR-017 runtime resolution | Brief 033 |
+| Model tracking on step runs (which model produced what) | not started | ADR-014 Phase B1 | Original | Brief 033 |
+| Self recommends optimal model routing from trust data | not started | ADR-014, ADR-007 | Trust earning pattern applied to models | Brief 033 |
+
+---
+
 ## Future Phases (sequenced but not scheduled)
 
 ### Phase 7: Layer 4 — Awareness
@@ -440,6 +475,20 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | APQC/ITIL pattern classification for discovery | architecture.md (industry standards) | Original |
 | Process candidate scoring and presentation | ADR-006, research report | Informed by ClearWork + Original |
 | Continuous process gap detection | ADR-006, architecture.md (Self-Improvement) | Extension of self-improvement meta-process |
+
+### Process Context Bindings (Insight-059)
+
+**Re-entry condition:** Phase 6 integration connectors working. Process articulation tools designed (Insight-047).
+**Note:** Same process definition applied to different targets with different configurations. Enables multi-repo orchestration (Insight-058) and multi-client process instances.
+
+| Capability | Source doc | Build from |
+|-----------|-----------|------------|
+| Process binding concept (persistent association of process definition + target configuration) | Insight-059 | Original |
+| Binding-level credential scoping (each binding uses its own auth) | Insight-059, ADR-005 | Composio brokered credentials pattern |
+| Trust per binding (same process, different trust levels per target) | Insight-059, ADR-007 | Existing trust infrastructure extended |
+| Multi-repo targeting (repos as integration targets, not Ditto instances) | Insight-058 | ADR-005 registry pattern |
+| Cloud execution adapter (remote agent execution for cloud-based repos) | Insight-058 | CLI adapter pattern extended |
+| Goal/outcome-level binding inheritance (bindings flow from goals → tasks → runs) | Insight-059 | Orchestrator decomposition pattern |
 
 ### Phase 12: Governance at Scale
 

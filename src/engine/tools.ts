@@ -1,10 +1,15 @@
 /**
- * Ditto — Agent Tools (Read-Only Codebase Access)
+ * Ditto — Agent Tools (Codebase Access)
  *
- * Three tools that give AI agents read-only access to the codebase they're
- * working on. Tools are scoped to process.cwd() with path traversal prevention.
+ * Four tools that give AI agents access to the codebase they're working on.
+ * Read tools (read_file, search_files, list_files) and write tool (write_file).
+ * All tools are scoped to process.cwd() with path traversal prevention.
  *
- * Provenance: Claude Code's own Read, Grep, Glob tool patterns.
+ * Exported as two subsets:
+ * - readOnlyTools: read_file, search_files, list_files
+ * - readWriteTools: all four tools including write_file
+ *
+ * Provenance: Claude Code's own Read, Grep, Glob, Write tool patterns.
  * Architecture note: This is a pragmatic shortcut. When the integration registry
  * lands in Phase 6, tool resolution should move out of the adapter and into
  * the harness assembly step.
@@ -13,7 +18,7 @@
 import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LlmToolDefinition } from "./llm";
 
 // ============================================================
 // Security: deny-list for secret files
@@ -99,78 +104,114 @@ function validatePath(requestedPath: string, workDir: string): string {
 // Tool definitions (Claude API tool format)
 // ============================================================
 
-export const toolDefinitions: Anthropic.Messages.Tool[] = [
-  {
-    name: "read_file",
-    description:
-      "Read the contents of a file in the project. Returns file contents with line numbers. Use this to understand code structure, read configuration, or examine specific files.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        path: {
-          type: "string",
-          description:
-            "File path relative to the project root (e.g., 'src/cli.ts', 'package.json')",
-        },
-        start_line: {
-          type: "number",
-          description: "Optional: first line to read (1-based). Defaults to 1.",
-        },
-        end_line: {
-          type: "number",
-          description:
-            "Optional: last line to read (1-based). Defaults to start_line + 499.",
-        },
+const readFileTool: LlmToolDefinition = {
+  name: "read_file",
+  description:
+    "Read the contents of a file in the project. Returns file contents with line numbers. Use this to understand code structure, read configuration, or examine specific files.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      path: {
+        type: "string",
+        description:
+          "File path relative to the project root (e.g., 'src/cli.ts', 'package.json')",
       },
-      required: ["path"],
-    },
-  },
-  {
-    name: "search_files",
-    description:
-      "Search file contents using a regex pattern. Returns matching lines with file paths and line numbers. Use this to find function definitions, usages, imports, or any text pattern across the codebase.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        pattern: {
-          type: "string",
-          description: "Regex pattern to search for (e.g., 'export function', 'import.*drizzle')",
-        },
-        path: {
-          type: "string",
-          description:
-            "Optional: subdirectory to search within, relative to project root (e.g., 'src/'). Defaults to project root.",
-        },
-        glob: {
-          type: "string",
-          description:
-            "Optional: file glob filter (e.g., '*.ts', '*.yaml'). Defaults to all files.",
-        },
+      start_line: {
+        type: "number",
+        description: "Optional: first line to read (1-based). Defaults to 1.",
       },
-      required: ["pattern"],
-    },
-  },
-  {
-    name: "list_files",
-    description:
-      "List files in the project matching a glob pattern. Returns file paths sorted by name. Use this to explore project structure, find files by extension, or discover directory contents.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        path: {
-          type: "string",
-          description:
-            "Optional: directory to list, relative to project root (e.g., 'src/engine/'). Defaults to project root.",
-        },
-        pattern: {
-          type: "string",
-          description:
-            "Optional: glob pattern to filter files (e.g., '*.ts', '**/*.yaml'). Defaults to '*' (all files in directory).",
-        },
+      end_line: {
+        type: "number",
+        description:
+          "Optional: last line to read (1-based). Defaults to start_line + 499.",
       },
     },
+    required: ["path"],
   },
+};
+
+const searchFilesTool: LlmToolDefinition = {
+  name: "search_files",
+  description:
+    "Search file contents using a regex pattern. Returns matching lines with file paths and line numbers. Use this to find function definitions, usages, imports, or any text pattern across the codebase.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      pattern: {
+        type: "string",
+        description: "Regex pattern to search for (e.g., 'export function', 'import.*drizzle')",
+      },
+      path: {
+        type: "string",
+        description:
+          "Optional: subdirectory to search within, relative to project root (e.g., 'src/'). Defaults to project root.",
+      },
+      glob: {
+        type: "string",
+        description:
+          "Optional: file glob filter (e.g., '*.ts', '*.yaml'). Defaults to all files.",
+      },
+    },
+    required: ["pattern"],
+  },
+};
+
+const listFilesTool: LlmToolDefinition = {
+  name: "list_files",
+  description:
+    "List files in the project matching a glob pattern. Returns file paths sorted by name. Use this to explore project structure, find files by extension, or discover directory contents.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      path: {
+        type: "string",
+        description:
+          "Optional: directory to list, relative to project root (e.g., 'src/engine/'). Defaults to project root.",
+      },
+      pattern: {
+        type: "string",
+        description:
+          "Optional: glob pattern to filter files (e.g., '*.ts', '**/*.yaml'). Defaults to '*' (all files in directory).",
+      },
+    },
+  },
+};
+
+const writeFileTool: LlmToolDefinition = {
+  name: "write_file",
+  description:
+    "Write content to a file. Creates the file if it doesn't exist. Creates parent directories if needed. Use for creating new files or updating existing ones.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      path: {
+        type: "string",
+        description: "File path relative to project root",
+      },
+      content: {
+        type: "string",
+        description: "The full content to write to the file",
+      },
+    },
+    required: ["path", "content"],
+  },
+};
+
+/** Read-only tools: read_file, search_files, list_files */
+export const readOnlyTools: LlmToolDefinition[] = [
+  readFileTool,
+  searchFilesTool,
+  listFilesTool,
 ];
+
+/** All tools including write_file */
+export const readWriteTools: LlmToolDefinition[] = [
+  ...readOnlyTools,
+  writeFileTool,
+];
+
+/** @deprecated Use readOnlyTools or readWriteTools instead */
+export const toolDefinitions: LlmToolDefinition[] = readOnlyTools;
 
 // ============================================================
 // Tool handlers
@@ -182,6 +223,7 @@ interface ToolInput {
   end_line?: number;
   pattern?: string;
   glob?: string;
+  content?: string;
 }
 
 /**
@@ -199,6 +241,8 @@ export function executeTool(
       return searchFiles(input, workDir);
     case "list_files":
       return listFiles(input, workDir);
+    case "write_file":
+      return writeFile(input, workDir);
     default:
       return `Unknown tool: ${toolName}`;
   }
@@ -385,5 +429,43 @@ function listFiles(input: ToolInput, workDir: string): string {
     return `${header}\n\n${files.join("\n")}`;
   } catch (e) {
     return `Error listing files: ${(e as Error).message}`;
+  }
+}
+
+function writeFile(input: ToolInput, workDir: string): string {
+  if (!input.path) {
+    return "Error: 'path' parameter is required";
+  }
+  if (input.content === undefined || input.content === null) {
+    return "Error: 'content' parameter is required";
+  }
+
+  // Security: reject secret files
+  if (isSecretFile(input.path)) {
+    return "Error: writing to this file is restricted";
+  }
+
+  let resolved: string;
+  try {
+    // validatePath checks the resolved path is within workDir.
+    // For new files, the parent must exist within workDir (symlink check
+    // only runs if the file already exists — validatePath handles this).
+    resolved = validatePath(input.path, workDir);
+  } catch (e) {
+    return `Error: ${(e as Error).message}`;
+  }
+
+  try {
+    // Create parent directories if needed
+    const dir = path.dirname(resolved);
+    fs.mkdirSync(dir, { recursive: true });
+
+    // Write the file (not atomic — writeFileSync overwrites in place)
+    fs.writeFileSync(resolved, input.content, "utf-8");
+
+    const lineCount = input.content.split("\n").length;
+    return `Written: ${input.path} (${lineCount} lines)`;
+  } catch (e) {
+    return `Error writing file: ${(e as Error).message}`;
   }
 }

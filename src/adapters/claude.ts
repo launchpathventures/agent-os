@@ -17,14 +17,20 @@
  * tool resolution moves to the harness assembly step.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import fs from "fs";
+import nodePath from "path";
 import type { ProcessDefinition, StepDefinition } from "../engine/process-loader";
 import type { StepExecutionResult } from "../engine/step-executor";
-import { toolDefinitions, executeTool, MAX_TOOL_CALLS } from "../engine/tools";
-
-const client = new Anthropic();
-
-const MODEL = process.env.DEFAULT_AGENT_MODEL || "claude-sonnet-4-6";
+import { readOnlyTools, readWriteTools, toolDefinitions, executeTool, MAX_TOOL_CALLS } from "../engine/tools";
+import {
+  createCompletion,
+  extractText,
+  extractToolUse,
+  getConfiguredModel,
+  type LlmMessage,
+  type LlmToolDefinition,
+  type LlmToolResultBlock,
+} from "../engine/llm";
 
 /**
  * Build a system prompt for an agent step based on its role and context.
@@ -151,9 +157,21 @@ Approach:
 Don't just patch symptoms. Find and fix the actual cause.`,
   };
 
-  const basePrompt =
-    rolePrompts[role] ||
-    `You are an AI agent executing the "${step.name}" step of the "${processDefinition.name}" process.`;
+  // Load role contract from file if configured, otherwise use hardcoded prompts
+  let basePrompt: string;
+  if (step.config?.role_contract) {
+    try {
+      const contractPath = nodePath.resolve(process.cwd(), step.config.role_contract as string);
+      basePrompt = fs.readFileSync(contractPath, "utf-8");
+    } catch {
+      console.warn(`Role contract not found: ${step.config.role_contract}, using fallback`);
+      basePrompt = rolePrompts[role] ||
+        `You are an AI agent executing the "${step.name}" step of the "${processDefinition.name}" process.`;
+    }
+  } else {
+    basePrompt = rolePrompts[role] ||
+      `You are an AI agent executing the "${step.name}" step of the "${processDefinition.name}" process.`;
+  }
 
   const context = `
 Process: ${processDefinition.name}
@@ -163,7 +181,13 @@ Description: ${step.description || "No description"}
 ${step.verification ? `Verification criteria:\n${step.verification.map((v) => `- ${v}`).join("\n")}` : ""}
 `;
 
-  return `${basePrompt}\n\n---\n\n${context}`;
+  // Append confidence instruction so trust gate can use it
+  const confidenceInstruction = `
+
+End your response with a confidence assessment on a separate line:
+CONFIDENCE: high | medium | low`;
+
+  return `${basePrompt}\n\n---\n\n${context}${confidenceInstruction}`;
 }
 
 /**
@@ -236,65 +260,64 @@ export const claudeAdapter = {
   ): Promise<StepExecutionResult> {
     const systemPrompt = buildSystemPrompt(step, processDefinition);
     const userMessage = buildUserMessage(step, runInputs);
-    const useTools = stepNeedsTools(step, processDefinition);
 
+    // Determine which tools to include:
+    // 1. step.config.tools explicitly declares "read-only" or "read-write"
+    // 2. Legacy: stepNeedsTools() checks input types for backward compatibility
+    // 3. Default: no tools
+    const toolsConfig = step.config?.tools as string | undefined;
+    let tools: LlmToolDefinition[] | undefined;
+    if (toolsConfig === "read-write") {
+      tools = readWriteTools;
+    } else if (toolsConfig === "read-only") {
+      tools = readOnlyTools;
+    } else if (stepNeedsTools(step, processDefinition)) {
+      tools = readOnlyTools; // Legacy backward compatible
+    }
+
+    const model = getConfiguredModel();
     console.log(`    Claude adapter: ${step.agent_role || "general"} agent`);
-    console.log(`    Model: ${MODEL}`);
-    if (useTools) {
-      console.log(`    Tools: read_file, search_files, list_files`);
+    console.log(`    Model: ${model}`);
+    if (tools) {
+      console.log(`    Tools: ${tools.map(t => t.name).join(", ")}`);
     }
 
     // Build initial messages
-    const messages: Anthropic.Messages.MessageParam[] = [
+    const messages: LlmMessage[] = [
       { role: "user", content: userMessage },
     ];
 
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
+    let totalTokens = 0;
+    let totalCostCents = 0;
     let toolCallCount = 0;
     let finalText = "";
 
     // Tool use loop: call API, handle tool_use responses, repeat until text
     while (true) {
-      const requestParams: Anthropic.Messages.MessageCreateParams = {
-        model: MODEL,
-        max_tokens: 8192,
+      const response = await createCompletion({
+        model,
         system: systemPrompt,
         messages,
-      };
+        ...(tools ? { tools } : {}),
+      });
 
-      if (useTools) {
-        requestParams.tools = toolDefinitions;
-      }
-
-      const response = await client.messages.create(requestParams);
-
-      totalInputTokens += response.usage.input_tokens;
-      totalOutputTokens += response.usage.output_tokens;
+      totalTokens += response.tokensUsed;
+      totalCostCents += response.costCents;
 
       // Check if response contains tool use
-      const toolUseBlocks = response.content.filter(
-        (block): block is Anthropic.Messages.ToolUseBlock =>
-          block.type === "tool_use"
-      );
+      const toolUseBlocks = extractToolUse(response.content);
 
       // Extract any text from this response
-      const textBlocks = response.content
-        .filter(
-          (block): block is Anthropic.Messages.TextBlock =>
-            block.type === "text"
-        )
-        .map((block) => block.text);
-
-      if (textBlocks.length > 0) {
-        finalText += textBlocks.join("\n\n");
+      const text = extractText(response.content);
+      if (text) {
+        finalText += (finalText ? "\n\n" : "") + text;
       }
 
       // If no tool use or we've hit the limit, we're done
       if (
         toolUseBlocks.length === 0 ||
-        response.stop_reason === "end_turn" ||
-        response.stop_reason === "max_tokens"
+        response.stopReason === "end_turn" ||
+        response.stopReason === "max_tokens"
       ) {
         break;
       }
@@ -308,7 +331,7 @@ export const claudeAdapter = {
       }
 
       // Execute tool calls and build tool results
-      const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+      const toolResults: LlmToolResultBlock[] = [];
 
       for (const toolBlock of toolUseBlocks) {
         toolCallCount++;
@@ -331,12 +354,14 @@ export const claudeAdapter = {
       // Append assistant response + tool results to conversation
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
+
     }
 
-    // Calculate cost (approximate — Sonnet 4.6 pricing)
-    const costCents = Math.ceil(
-      (totalInputTokens * 0.3 + totalOutputTokens * 1.5) / 100000
-    ); // $3/$15 per 1M tokens
+    // Parse confidence from response text
+    const confidenceMatch = finalText.match(/CONFIDENCE:\s*(high|medium|low)/i);
+    const confidence = confidenceMatch
+      ? (confidenceMatch[1].toLowerCase() as "high" | "medium" | "low")
+      : "medium";
 
     // Determine output name from step definition
     const outputName = step.outputs?.[0] || "result";
@@ -345,14 +370,14 @@ export const claudeAdapter = {
       outputs: {
         [outputName]: finalText,
       },
-      tokensUsed: totalInputTokens + totalOutputTokens,
-      costCents,
-      confidence: "medium", // Default — will be refined by learning layer
+      tokensUsed: totalTokens,
+      costCents: totalCostCents,
+      confidence,
       logs: [
-        `Model: ${MODEL}`,
-        `Input tokens: ${totalInputTokens}`,
-        `Output tokens: ${totalOutputTokens}`,
+        `Model: ${model}`,
+        `Tokens: ${totalTokens}`,
         `Tool calls: ${toolCallCount}`,
+        `Confidence: ${confidence}`,
         `Stop reason: complete`,
       ],
     };

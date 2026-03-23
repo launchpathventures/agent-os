@@ -270,6 +270,17 @@ function createTables(sqlite: Database.Database): void {
       metadata TEXT DEFAULT '{}',
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      started_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      last_active_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      status TEXT NOT NULL DEFAULT 'active',
+      summary TEXT,
+      turns TEXT NOT NULL DEFAULT '[]'
+    );
   `);
 }
 

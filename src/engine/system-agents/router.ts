@@ -11,11 +11,8 @@
  * Provenance: Inngest AgentKit RoutingAgent + Mastra Networks schema-driven routing
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { StepExecutionResult } from "../step-executor";
-
-const client = new Anthropic();
-const MODEL = process.env.DEFAULT_AGENT_MODEL || "claude-sonnet-4-6";
+import { createCompletion, extractText, getConfiguredModel } from "../llm";
 
 interface RoutingResult {
   processSlug: string | null;
@@ -88,38 +85,30 @@ Content: ${content}
 ${processDescriptions}`;
 
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 256,
+    const response = await createCompletion({
+      model: getConfiguredModel(),
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
+      maxTokens: 256,
     });
 
-    const text = response.content
-      .filter((block): block is Anthropic.Messages.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("");
+    const text = extractText(response.content);
 
     // Parse the JSON response
     const result = parseRoutingResponse(text, availableProcesses);
-
-    const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
-    const costCents = Math.ceil(
-      (response.usage.input_tokens * 0.3 + response.usage.output_tokens * 1.5) / 100000,
-    );
 
     return {
       outputs: {
         "routing-result": result,
       },
-      tokensUsed,
-      costCents,
+      tokensUsed: response.tokensUsed,
+      costCents: response.costCents,
       confidence: result.confidence,
       logs: [
         `Routed to: ${result.processSlug ?? "none"}`,
         `Confidence: ${result.confidence}`,
         `Reasoning: ${result.reasoning}`,
-        `Tokens: ${tokensUsed}`,
+        `Tokens: ${response.tokensUsed}`,
       ],
     };
   } catch (error) {

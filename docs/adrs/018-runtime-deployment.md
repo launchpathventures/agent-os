@@ -1,4 +1,6 @@
-# ADR-006: Runtime Deployment — Two-Track Model (Developer Self-Hosted + User Managed Cloud)
+# ADR-018: Runtime Deployment — Two-Track Model (Developer Self-Hosted + User Managed Cloud)
+
+> **Renumbered:** Originally ADR-006. Renumbered to resolve naming conflict with ADR-006 (Process Discovery from Organizational Data).
 
 **Date:** 2026-03-19
 **Status:** accepted

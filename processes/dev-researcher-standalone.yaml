@@ -1,0 +1,46 @@
+# Standalone Researcher process — single-step delegation target for the Conversational Self.
+# Runs the Researcher role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Researcher (Standalone)
+id: dev-researcher-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Researcher role. Scouts existing solutions and patterns.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The research question or topic to investigate
+
+steps:
+  - id: researcher-execute
+    name: Researcher Execute
+    executor: ai-agent
+    agent_role: researcher
+    config:
+      role_contract: .claude/commands/dev-researcher.md
+      tools: read-only
+    description: >
+      Execute the Researcher role: scout existing solutions,
+      extract implementation patterns, produce a research report.
+    inputs: [task]
+    outputs: [research_report]
+
+outputs:
+  - name: research_report
+    type: text
+    destination: conversation
+    description: Research report with findings and recommendations
+
+trust:
+  initial_tier: supervised

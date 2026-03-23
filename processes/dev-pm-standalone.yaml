@@ -1,0 +1,46 @@
+# Standalone PM process — single-step delegation target for the Conversational Self.
+# Runs the PM role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev PM (Standalone)
+id: dev-pm-standalone
+version: 2
+status: active
+
+description: >
+  Standalone PM role. Triages and sequences work, produces recommendations.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The goal or question to triage
+
+steps:
+  - id: pm-execute
+    name: PM Execute
+    executor: ai-agent
+    agent_role: pm
+    config:
+      role_contract: .claude/commands/dev-pm.md
+      tools: read-only
+    description: >
+      Execute the PM role: read project state, assess priorities,
+      produce a recommendation with routing signals.
+    inputs: [task]
+    outputs: [recommendation]
+
+outputs:
+  - name: recommendation
+    type: text
+    destination: conversation
+    description: PM recommendation with routing signals
+
+trust:
+  initial_tier: supervised

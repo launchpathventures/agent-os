@@ -1,7 +1,7 @@
 # ADR-002: Research Reports as Durable Artifacts
 
 **Date:** 2026-03-19
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 

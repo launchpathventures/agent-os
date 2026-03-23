@@ -1,0 +1,46 @@
+# Standalone Documenter process — single-step delegation target for the Conversational Self.
+# Runs the Documenter role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Documenter (Standalone)
+id: dev-documenter-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Documenter role. Updates state, roadmap, captures insights, runs retrospective.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: What changed and needs documenting
+
+steps:
+  - id: documenter-execute
+    name: Documenter Execute
+    executor: ai-agent
+    agent_role: documenter
+    config:
+      role_contract: .claude/commands/dev-documenter.md
+      tools: read-write
+    description: >
+      Execute the Documenter role: update state.md, roadmap.md,
+      capture insights, run retrospective.
+    inputs: [task]
+    outputs: [state_update]
+
+outputs:
+  - name: state_update
+    type: text
+    destination: conversation
+    description: Documentation updates and retrospective
+
+trust:
+  initial_tier: supervised

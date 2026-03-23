@@ -1,0 +1,46 @@
+# Standalone Builder process — single-step delegation target for the Conversational Self.
+# Runs the Builder role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Builder (Standalone)
+id: dev-builder-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Builder role. Implements approved plans as code.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The implementation task with brief reference
+
+steps:
+  - id: builder-execute
+    name: Builder Execute
+    executor: ai-agent
+    agent_role: builder
+    config:
+      role_contract: .claude/commands/dev-builder.md
+      tools: read-write
+    description: >
+      Execute the Builder role: implement the approved plan,
+      run type-check, follow the brief precisely.
+    inputs: [task]
+    outputs: [code_changes]
+
+outputs:
+  - name: code_changes
+    type: code
+    destination: git-repository
+    description: Working code changes
+
+trust:
+  initial_tier: supervised

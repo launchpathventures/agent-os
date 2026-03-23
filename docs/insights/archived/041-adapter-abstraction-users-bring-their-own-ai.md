@@ -3,7 +3,7 @@
 **Date:** 2026-03-20
 **Trigger:** User asked whether end users would use their Claude CLI or OpenAI Codex CLI for driving Ditto locally, or whether we'd insist on API usage.
 **Layers affected:** L2 Agent, L3 Harness
-**Status:** absorbed — CLI adapter delivered in Brief 016a, adapter abstraction documented in architecture.md L2
+**Status:** absorbed (partially) — CLI adapter delivered in Brief 016a, adapter abstraction documented in architecture.md L2. Note: multi-provider capability NOT yet built — `llm.ts` still Anthropic-only with hardcoded default. Brief 032 (LLM Provider Extensibility) fully absorbs this insight. Flagged by Documenter retrospective 2026-03-23.
 
 ## The Insight
 

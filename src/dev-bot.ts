@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Dev Pipeline — Telegram Bot (Engine Bridge)
+ * Dev Pipeline — Telegram Bot (Conversational Self)
  *
- * Mobile review surface for the Ditto dev pipeline.
- * Routes work through the engine's harness pipeline (memory, trust, feedback)
- * instead of the standalone orchestrator.
+ * The Telegram surface for Ditto's Conversational Self.
+ * Free-text messages route through selfConverse() — the Self assembles context,
+ * converses via LLM, and delegates to dev pipeline roles via tool_use.
+ * Explicit commands (/start, /status, /resume) use direct engine APIs.
  *
  * Usage:
  *   pnpm dev-bot    — start the Telegram bot (long-polling)
@@ -15,15 +16,17 @@
  *   - Telegram Bot API: inline keyboards, pinned messages, long-polling
  *   - Review gate UX: ADR-010 workspace interaction model
  *   - Engine bridge: Brief 027 — routes through harness pipeline
+ *   - Conversational Self: ADR-016, Brief 030
  *   - Direct engine import: same pattern as src/cli/commands/start.ts
  */
 
 import "dotenv/config";
-import crypto from "node:crypto";
+import { initLlm } from "./engine/llm.js";
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { runClaude, loadRoleContract } from "./dev-pipeline.js";
 import { startProcessRun, fullHeartbeat, type HeartbeatResult } from "./engine/heartbeat.js";
 import { approveRun, editRun, rejectRun, getWaitingStepOutput } from "./engine/review-actions.js";
+import { selfConverse, type SelfConverseCallbacks } from "./engine/self.js";
 import { db, schema } from "./db/index.js";
 import { eq } from "drizzle-orm";
 
@@ -46,6 +49,9 @@ if (!CHAT_ID) {
 }
 
 const chatId: number = Number(CHAT_ID);
+
+// Validate LLM configuration at startup (Brief 032: fail early, not at first API call)
+initLlm();
 
 /** Get chat ID, guaranteed non-null */
 function getChatId(): number {
@@ -76,8 +82,8 @@ bot.catch((err) => {
 /** Active engine process run ID */
 let activeRunId: string | null = null;
 
-/** Persistent session ID for free-text chat — maintains conversation continuity */
-let chatSessionId: string | null = null;
+/** User ID for the Conversational Self (single-creator MVP) */
+const SELF_USER_ID = "creator";
 
 /** Pending feedback capture — when user taps "Edit", we wait for their text */
 let pendingEditRunId: string | null = null;
@@ -347,10 +353,7 @@ async function runSessionHandoff(ctx: Context): Promise<void> {
 }
 
 bot.command("newchat", async (ctx) => {
-  if (chatSessionId) {
-    await runSessionHandoff(ctx);
-  }
-  chatSessionId = null;
+  await runSessionHandoff(ctx);
 
   await ctx.reply(
     [
@@ -360,27 +363,23 @@ bot.command("newchat", async (ctx) => {
     ].join("\n"),
     { reply_markup: quickActions() }
   );
-
-  // Auto-run PM to orient on the fresh session
-  await runAutoPM();
 });
 
 bot.command("help", async (ctx) => {
   await ctx.reply(
     [
-      "Ditto Dev Bot (Engine Bridge)",
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "Ditto — Conversational Self",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       "",
-      "Just type naturally — I'm Claude with full project context.",
+      "Just type naturally — I'm Ditto. I remember conversations, delegate to dev roles, and learn from feedback.",
       "",
       "Commands:",
       "  /start <task> — kick off a dev pipeline (through engine)",
       "  /status — current pipeline state (from engine DB)",
       "  /resume — resume paused pipeline",
-      "  /newchat — wrap up + reset conversation",
+      "  /newchat — wrap up + start fresh session",
       "  /help — this message",
       "",
-      "Pipeline runs through the harness: memory, trust, feedback.",
       "Or tap a quick action below.",
     ].join("\n"),
     { reply_markup: quickActions() }
@@ -453,10 +452,7 @@ bot.callbackQuery("quick:status", async (ctx) => {
 
 bot.callbackQuery("quick:newchat", async (ctx) => {
   await ctx.answerCallbackQuery();
-  if (chatSessionId) {
-    await runSessionHandoff(ctx);
-  }
-  chatSessionId = null;
+  await runSessionHandoff(ctx);
 
   await ctx.reply(
     [
@@ -470,9 +466,9 @@ bot.callbackQuery("quick:newchat", async (ctx) => {
 
 bot.callbackQuery("quick:whatsnext", async (ctx) => {
   await ctx.answerCallbackQuery();
-  await sendClaudeResponse(
+  await sendSelfResponse(
     ctx,
-    "What should I work on next? Read docs/state.md and docs/roadmap.md and give me a concise recommendation with rationale."
+    "What should I work on next? Give me a concise recommendation with rationale."
   );
 });
 
@@ -512,6 +508,55 @@ bot.callbackQuery(/^skill:(.+)$/, async (ctx) => {
 
 // --- Shared helpers ---
 
+/**
+ * Route a message through the Conversational Self (Brief 030, AC10).
+ * Uses selfConverse() which assembles context, calls LLM with tool_use,
+ * handles delegation, and persists sessions in the DB.
+ */
+async function sendSelfResponse(ctx: Context | null, message: string): Promise<void> {
+  const reply = async (text: string) => {
+    if (ctx) await ctx.reply(text);
+    else await bot.api.sendMessage(getChatId(), text);
+  };
+
+  // Show native typing indicator instead of sending a message
+  try {
+    await bot.api.sendChatAction(getChatId(), "typing");
+  } catch { /* ignore */ }
+
+  const callbacks: SelfConverseCallbacks = {
+    onIntermediateText: async (text) => {
+      await sendLongMessage(ctx, text);
+    },
+    onDelegationStart: async (toolName, input) => {
+      if (toolName === "start_dev_role") {
+        const role = (input.role as string) || "role";
+        await reply(`Working on it — delegating to ${role}...`);
+      }
+      // Re-send typing indicator for the delegation duration
+      try { await bot.api.sendChatAction(getChatId(), "typing"); } catch { /* ignore */ }
+    },
+  };
+
+  try {
+    const result = await selfConverse(SELF_USER_ID, message, "telegram", callbacks);
+
+    if (!result.response) {
+      await reply("(no response)");
+      return;
+    }
+
+    await sendLongMessage(ctx, result.response);
+  } catch (err) {
+    await reply(`❌ Error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Legacy: run Claude directly via claude -p subprocess.
+ * Used for explicit skill invocation buttons and session handoff (documenter).
+ * Free-text messages route through selfConverse() instead.
+ */
 async function sendClaudeResponse(ctx: Context | null, prompt: string): Promise<void> {
   const reply = async (text: string) => {
     if (ctx) await ctx.reply(text);
@@ -520,17 +565,10 @@ async function sendClaudeResponse(ctx: Context | null, prompt: string): Promise<
 
   await reply("⏳ Thinking...");
 
-  const isFirst = chatSessionId === null;
-  if (isFirst) chatSessionId = crypto.randomUUID();
-
   try {
     const result = await runClaude(prompt, {
-      // No systemPromptAppend — let CLAUDE.md and project context do the work
-      // Same as opening a Claude Code chat in this project directory
       model: "opus",
-      sessionId: isFirst ? chatSessionId! : undefined,
-      resumeSessionId: isFirst ? undefined : chatSessionId!,
-      noSessionPersistence: false,
+      noSessionPersistence: true,
     });
 
     if (result.exitCode !== 0) {
@@ -555,8 +593,14 @@ async function sendLongMessage(ctx: Context | null, text: string): Promise<void>
     ? [text]
     : (text.match(/[\s\S]{1,4096}/g) ?? [text]);
   for (const chunk of chunks) {
-    if (ctx) await ctx.reply(chunk);
-    else await bot.api.sendMessage(getChatId(), chunk);
+    try {
+      if (ctx) await ctx.reply(chunk, { parse_mode: "Markdown" });
+      else await bot.api.sendMessage(getChatId(), chunk, { parse_mode: "Markdown" });
+    } catch {
+      // Fallback to plain text if Markdown parsing fails
+      if (ctx) await ctx.reply(chunk);
+      else await bot.api.sendMessage(getChatId(), chunk);
+    }
   }
 }
 
@@ -609,8 +653,13 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
-  // Otherwise, treat as a conversation with Claude — persistent session, Opus model
-  await sendClaudeResponse(ctx, text);
+  // AC10: Route all free-text messages through the Conversational Self.
+  // Don't await — let it run in the background so the bot stays responsive
+  // to new messages while a delegation is in progress.
+  sendSelfResponse(ctx, text).catch((err) => {
+    console.error("[bot] selfConverse error:", err);
+    ctx.reply(`❌ Error: ${err instanceof Error ? err.message : String(err)}`).catch(() => {});
+  });
 });
 
 // --- Startup ---
@@ -618,16 +667,14 @@ bot.on("message:text", async (ctx) => {
 async function sendStartupStatus(): Promise<void> {
   // Send welcome + instructions
   const welcome = [
-    "📌 Ditto — Your Workspace (Engine Bridge)",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "📌 Ditto — Your Workspace",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
-    "I'm Claude with full project context. Talk to me like you would at your desk — I remember our conversation.",
+    "I'm Ditto. I remember our conversations, know the project state, and can delegate to dev roles when needed.",
     "",
-    "💬 Just type — ask questions, think through problems, give direction.",
-    "🛠 Tap Skills — invoke a specific dev role.",
-    "🚀 /start <task> — kick off a full dev pipeline (through engine).",
-    "",
-    "Pipeline now runs through the harness: memory, trust, feedback.",
+    "💬 Just type — I'll handle framing, delegation, and synthesis.",
+    "🛠 Tap Skills — invoke a specific dev role directly.",
+    "🚀 /start <task> — kick off a full dev pipeline.",
   ].join("\n");
 
   try {
@@ -644,25 +691,13 @@ async function sendStartupStatus(): Promise<void> {
     // Ignore failures
   }
 
-  // Auto-run PM to give a daily brief style orientation
-  await runAutoPM();
-}
-
-async function runAutoPM(): Promise<void> {
-  try {
-    // Use the chat session so PM output becomes part of the conversation context
-    await sendClaudeResponse(
-      null,
-      "Read docs/state.md and docs/roadmap.md. Give me a concise orientation: what was last done, what's next, any blockers or decisions needed. End with a concrete recommendation for what to do now. If you notice anything that should be captured as an insight or that state.md needs updating, do it."
-    );
-  } catch (err) {
-    console.error("[bot] auto-PM failed:", err);
-  }
+  // No auto-PM on startup — the Self already loads work state in its context.
+  // When the human sends a message, the Self orients naturally.
 }
 
 // --- Start bot ---
 
-console.log("Dev Pipeline Telegram bot starting (engine bridge mode)...");
+console.log("Ditto Telegram bot starting (Conversational Self)...");
 console.log(`Authorized chat ID: ${chatId}`);
 
 // AC11: Check DB initialization before starting
@@ -674,7 +709,7 @@ checkDbInitialized().then((ready) => {
 
 bot.start({
   onStart: async () => {
-    console.log("Bot is running (engine bridge mode).");
+    console.log("Bot is running (Conversational Self).");
     await sendStartupStatus();
   },
 });

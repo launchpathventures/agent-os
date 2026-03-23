@@ -1,7 +1,7 @@
 # ADR-003: Memory Architecture
 
 **Date:** 2026-03-19
-**Status:** proposed
+**Status:** accepted (Phase 2b scope implemented; `self` scope added Brief 029; Phase 3 LLM reconciliation and Phase 7 vector search pending)
 
 ## Context
 
@@ -35,8 +35,8 @@ ADR-001 (SQLite) constrains storage to SQLite + Drizzle for dogfood.
 ```
 memories
 ├── id: text (UUID)
-├── scopeType: text ("agent" | "process")
-├── scopeId: text (references agents.id or processes.id)
+├── scopeType: text ("agent" | "process" | "self")
+├── scopeId: text (references agents.id, processes.id, or user identifier)
 ├── type: text ("correction" | "preference" | "context" | "skill")
 ├── content: text (the memory itself — natural language)
 ├── source: text ("feedback" | "human" | "system")
@@ -51,7 +51,7 @@ memories
 
 **Why these fields:**
 
-- **scopeType + scopeId**: The architecture's two-scope model. Agent-scoped memories travel with the agent. Process-scoped memories stay with the process even when agents are swapped. Provenance: Mem0's scope filtering (`mem0/memory/main.py`).
+- **scopeType + scopeId**: Three memory scopes. Agent-scoped memories travel with the agent. Process-scoped memories stay with the process even when agents are swapped. Self-scoped memories (ADR-016, Brief 029) belong to the Conversational Self — user preferences, communication style, cross-session continuity. `scopeId` is the user identifier for self-scoped memories. Provenance: Mem0's scope filtering (`mem0/memory/main.py`), extended for the Self.
 
 - **type**: Four memory types grounded in the human mental model:
   - `correction` — "Don't use formal tone" (learned from being corrected)

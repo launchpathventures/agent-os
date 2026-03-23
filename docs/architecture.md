@@ -257,8 +257,8 @@ Process: [Name]
 **Adapter pattern** (Insight-041): Any runtime plugs in — the harness is AI-provider-agnostic. Users bring their own execution substrate (Claude CLI, Codex CLI, Anthropic API, OpenAI API, local models via ollama). All adapters implement the same `StepExecutionResult` interface: `outputs`, `tokensUsed`, `costCents`, `confidence` (categorical: high/medium/low per ADR-011), `logs`. Three core methods: `invoke()`, `status()`, `cancel()`. Seven executor types: `ai-agent`, `cli-agent`, `script`, `rules`, `human`, `handoff`, `integration`.
 
 Current adapters:
-- **Claude API adapter** (`ai-agent`): Calls Anthropic API directly. Per-token cost. Tool use loop with read-only codebase tools.
-- **CLI adapter** (`cli-agent`, Brief 016a): Spawns `claude -p` (or `codex`) as subprocess. Loads role contracts from `.claude/commands/` as `--append-system-prompt`. Subscription-based ($0 per step). Fresh context per step (ralph pattern). Parses `CONFIDENCE: high|medium|low` from output tail. Provenance: ralph autonomous loop, Paperclip adapter pattern.
+- **Claude API adapter** (`ai-agent`, primary): Calls LLM via `createCompletion()`. Per-token cost. Tool use loop with codebase tools — two subsets: `readOnlyTools` (read_file, search_files, list_files) and `readWriteTools` (+ write_file). Step config declares which subset via `config.tools: "read-only" | "read-write"`. Loads role contracts from `.claude/commands/dev-*.md` via `step.config.role_contract` (fallback to hardcoded prompts). Parses `CONFIDENCE: high|medium|low` from response text. All 7 dev roles execute via this adapter (Brief 031). Provenance: Claude Code tool patterns, OpenClaw SOUL.md/skills.
+- **CLI adapter** (`cli-agent`, optional fallback, Brief 016a): Spawns `claude -p` (or `codex`) as subprocess. Loads role contracts as `--append-system-prompt`. Subscription-based ($0 per step). Fresh context per step (ralph pattern). Available for tasks requiring full Claude Code capabilities (terminal, project scanning). No dev roles use this by default since Brief 031. Provenance: ralph autonomous loop, Paperclip adapter pattern.
 - **Script adapter** (`script`): Deterministic commands via `child_process`. No AI cost.
 
 The `integration` executor (Phase 6) resolves a service and protocol from the integration registry, executes the external call (CLI, MCP, or REST), and returns structured output — subject to the full harness pipeline like any other executor.
@@ -279,42 +279,50 @@ Agent Harness: [Agent Name]
 └── Session: resumable state across heartbeats
 ```
 
-This creates a **nested harness architecture**:
+This creates a **nested harness architecture** (ADR-016 adds the Conversational Self as the outermost ring):
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  PLATFORM HARNESS (Ditto)                         │
-│  Cross-process governance, trust, dependency graph   │
-│                                                       │
-│  ┌─────────────────────────────────────────────────┐ │
-│  │  PROCESS HARNESS (Layer 3)                       │ │
-│  │  Review patterns, quality gates, escalation      │ │
-│  │                                                   │ │
-│  │  ┌─────────────────────────────────────────────┐ │ │
-│  │  │  AGENT HARNESS (Layer 2)                     │ │ │
-│  │  │  Identity, memory, tools, permissions        │ │ │
-│  │  │                                               │ │ │
-│  │  │  ┌─────────────────────────────────────────┐ │ │ │
-│  │  │  │  RUNTIME (Adapter)                       │ │ │ │
-│  │  │  │  Claude, GPT, script, rules engine      │ │ │ │
-│  │  │  └─────────────────────────────────────────┘ │ │ │
-│  │  └─────────────────────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│  CONVERSATIONAL SELF (ADR-016)                            │
+│  Persistent identity, consultative framing, self memory,  │
+│  cognitive framework, cross-surface coherence              │
+│                                                            │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │  PLATFORM HARNESS (Ditto)                           │  │
+│  │  Cross-process governance, trust, dependency graph  │  │
+│  │                                                      │  │
+│  │  ┌─────────────────────────────────────────────────┐│  │
+│  │  │  PROCESS HARNESS (Layer 3)                      ││  │
+│  │  │  Review patterns, quality gates, escalation     ││  │
+│  │  │                                                  ││  │
+│  │  │  ┌─────────────────────────────────────────────┐││  │
+│  │  │  │  AGENT HARNESS (Layer 2)                    │││  │
+│  │  │  │  Identity, memory, tools, permissions       │││  │
+│  │  │  │                                              │││  │
+│  │  │  │  ┌─────────────────────────────────────────┐│││  │
+│  │  │  │  │  RUNTIME (Adapter)                      ││││  │
+│  │  │  │  │  Claude, GPT, script, rules engine      ││││  │
+│  │  │  │  └─────────────────────────────────────────┘│││  │
+│  │  │  └─────────────────────────────────────────────┘││  │
+│  │  └─────────────────────────────────────────────────┘│  │
+│  └─────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────┘
 ```
 
-Each layer has a distinct responsibility. The platform harness orchestrates across processes. The process harness enforces quality for a specific process. The agent harness assembles the operating context for a specific agent. The runtime executes. This separation means you can swap any layer independently — different agent in the same process, different process for the same agent, different runtime for the same agent harness.
+Each layer has a distinct responsibility. The Conversational Self is the membrane between the human and the system — it is Layer 6 (Human Layer) given a voice, with persistent identity, tiered context assembly, and cross-surface coherence (see ADR-016). The platform harness orchestrates across processes. The process harness enforces quality for a specific process. The agent harness assembles the operating context for a specific agent. The runtime executes. This separation means you can swap any layer independently — different agent in the same process, different process for the same agent, different runtime for the same agent harness.
 
 **Agent harness assembly** happens in a single function (inspired by Open SWE's `get_agent()` pattern): resolve agent identity → load agent memory + process memory → determine authorised tools → check budget → inject into adapter → execute. This function is the seam where all context converges before the runtime fires.
 
-**Memory model**: Two scopes, merged at invocation:
+**Memory model**: Three durable scopes plus ephemeral run context, merged at invocation:
 
 | Scope | What it stores | Persists across | Example |
 |-------|---------------|----------------|---------|
 | **Agent-scoped** | Cross-cutting knowledge that travels with the agent | All process assignments | "This agent prefers explicit error handling over try/catch" |
 | **Process-scoped** | Learning specific to a process | All runs of that process | "Invoice descriptions are edited 60% of the time — mostly tone" |
+| **Self-scoped** (ADR-016) | User knowledge spanning all processes and agents | All conversations, all processes | "This user prefers terse responses; their business is in construction" |
+| **Intra-run context** (Brief 027) | Prior step outputs within the current run | Current run only (ephemeral) | Output from step 1 available to step 2 within same process run |
 
-Both stored in the `memory` table with `scope_type` (`agent` or `process`) and `scope_id`. The harness merges relevant memories into the agent's context at invocation time, applying progressive disclosure (most relevant first, within context budget).
+Durable scopes stored in the `memory` table with `scope_type` (`agent`, `process`, or `self`) and `scope_id`. Intra-run context assembled from `stepRuns` within the active process run (separate 1500-token budget). The harness merges relevant memories into the agent's context at invocation time, applying progressive disclosure (most relevant first, within context budget).
 
 **Org structure**: Agents have roles, reporting lines, permissions. They serve processes — the human's mental model is "my invoice process" not "Agent #7."
 
@@ -585,6 +593,34 @@ Trust tiers determine oversight **rate** (how often). The attention model determ
 
 **Provenance:** MeMo (Guan et al., 2024) for toolkit-not-prescription. MAP (Webb et al., Nature Communications 2025) for modular cognitive decomposition. Reflexion (Shinn et al., NeurIPS 2023) for metacognitive monitoring. CoALA (Sumers et al., TMLR 2024) for theoretical framework. Prompting Inversion (Bernstein et al., 2025) for adaptive scaffolding. Farnam Street (mental models), Tony Robbins (state management), Brené Brown (relational trust), cognitive neuroscience (executive function). Three-layer architecture, executive function as orchestrator, adaptive scaffolding, and cognitive quality in trust are Original to Ditto. See ADR-014.
 
+### Cross-Cutting: Meta Process Architecture (ADR-015)
+
+The ten system agents (ADR-008) are implementations of four higher-order **meta processes** — the fundamental processes through which the platform operates, creates, evolves, and reasons. ADR-015 organizes them into a coherent structural model:
+
+| Meta Process | What it does | System agents involved |
+|-------------|-------------|----------------------|
+| **Goal Framing** | Consultative conversation: listen → assess clarity → ask → reflect → hand off | intake-classifier, router, orchestrator |
+| **Build** | Creates all processes, agents, skills. Self-referential (builds itself). Research-driven. Generative core. | ai-agent (dev roles via `createCompletion()`, Ditto's own tools) |
+| **Process Execution** | Runs governed processes through the harness with trust, memory, feedback | trust-evaluator, governance-monitor |
+| **Feedback & Evolution** | Correction → pattern → structural insight → improvement proposal | improvement-scanner, process-analyst |
+
+A fifth element — the **Cognitive Framework** — is pervasive, not a meta process. It governs how the system approaches problems, prioritizes, makes trade-offs, exercises metacognition, and maintains space for intuition. It is the environment within which all meta processes operate.
+
+**The system runs ON itself.** Meta processes go through the same harness pipeline as user processes — earning trust, accumulating memory, receiving feedback. The dev pipeline (building Ditto itself) is the first validation target. See ADR-015.
+
+### Cross-Cutting: The Conversational Self (ADR-016)
+
+The Conversational Self is the outermost harness ring (see babushka diagram above) — the entity the user actually talks to. It is Layer 6 (Human Layer) given a voice: persistent identity, tiered context assembly, cross-surface coherence, and consultative framing.
+
+The Self is singular per user/workspace. Identity lives in the engine, not the surface. It delegates to roles/processes internally but presents a unified face. It thinks through the cognitive framework (ADR-014, ADR-015) — it doesn't just route.
+
+**Key mechanisms:**
+- **Self context assembly:** Tiered loading — core identity + user knowledge always in context (~4K tokens); work state summarized; session context for current conversation; recall + deep knowledge on demand via tools
+- **Self memory scope:** Third scope (`self`) alongside `agent` and `process` — stores user preferences, business context, relationship history spanning all processes
+- **Session persistence:** `sessions` table tracks conversation turns across surfaces, enabling cross-session and cross-surface continuity
+
+**Provenance:** Letta (tiered memory, self-editing blocks), Anthropic multi-agent (orchestrator-as-identity, just-in-time context), SOAR (metacognitive monitoring), Claude Code (auto-memory selectivity), Mem0 (extraction-reconciliation), Zep (temporal invalidation). Combining persistent identity + self-editing memory + delegation to governed processes + cross-surface coherence is Original to Ditto. See ADR-016.
+
 ### Layer 6: Human Layer (The Interface)
 
 A living workspace, not a dashboard. The user works IN Ditto — it's always open, actively working on their behalf, and pulls them in when judgment is needed. Three design principles govern the layer:
@@ -756,7 +792,9 @@ Process: Self-Improvement Scan
 
 ---
 
-## First Implementation: Coding Agent Team
+## First Implementation: Coding Agent Team (Historical)
+
+> **Note:** This section preserves the original design vision from pre-Phase 4 (before ADR-010, work items model). The actual implementation uses 7 dev roles (PM, Researcher, Designer, Architect, Builder, Reviewer, Documenter) as standalone `ai-agent` delegation processes — see `processes/dev-*-standalone.yaml`. The Conversational Self (ADR-016) delegates to these roles via tool_use. The dev pipeline also exists as `processes/dev-pipeline.yaml` for full sequential orchestration. The processes below were the starting conceptual model, not what shipped.
 
 The dogfood. Applying Ditto principles to agentic coding orchestration.
 
@@ -915,7 +953,7 @@ Trust:    Start supervised → earn spot-checked
 | API | Next.js API routes (start) → separate service (scale) | Start simple, split later |
 | Database | SQLite + Drizzle ORM (dogfood) → PostgreSQL (scale) | Zero-setup for dogfood. See ADR-001. |
 | Background jobs | Node.js worker / cron (start) → proper queue (scale) | Start simple |
-| Agent runtime | Claude Code (primary), scripts, HTTP adapters | Adapter pattern allows any runtime |
+| Agent runtime | Multi-provider LLM via `llm.ts` (Anthropic, OpenAI, Ollama), scripts, CLI subprocess (optional) | Adapter pattern, no vendor lock-in (Brief 032) |
 | Auth | API keys for agents, session auth for humans | Paperclip pattern |
 | Real-time | WebSocket for dashboard updates | Status, progress, alerts |
 | Mobile | Responsive web (start) → PWA → native (scale) | Progressive enhancement |
@@ -973,17 +1011,22 @@ Trust:    Start supervised → earn spot-checked
 
 ## Open Questions
 
-| Question | Impact | When to resolve |
-|----------|--------|----------------|
-| Ditto product name | Branding, repo name | Before public launch |
-| Pricing model | Revenue, market positioning | Before beta |
-| Multi-tenancy from day one? | Architecture complexity | Phase 1 |
-| Process template library — initial scope | Onboarding quality | Phase 3+ |
-| System analyst AI (meta-agent for setup) | Onboarding scalability | Phase 3+ |
-| OpenClaw integration specifics | Dogfood data sources | Partially addressed by ADR-005 (integration architecture). Specific OpenClaw adapter configuration deferred to Phase 6 build. |
-| Integration credential platform — build minimal, Nango, or Composio? | Security, infrastructure complexity | Before integration phase |
-| Integration registry format — YAML files or database-backed? | Developer experience, consistency with Insight-007 | Integration phase design |
-| Mobile capture — PWA vs native | Development effort | Phase 3 |
+| Question | Impact | When to resolve | Status |
+|----------|--------|----------------|--------|
+| Pricing model | Revenue, market positioning | Before beta | Open |
+| Multi-tenancy from day one? | Architecture complexity | Phase 10+ | Open |
+| Integration credential platform — build minimal, Nango, or Composio? | Security, infrastructure complexity | Brief 026 build | Open |
+| Mobile capture — PWA vs native | Development effort | Phase 13 | Open |
+
+### Resolved Questions
+
+| Question | Resolution | When resolved |
+|----------|-----------|---------------|
+| Product name | **Ditto** — "AI that doesn't reinvent, it remembers and improves" | 2026-03-21 |
+| Integration registry format | **YAML files** — per-service declaration files in `integrations/` (ADR-005, Brief 024) | 2026-03-21 |
+| Process template library scope | **3 templates** shipped in Phase 5: invoice-follow-up, content-review, incident-response (Brief 020) | 2026-03-21 |
+| System analyst AI | **Deferred to Phase 11** as `process-analyst` system agent (ADR-008). Outcome owner reframe means this may move earlier. | 2026-03-21 |
+| OpenClaw integration | Partially addressed by ADR-005 (multi-protocol architecture). Specific adapter deferred to Phase 6 build. | 2026-03-21 |
 
 ---
 

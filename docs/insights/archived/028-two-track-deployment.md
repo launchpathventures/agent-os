@@ -3,7 +3,7 @@
 **Date:** 2026-03-19
 **Trigger:** Architect persona check — the VPS + Tailscale deployment model fails for Rob, Lisa, and Nadia. Research into hosted cloud patterns confirmed every comparable OSS tool offers "sign up and start in 2 minutes."
 **Layers affected:** All layers (cross-cutting infrastructure decision)
-**Status:** absorbed into ADR-006 (runtime deployment)
+**Status:** absorbed into ADR-018 (runtime deployment, renumbered from ADR-006)
 
 ## The Insight
 

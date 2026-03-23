@@ -1,0 +1,46 @@
+# Standalone Reviewer process — single-step delegation target for the Conversational Self.
+# Runs the Reviewer role through the full harness (memory, trust, review, feedback).
+# Provenance: Brief 029 (structure), Brief 031 (ai-agent migration).
+
+name: Dev Reviewer (Standalone)
+id: dev-reviewer-standalone
+version: 2
+status: active
+
+description: >
+  Standalone Reviewer role. Reviews code changes against architecture and checklist.
+  Used by the Conversational Self for single-role delegation.
+
+trigger:
+  type: manual
+  description: Delegated by the Conversational Self
+
+inputs:
+  - name: task
+    type: text
+    source: manual
+    required: true
+    description: The code changes or work to review
+
+steps:
+  - id: reviewer-execute
+    name: Reviewer Execute
+    executor: ai-agent
+    agent_role: reviewer
+    config:
+      role_contract: .claude/commands/dev-reviewer.md
+      tools: read-only
+    description: >
+      Execute the Reviewer role: check code changes against
+      architecture spec and review checklist, produce verdict.
+    inputs: [task]
+    outputs: [review_verdict]
+
+outputs:
+  - name: review_verdict
+    type: text
+    destination: conversation
+    description: Review verdict with findings
+
+trust:
+  initial_tier: supervised
