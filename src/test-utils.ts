@@ -137,6 +137,7 @@ function createTables(sqlite: Database.Database): void {
       model TEXT,
       integration_service TEXT,
       integration_protocol TEXT,
+      tool_calls TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 

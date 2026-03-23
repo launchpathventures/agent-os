@@ -10,9 +10,8 @@
  * - readWriteTools: all four tools including write_file
  *
  * Provenance: Claude Code's own Read, Grep, Glob, Write tool patterns.
- * Architecture note: This is a pragmatic shortcut. When the integration registry
- * lands in Phase 6, tool resolution should move out of the adapter and into
- * the harness assembly step.
+ * Integration tools (Brief 025) are resolved separately by the tool-resolver
+ * and merged with these codebase tools in the Claude adapter.
  */
 
 import fs from "fs";

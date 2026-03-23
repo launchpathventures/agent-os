@@ -92,6 +92,10 @@ The canonical reference for every key term, concept, and component in Ditto. Thi
 - Layer: 6 (Human)
 - Related: APQC, Industry Standards, Process Builder, Conversation Thread
 
+**Catalog (View)** — A per-process declaration of which UI components are available for rendered-view outputs. Catalogs are Zod-based: the same definition validates AI output, generates prompts, and produces JSON Schema (triple-duty contract). Trust tiers modulate catalog richness. Catalogs compose by spreading from a base. Pattern adopted from json-render (Vercel Labs). ADR-009 v2.
+- Layer: 1 (Process), 6 (Human)
+- Related: Output Schema, Output Viewer, Registry, Work Surface
+
 **Capture** — One of the six human jobs. The question: "Here's something the system needs to know." Served primarily by the Quick Capture primitive.
 - Layer: 6 (Human)
 - Related: Quick Capture, Six Human Jobs, Capture View
@@ -364,9 +368,17 @@ The canonical reference for every key term, concept, and component in Ditto. Thi
 - Layer: 5 (Learning)
 - Related: Outcome Impact, Process Efficiency, Learning Layer, Quality Criteria
 
-**Output Viewer** — UI primitive (#6) that universally renders any output type: text (with diff), data (table with flags), visual (preview + annotation), code (syntax highlighted), action (confirmation log), decision (reasoning trace). Every interaction within the viewer IS feedback.
+**Output Destination Type** — One of five types that describe where a process output goes and Ditto's relationship to it: `data` (stays in Ditto, passes to next process), `view` (rendered on the work surface), `document` (exported/attached), `integration` (fired to external system via integration registry), `external` (produced artifact that leaves Ditto entirely, tracked as pointer). Defined in ADR-009 v2.
+- Layer: 1 (Process)
+- Related: Output Schema, Output Viewer, Work Surface
+
+**Output Schema** — A declaration in a process definition specifying what the process produces: output name, destination type, shape (Zod for data/view, MIME for document, service for integration), lifecycle (static or dynamic), and destination. Output schemas are contracts — process A's output schema is process B's input contract. Validated at sync time. ADR-009 v2.
+- Layer: 1 (Process)
+- Related: Output Destination Type, Process Definition, Catalog
+
+**Output Viewer** — UI primitive (#6) that renders process outputs on the work surface. Six presentation types within the view catalog: text (with diff), data (table with flags), visual (preview + annotation), code (syntax highlighted), action (confirmation log), decision (reasoning trace). Presentation types are distinct from the five output destination types (ADR-009 v2). Every interaction within the viewer IS feedback.
 - Layer: 6 (Human)
-- Related: Review, Review Queue, Feedback Widget
+- Related: Review, Review Queue, Feedback Widget, Output Schema, Catalog, Work Surface
 
 **Paperclip** — A major source project (28.1k stars). Provides the heartbeat execution model, adapter interface, budget controls, org structure, governance patterns, and immutable audit log. The primary reference for Layer 2.
 - Layer: Infrastructure
@@ -603,3 +615,7 @@ The canonical reference for every key term, concept, and component in Ditto. Thi
 **View Compositions** — The eight standard assemblies of UI primitives: Home, Review, Processes, Process Detail, Setup, Team, Improvements, and Capture. Each composition serves a specific user need by combining relevant primitives.
 - Layer: 6 (Human)
 - Related: UI Primitives, Home View, Review View, Setup View
+
+**Work Surface** — The primary gravitational center of the Ditto app. Where running processes, their current state, and their outputs live. Not a dashboard reporting on work — it IS the work: living, interactive, evolving. Process outputs (static and dynamic) manifest here. Distinct from the conversation surface, which is where the user and the Self align, decide, and steer. Insight-067, ADR-009 v2.
+- Layer: 6 (Human)
+- Related: Output Viewer, Conversation Surface, Output Schema, Conversational Self

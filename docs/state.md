@@ -1,7 +1,7 @@
 # Ditto — Current State
 
 **Last updated:** 2026-03-23
-**Current phase:** Brief 025 revised (Insight-065: Ditto-native tools, not MCP passthrough). Reviewed: PASS WITH FLAGS (3 should-fix, 2 notes — all addressed). Pending human approval. Next: Builder implements 025, then 026.
+**Current phase:** Briefs 035 + 036 approved (Phase 6c). Brief 035 (Credential Vault + Auth Unification) ready to build. 236 tests (17 test files).
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
@@ -12,10 +12,11 @@
 - **Process definitions** — 18 YAML processes in `processes/` (7 domain + 4 system + 7 standalone delegation roles). Parallel groups, depends_on, human steps, conditional routing (route_to/default_next). System processes have `system: true`. Standalone role processes (Brief 029, migrated Brief 031) are single-step `ai-agent` delegations with `config.role_contract` and `config.tools` (read-only or read-write).
 - **LLM provider abstraction (Briefs 029+032+033)** — `src/engine/llm.ts`. Multi-provider registry: Anthropic, OpenAI, Ollama (via OpenAI-compatible API). Ditto-native types (`LlmToolDefinition`, `LlmContentBlock`, `LlmMessage` etc.) — no SDK types leak beyond `llm.ts`. `createCompletion()`, `extractText()`, `extractToolUse()`, `getConfiguredModel()`, `getProviderName()`. Tool format translation (Anthropic ↔ OpenAI) internal. `initLlm()` startup validation — fails clearly if `LLM_PROVIDER` or `LLM_MODEL` not set. Per-provider cost tracking ($0 for Ollama), cost calculated on actual model from API response. `LlmCompletionResponse` includes actual `model` from API. No hardcoded default model or provider. Provenance: Vercel AI SDK pattern, 12-factor app, Insight-060, Insight-062.
 - **Model routing intelligence (Brief 033)** — `src/engine/model-routing.ts`. Step-level model hints (`fast`/`capable`/`default`) in process YAML `config.model_hint`. `resolveModel(hint)` maps to provider-specific models (Anthropic: Haiku/Opus, OpenAI: gpt-4o-mini/gpt-4o; Ollama falls back to default). Model recorded on every `stepRun` (both advance and pause paths). `generateModelRecommendations(db)` analyzes 20+ completed runs per (process, step, model): recommends cheaper model when quality comparable (within 5%), recommends upgrade when quality low (<80%). Current model determined from most recent 5 runs. Advisory only — no auto-switching. Process loader validates `model_hint` values. Provenance: Vercel AI SDK alias pattern, RouteLLM economics, process-level learned routing original to Ditto.
-- **Claude adapter (Brief 031)** — Role contract loading from `.claude/commands/dev-*.md` via `step.config.role_contract` (fallback to hardcoded prompts). Tool subset selection: `step.config.tools` → `readOnlyTools` or `readWriteTools`. Confidence parsing from response text (`CONFIDENCE: high|medium|low`). Tool use loop (read_file/search_files/list_files/write_file, max 25 calls). Uses `createCompletion()` from `llm.ts`.
+- **Claude adapter (Briefs 031+025)** — Role contract loading from `.claude/commands/dev-*.md` via `step.config.role_contract` (fallback to hardcoded prompts). Two tool categories merged at execution: codebase tools (`step.config.tools` → `readOnlyTools` or `readWriteTools`) + integration tools (resolved by harness from `step.tools`). Dispatches codebase calls to `executeTool()`, integration calls to `executeIntegrationTool()`. Confidence parsing from response text (`CONFIDENCE: high|medium|low`). Tool use loop (max 25 calls). Uses `createCompletion()` from `llm.ts`.
 - **CLI adapter (Brief 016a)** — `src/adapters/cli.ts`. Spawns `claude -p` as subprocess. Loads role contracts from `.claude/commands/dev-*.md`. Parses CONFIDENCE from output. costCents: 0 (subscription-based). Provenance: ralph (subprocess), Paperclip (adapter pattern).
 - **Script adapter** — Deterministic steps with on_failure
-- **Integration infrastructure (Brief 024)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. `integration` executor type in step-executor switch. `resolveAuth(service, cliInterface, processId?)` reads env vars (Brief 026 swaps to vault). Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol` on stepRuns. (ADR-005)
+- **Integration infrastructure (Briefs 024+025)** — `integrations/` directory with YAML registry files (Insight-007). Registry loader (`src/engine/integration-registry.ts`) parses, validates, caches by service name. Supports tool definitions in YAML: `IntegrationTool` type with name, description, parameters, execute config (CLI command template or REST endpoint). `getIntegrationTools(service)` export. CLI protocol handler (`src/engine/integration-handlers/cli.ts`) executes via child_process.exec with retry (3 attempts, 1s/2s/4s backoff), JSON parsing, credential scrubbing. REST protocol handler (`src/engine/integration-handlers/rest.ts`) — native `fetch`, GET/POST/PUT/DELETE, auth header injection (bearer_token/api_key from env vars), credential scrubbing on all paths. `integration` executor type in step-executor switch. `resolveAuth(service, cliInterface, processId?)` reads env vars (Brief 026 swaps to vault). Harness logs `integration.call` activities. Schema: `integrationService`/`integrationProtocol`/`toolCalls` on stepRuns. (ADR-005, Insight-065)
+- **Agent tool use (Brief 025)** — Step-level `tools: [service.tool_name]` in process YAML. Tool resolver (`src/engine/tool-resolver.ts`) maps qualified names to `LlmToolDefinition[]` + execution dispatch function. Memory-assembly handler resolves tools → `HarnessContext.resolvedTools`. Claude adapter merges integration tools with codebase tools; dispatches integration calls via `executeIntegrationTool()`, codebase calls via existing `executeTool()`. Tool calls logged on `stepRuns.toolCalls` (name, args, resultSummary, timestamp). Process loader validates `service.tool_name` format against registry at sync time. Tools are Ditto-native (`LlmToolDefinition`), works with any LLM provider — MCP deferred (Insight-065). 2 integrations with tools: GitHub (4 CLI tools), Slack (2 REST tools). Provenance: ADR-005, Insight-065, Nango git-tracked approach.
 - **Process loader** — YAML parsing, parallel_group containers, dependency validation, cycle detection, integration step validation (config.service required). Supports route_to, default_next, retry_on_failure fields (Brief 016b).
 - **CLI** — citty + @clack/prompts. 12 commands: sync, start, heartbeat, status, review, approve, edit, reject, trust, capture, complete, debt. TTY-aware, --json on listings. Unified task surface.
 - **Work items** — workItems table (type, status, goalAncestry, assignedProcess, spawnedFrom). Conditional flow (Insight-039).
@@ -35,14 +36,14 @@
 - **Agent tools (Brief 031)** — 4 tools: read_file, search_files, list_files (read-only), write_file (read-write). Path traversal prevention, secret deny-list, symlink protection. Exported as `readOnlyTools` (3) and `readWriteTools` (4).
 - **DB schema enforcement** — `pnpm cli sync` runs drizzle-kit push. Handles first-run and evolution.
 - **Debt tracking** — `docs/debts/` markdown files. `pnpm cli debt` to list.
-- **Dev process** — 7 roles as skills. Brief template. 37 active insights, 29 archived. 33 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
+- **Dev process** — 7 roles as skills. Brief template (with composition Level column, Insight-068). 40 active insights, 31 archived. 35 research reports. 12-point review checklist. Distributed knowledge maintenance (Insight-043): each role maintains docs it reads, Documenter does cross-cutting audit.
 - **Dev pipeline** — `claude -p` orchestrator + Telegram bot. Full Claude workspace on mobile. (Brief 015). Engine-integrated: `processes/dev-pipeline.yaml` runs 7 roles through the real harness with conditional routing (Brief 016c). Telegram bot routes free-text through the Conversational Self (Brief 030): `selfConverse()` assembles context, converses via LLM, delegates to dev roles via tool_use. Engine bridge (Brief 027) for explicit `/start` commands: `startProcessRun()` + `fullHeartbeat()` loop, review actions. Memory, trust, feedback all active.
 - **Review actions (Brief 027)** — `src/engine/review-actions.ts`. Shared approve/edit/reject logic extracted from CLI commands. Pure engine functions (no TTY, no process.exit). Step-level granularity via `findWaitingStepRun()`. Used by both CLI commands and Telegram bot.
 - **System agents (Brief 014a+014b+021)** — 4 system agents running through the harness pipeline: trust-evaluator (wraps Phase 3 code, spot-checked), intake-classifier (keyword matching, supervised), router (LLM-based via `llm.ts`, supervised), orchestrator (goal-directed — decomposes goals into tasks, routes around paused items, confidence-based stopping; supervised). `category: system` + `systemRole` on agents table. System agent registry dispatches via `script` executor + `systemAgent` config (Insight-044). `startSystemAgentRun()` for programmatic triggering.
 - **Goal-directed orchestrator (Brief 021+022)** — Decomposes goals into child work items using process step list as blueprint. `orchestratorHeartbeat()` iterates spawned tasks, routes around trust gate pauses to independent work. Confidence-based stopping: low confidence triggers escalation (Types 1/3/4). CLI: scope negotiation in `capture`, goal tree in `status`, escalation display. Schema: `decomposition` on workItems, `orchestratorConfidence` on processRuns.
 - **Process templates (Brief 020)** — 3 non-coding templates in `templates/`: invoice-follow-up (4 steps, 1 human), content-review (3 steps, all AI), incident-response (4 steps, 2 human). All include governance declarations (trust, quality_criteria, feedback). Loaded as `status: draft` via `aos sync`. Process loader reads from both `processes/` and `templates/`.
 - **Auto-classification capture (Brief 014b)** — `aos capture` auto-classifies work item type (keyword patterns) and auto-routes to best matching process (LLM). Falls back to interactive @clack/prompts on low confidence. System processes filtered from routing targets.
-- **Test infrastructure (Brief 017)** — vitest + 218 tests across 15 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032), metacognitive check + harness config + flag survival (21 tests, Brief 034b), model routing + hint resolution + recommendations (20 tests, Brief 033). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
+- **Test infrastructure (Brief 017)** — vitest + 236 tests across 17 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032), metacognitive check + harness config + flag survival (21 tests, Brief 034b), model routing + hint resolution + recommendations (20 tests, Brief 033), tool resolver + tool name validation + authorisation (8 tests, Brief 025), REST handler + auth injection + credential scrubbing (10 tests, Brief 025). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
 - **E2E verification (Brief 020)** — Full work evolution cycle verified: capture → classify → route → orchestrate → execute → human step → resume → review → trust update. All 6 architecture layers proven working. Report at `docs/verification/phase-5-e2e.md`.
 
 ## What Needs Rework
@@ -54,6 +55,7 @@
 
 ## Recently Completed
 
+- **Brief 025 complete** (Integration Tools + Agent Tool Use, Phase 6b) — Ditto-native integration tools (Insight-065): tool definitions in integration YAML, tool resolver (`src/engine/tool-resolver.ts`) maps `service.tool_name` → `LlmToolDefinition[]` + dispatch. REST handler (`src/engine/integration-handlers/rest.ts`): native fetch, auth injection, credential scrubbing. Memory-assembly handler resolves step tools → `HarnessContext.resolvedTools`. Claude adapter merges integration + codebase tools, dispatches via `executeIntegrationTool()`. `toolCalls` JSON field on stepRuns, recorded in both advance/pause paths. Process loader validates `service.tool_name` format against registry. GitHub integration: 4 CLI-backed tools. Slack integration: 2 REST-backed tools. MCP deferred (Insight-065). 18 new tests (236 total, 17 test files). Reviewed: PASS WITH FLAGS (1 must-fix fixed: REST success path credential scrubbing; 2 should-fix: REST error scrubbing fixed, architecture.md deferred to Documenter; 2 notes acknowledged). Approved 2026-03-23.
 - **Brief 033 complete** (Model Routing Intelligence) — `src/engine/model-routing.ts`: `resolveModel(hint)` maps `fast`/`capable`/`default` to provider-specific models (Anthropic, OpenAI; Ollama falls back to default). `generateModelRecommendations(db)` analyzes accumulated step run data (20+ runs threshold) — recommends cheaper model when quality comparable (within 5%), recommends upgrade when quality low (<80%). Current model determined from most recent 5 runs. Cost calculated on actual model from API response. `model` field added to `LlmCompletionResponse`, `StepExecutionResult`, `stepRuns` table. Claude adapter uses `resolveModel(step.config?.model_hint)`. CLI adapter returns model. Heartbeat records model in both advance and pause paths. Process loader validates `model_hint` on `ai-agent` steps. 20 new tests (218 total, 15 test files). Reviewed: PASS WITH FLAGS (1 should-fix: docs deferred to Documenter; 3 notes, 2 fixed: cost on actual model, recent-5 for current model). Approved 2026-03-23.
 - **Brief 034b complete** (Harness-Level Metacognitive Check) — `metacognitiveCheckHandler` in harness pipeline (after step-execution, before review-pattern). Auto-enabled for supervised+critical trust tiers. Opt-in via `harness.metacognitive: true` for spot_checked/autonomous. LLM self-check (maxTokens: 512) catches unsupported assumptions, missing edge cases, scope creep, contradictions. Issues → `context.reviewResult = 'flag'`. Shared `parseHarnessConfig()` extracted to `harness-config.ts`. Review-pattern handler updated: guards prior flag, merges reviewDetails. StepDefinition.harness type extended. 21 new tests (198 total, 14 test files). Reviewed: PASS WITH FLAGS (3 notes + 1 should-fix fixed: string output branch test added). Approved 2026-03-23. Insight-063 fully absorbed.
 - **Brief 034a complete** (Self Consultation + Decision Tracking) — `consult_role` as 5th Self tool (Inline weight, ADR-017 — no harness, no process run). Loads role contract, calls `createCompletion()` with `maxTokens: 1024`. Self decision tracking: every delegation, consultation, and inline response recorded via `recordSelfDecision()` in activities table. Self-correction memories: cross-turn redirect detection (prior session scan + negation heuristic) creates self-scoped correction memories with reinforcement. Cognitive framework (`cognitive/self.md`) updated with metacognitive checks section (5 pre-action checks + consultation guidance). Delegation guidance updated. `DelegationResult` extended with `costCents`. 16 new tests (177 total, 13 test files). Reviewed: PASS WITH FLAGS (4 flags, all fixed: `as any` removed, cross-turn detection added, recording path unified, mock test added). Approved 2026-03-23.
@@ -102,7 +104,7 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | AGPL-3.0 license | ADR-018 (was ADR-006) | Accepted |
 | Workspace interaction model | ADR-010 | Accepted |
 | System agents + templates + cold-start | ADR-008 | Accepted |
-| Runtime composable UI (no ViewSpec, React) | ADR-009 | Proposed |
+| Process output architecture (typed outputs, catalog-constrained views, trust-governed delivery, adopt json-render patterns) | ADR-009 v2 | Accepted |
 | Attention model (3 modes, confidence, silence) | ADR-011 | Accepted |
 | Context engineering, model routing, cost | ADR-012 | Accepted |
 | Cognitive model (mode, feedback, escalation) | ADR-013 | Accepted |
@@ -115,14 +117,16 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 
 | Brief | Phase | Status |
 |-------|-------|--------|
-| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024 complete. 025+026 ready. |
-| 025 — Integration Tools + Agent Tool Use (Phase 6b) | 6b | Draft — revised 2026-03-23 (Insight-065: Ditto-native tools, MCP deferred). Reviewed PASS WITH FLAGS (addressed). Pending approval. |
-| 026 — Credentials + Process I/O (Phase 6c) | 6c | Ready — reconciled and re-approved 2026-03-23 |
+| 023 — Phase 6 External Integrations (parent) | 6 | In progress — 024+025 complete. 026 split into 035+036. |
+| 025 — Integration Tools + Agent Tool Use (Phase 6b) | 6b | Complete — approved 2026-03-23. Ditto-native tools, REST handler. 236 tests (18 new). |
+| 026 — Credentials + Process I/O (Phase 6c, parent) | 6c | Reconciled 2026-03-23 — split into sub-briefs 035 + 036 per Insight-004 sizing. |
+| 035 — Credential Vault + Auth Unification (Phase 6c-1) | 6c | Ready — approved 2026-03-23. Build next. |
+| 036 — Process I/O: Triggers + Output Delivery (Phase 6c-2) | 6c | Ready — approved 2026-03-23. Depends on 035. |
 
 ## Next Steps
 
-1. **NOW:** Brief 025 revised. Pending human approval. Once approved, `/dev-builder` to implement.
-2. **PARALLEL TRACK:** Briefs 025+026 (Phase 6b/6c) remain ready. Touch different subsystems (integration registry).
+1. **NOW:** Brief 035 approved. Invoke `/dev-builder` to implement. Then Brief 036.
+2. **STILL NEEDED:** Architecture.md Layer 2 update for integration tool merging + ADR-005 post-implementation note (Insight-065).
 4. **Insight-064 active:** Benchmark Before Keep — metacognitive check handler must prove its value after 50 supervised runs (flag rate, catch rate, false positive rate). Decision thresholds defined.
 5. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite.
 7. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
@@ -131,6 +135,30 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 10. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
 11. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
 12. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+
+## Documenter Retrospective (2026-03-23 — Brief 025 Build)
+
+**What was produced this session:**
+1. Architect revised Brief 025 (MCP → Ditto-native tools, Insight-065). Reviewed PASS WITH FLAGS (5 flags, all addressed).
+2. Builder implemented Brief 025: tool-resolver.ts, rest.ts handler, integration-registry tools support, process-loader validation, harness plumbing, Claude adapter tool merging, stepRuns.toolCalls. 18 new tests (236 total, 17 test files).
+3. Builder review: PASS WITH FLAGS (1 must-fix fixed: REST success path credential scrubbing).
+4. Insight-065 captured and archived (fully absorbed by Brief 025).
+5. GitHub integration extended with 4 CLI-backed tools. Slack integration created with 2 REST-backed tools.
+6. Brief 025 moved to `docs/briefs/complete/`.
+
+**What worked:**
+- **The PM's challenge was essential.** Asking "is MCP the right model?" before building saved significant rework. The 031→032→033 execution model changes had invalidated the original MCP approach. Without the challenge, we'd have built MCP passthrough that conflicted with multi-provider support.
+- **Insight-first design.** Capturing Insight-065 before rewriting the brief made the rationale durable and reviewable. The Architect had a clear principle to design against.
+- **The tool resolver pattern is clean.** Integration tools follow the same `LlmToolDefinition` pattern as codebase tools — no special paths, no provider-specific code. The `executeIntegrationTool` dispatch function keeps execution behind a single interface.
+
+**What surprised:**
+- **The REST handler credential scrubbing gap.** The reviewer caught that the success path returned unscrubbed response text while the error path was correctly scrubbed. Same pattern, different paths, different treatment. Worth watching in future handlers.
+
+**What to change:**
+- **Architecture.md and ADR-005 still need updates.** The Reviewer flagged these as should-fix. The brief's After Completion section lists them. They should happen next session or as part of the next Documenter run.
+- **Insight count tracking is fragile.** Manually counting active/archived insights in state.md is error-prone. The Documenter keeps adjusting these numbers. Consider a script or `ls | wc -l` approach.
+
+---
 
 ## Documenter Retrospective (2026-03-23 — Post-Sprint Cross-Cutting Audit)
 

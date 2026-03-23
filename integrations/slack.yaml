@@ -1,0 +1,54 @@
+# Slack Integration
+#
+# Provides access to Slack messaging via REST API.
+# REST-only service example — no mature CLI, MCP deferred (Insight-065).
+#
+# Provenance: ADR-005 (REST as universal fallback), Brief 025 (Ditto-native tools)
+
+service: slack
+description: Slack messaging — search messages, send messages to channels
+interfaces:
+  rest:
+    base_url: https://slack.com/api
+    auth: bearer_token  # SLACK_BOT_TOKEN env var
+    headers:
+      Content-Type: application/json; charset=utf-8
+preferred: rest
+
+tools:
+  - name: search_messages
+    description: Search Slack messages matching a query. Returns matching messages with channel, user, and timestamp.
+    parameters:
+      query:
+        type: string
+        required: true
+        description: "Search query string"
+      count:
+        type: string
+        description: "Number of results to return (default 20)"
+    execute:
+      protocol: rest
+      method: GET
+      endpoint: /search.messages
+      query:
+        query: "{query}"
+        count: "{count}"
+
+  - name: send_message
+    description: Send a message to a Slack channel.
+    parameters:
+      channel:
+        type: string
+        required: true
+        description: "Channel ID (e.g., C01234567)"
+      text:
+        type: string
+        required: true
+        description: "Message text"
+    execute:
+      protocol: rest
+      method: POST
+      endpoint: /chat.postMessage
+      body:
+        channel: "{channel}"
+        text: "{text}"

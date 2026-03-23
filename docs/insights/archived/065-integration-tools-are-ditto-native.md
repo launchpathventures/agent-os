@@ -3,7 +3,7 @@
 **Date:** 2026-03-23
 **Trigger:** PM triage of Brief 025 post-Briefs 031-033. The execution model changed: Ditto now owns its tool layer (`tools.ts` with `LlmToolDefinition`, `executeTool()`), supports multiple LLM providers (`llm.ts`), and does internal tool format translation. MCP schema passthrough conflicts with all three.
 **Layers affected:** L2 Agent, L3 Harness
-**Status:** active
+**Status:** absorbed into Brief 025, ADR-005 (pending post-impl note)
 
 ## The Insight
 

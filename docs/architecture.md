@@ -228,8 +228,12 @@ Process: [Name]
 │   │   └── retry_on_failure: [max_retries, feedback_inject]
 │   ├── 2. [Action] → [Executor]
 │   └── N. [Action] → [Executor]
-├── Outputs:
-│   ├── [What] → [Destination: human review | another process | system]
+├── Outputs:                                    (ADR-009 v2)
+│   ├── [name]:
+│   │   ├── type: [data | view | document | integration | external]
+│   │   ├── schema: [shape declaration]
+│   │   ├── lifecycle: [static | dynamic]
+│   │   └── destination: [work-surface | process:<name> | integration:<service> | external]
 ├── Quality Criteria:
 │   ├── [Measurable standard]
 │   └── [Measurable standard]
@@ -381,8 +385,8 @@ Three additional mechanisms:
 Every process declares what it consumes (inputs + sources) and what it produces (outputs + destinations). This creates a live graph.
 
 When any process produces output:
-1. Output published to the process's output slot
-2. Dependent processes notified via event
+1. Output published to the process's output slot — typed per the process's output schema (ADR-009 v2: data, view, document, integration, external)
+2. Dependent processes notified via event — output schemas serve as typed contracts between processes, validated at definition time (`sync`)
 3. If output changed materially, dependent processes re-evaluate
 4. If a downstream process ran with stale input, it flags this to the human
 
@@ -669,7 +673,7 @@ Three activity contexts coexist (not hard mode switches):
 | # | Primitive | Purpose |
 |---|-----------|---------|
 | 5 | **Review Queue** | The primary review surface. Outputs that genuinely need human judgment — supervised outputs, sampled spot-checked outputs, and confidence-flagged outputs. Any output type, same interaction: review → approve / edit / reject / escalate. Includes "Auto-approve similar" for trust building. Autonomous process outputs appear as digest summaries (via Daily Brief or Process Card), not individual queue items (ADR-011). |
-| 6 | **Output Viewer** | Universal renderer. Text (with diff), data (table with flags), visual (preview + annotation), code (syntax highlighted), action (confirmation log), decision (reasoning trace). |
+| 6 | **Output Viewer** | Universal renderer for process outputs. Six presentation types within the view catalog: text (with diff), data (table with flags), visual (preview + annotation), code (syntax highlighted), action (confirmation log), decision (reasoning trace). These are display types for `view`-type outputs, distinct from the five output destination types in the process definition (ADR-009 v2). |
 | 7 | **Feedback Widget** | Embedded in review actions. Edits ARE feedback. Rejections ARE feedback. System captures structurally without forms. "Teach this" button bridges feedback to permanent learning. |
 
 ### Define (What needs to happen?)

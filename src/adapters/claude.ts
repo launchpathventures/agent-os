@@ -7,20 +7,19 @@
  * Follows the adapter pattern from Paperclip: invoke(), status(), cancel().
  * Each step gets a fresh context (ralph pattern) to avoid degradation.
  *
- * Tool use: When a step's declared inputs include codebase-type sources
- * (type: "repository" or type: "document" with source: "file"/"git"),
- * the adapter includes read-only codebase tools and handles the tool_use
- * loop until the model produces a final text response.
+ * Tool use: Two categories of tools, merged at execution time:
+ * 1. Codebase tools (read_file, search_files, list_files, write_file) — selected
+ *    by step.config.tools ("read-only" | "read-write") or legacy input-type detection.
+ * 2. Integration tools (Brief 025) — resolved by the harness memory-assembly handler
+ *    from step.tools declarations. Dispatched via executeIntegrationTool().
  *
- * Architecture note: Tool inclusion is a pragmatic shortcut — hardcoded here
- * based on input types. When the integration registry lands (Phase 6),
- * tool resolution moves to the harness assembly step.
+ * Provenance: Paperclip adapter pattern, Claude Code tool patterns, Brief 025 (Insight-065)
  */
 
 import fs from "fs";
 import nodePath from "path";
 import type { ProcessDefinition, StepDefinition } from "../engine/process-loader";
-import type { StepExecutionResult } from "../engine/step-executor";
+import type { StepExecutionResult, ToolCallRecord } from "../engine/step-executor";
 import { readOnlyTools, readWriteTools, toolDefinitions, executeTool, MAX_TOOL_CALLS } from "../engine/tools";
 import {
   createCompletion,
@@ -31,6 +30,10 @@ import {
   type LlmToolResultBlock,
 } from "../engine/llm";
 import { resolveModel } from "../engine/model-routing";
+import type { ResolvedTools } from "../engine/tool-resolver";
+
+/** Set of codebase tool names — used to dispatch to the right handler */
+const CODEBASE_TOOL_NAMES = new Set(["read_file", "search_files", "list_files", "write_file"]);
 
 /**
  * Build a system prompt for an agent step based on its role and context.
@@ -256,24 +259,30 @@ export const claudeAdapter = {
   async execute(
     step: StepDefinition,
     runInputs: Record<string, unknown>,
-    processDefinition: ProcessDefinition
+    processDefinition: ProcessDefinition,
+    resolvedTools?: ResolvedTools,
   ): Promise<StepExecutionResult> {
     const systemPrompt = buildSystemPrompt(step, processDefinition);
     const userMessage = buildUserMessage(step, runInputs);
 
-    // Determine which tools to include:
+    // Determine which codebase tools to include:
     // 1. step.config.tools explicitly declares "read-only" or "read-write"
     // 2. Legacy: stepNeedsTools() checks input types for backward compatibility
-    // 3. Default: no tools
+    // 3. Default: no codebase tools
     const toolsConfig = step.config?.tools as string | undefined;
-    let tools: LlmToolDefinition[] | undefined;
+    let codebaseTools: LlmToolDefinition[] = [];
     if (toolsConfig === "read-write") {
-      tools = readWriteTools;
+      codebaseTools = readWriteTools;
     } else if (toolsConfig === "read-only") {
-      tools = readOnlyTools;
+      codebaseTools = readOnlyTools;
     } else if (stepNeedsTools(step, processDefinition)) {
-      tools = readOnlyTools; // Legacy backward compatible
+      codebaseTools = readOnlyTools; // Legacy backward compatible
     }
+
+    // Merge codebase tools with integration tools (Brief 025)
+    const integrationToolDefs = resolvedTools?.tools ?? [];
+    const allTools: LlmToolDefinition[] = [...codebaseTools, ...integrationToolDefs];
+    const tools = allTools.length > 0 ? allTools : undefined;
 
     const model = resolveModel(step.config?.model_hint as string | undefined);
     console.log(`    Claude adapter: ${step.agent_role || "general"} agent`);
@@ -292,6 +301,7 @@ export const claudeAdapter = {
     let toolCallCount = 0;
     let finalText = "";
     let actualModel = model; // Will be updated with the actual model from API response
+    const toolCallRecords: ToolCallRecord[] = [];
 
     // Tool use loop: call API, handle tool_use responses, repeat until text
     while (true) {
@@ -337,14 +347,29 @@ export const claudeAdapter = {
 
       for (const toolBlock of toolUseBlocks) {
         toolCallCount++;
+        const toolInput = toolBlock.input as Record<string, unknown>;
         console.log(
-          `    Tool [${toolCallCount}]: ${toolBlock.name}(${summariseToolInput(toolBlock.input as Record<string, unknown>)})`
+          `    Tool [${toolCallCount}]: ${toolBlock.name}(${summariseToolInput(toolInput)})`
         );
 
-        const result = executeTool(
-          toolBlock.name,
-          toolBlock.input as Record<string, unknown>
-        );
+        let result: string;
+
+        if (CODEBASE_TOOL_NAMES.has(toolBlock.name)) {
+          // Codebase tool — synchronous dispatch
+          result = executeTool(toolBlock.name, toolInput);
+        } else if (resolvedTools) {
+          // Integration tool — async dispatch (Brief 025)
+          result = await resolvedTools.executeIntegrationTool(toolBlock.name, toolInput);
+          // Record integration tool call for logging on stepRuns
+          toolCallRecords.push({
+            name: toolBlock.name,
+            args: toolInput,
+            resultSummary: result.slice(0, 500),
+            timestamp: Date.now(),
+          });
+        } else {
+          result = `Unknown tool: ${toolBlock.name}`;
+        }
 
         toolResults.push({
           type: "tool_result",
@@ -376,10 +401,14 @@ export const claudeAdapter = {
       costCents: totalCostCents,
       confidence,
       model: actualModel,
+      toolCalls: toolCallRecords.length > 0 ? toolCallRecords : undefined,
       logs: [
         `Model: ${actualModel}`,
         `Tokens: ${totalTokens}`,
         `Tool calls: ${toolCallCount}`,
+        ...(toolCallRecords.length > 0
+          ? [`Integration tool calls: ${toolCallRecords.map((t) => t.name).join(", ")}`]
+          : []),
         `Confidence: ${confidence}`,
         `Stop reason: complete`,
       ],

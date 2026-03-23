@@ -368,6 +368,7 @@ async function executeSingleStep(
         costCents: stepResult.costCents || 0,
         confidenceLevel: stepResult.confidence || null,
         model: stepResult.model || null,
+        toolCalls: stepResult.toolCalls || null,
       })
       .where(eq(schema.stepRuns.id, stepRunRecord[0].id));
 
@@ -424,6 +425,7 @@ async function executeSingleStep(
       costCents: stepResult.costCents || 0,
       confidenceLevel: stepResult.confidence || null,
       model: stepResult.model || null,
+      toolCalls: stepResult.toolCalls || null,
     })
     .where(eq(schema.stepRuns.id, stepRunRecord[0].id));
 

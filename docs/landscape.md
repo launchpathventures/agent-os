@@ -44,6 +44,20 @@
 - **Ditto relevance:** MEDIUM-HIGH for Phase 10. Could power Output Viewer (Primitive 6) dynamic rendering and streaming conversation responses. Makes the workspace feel alive through progressive rendering. Evaluate alongside Vercel AI SDK.
 - **Limitation:** Early stage. Focused on rendering, not orchestration.
 
+**json-render** — github.com/vercel-labs/json-render
+- Vercel Labs | Active 2026 | TypeScript
+- Generative UI framework: AI produces flat JSON specs referencing a pre-approved component catalog (Zod-validated). Three-layer separation: Catalog (Zod schema defining allowed components + props + actions) → Registry (platform-specific implementations) → Renderer (takes spec + registry, renders safely).
+- Flat spec format (`{ root, elements: { id: { type, props, children } } }`) designed for LLM streaming — partial specs render progressively. Actions as first-class (predefined, not arbitrary handlers). State adapters (Redux, Zustand, Jotai, XState). MCP integration built in.
+- Cross-platform from one catalog: React, React Native, Vue, Svelte, SolidJS, React PDF, React Email, Remotion (video), React Three Fiber, Satori (OG images). 36 pre-built shadcn/ui components.
+- **Ditto relevance:** HIGH for rendered-view output type (Insight-066). Catalog-constrained rendering maps to trust-tier-governed output richness. One-catalog-many-registries enables multi-surface output rendering from a single process output schema. Flat spec format enables progressive rendering of dynamic outputs as processes execute. Evaluate as primary candidate for rendered-view output infrastructure. Supersedes OpenUI evaluation — more mature, richer ecosystem, Vercel backing.
+- **Limitation:** UI rendering only — one output type among many (Insight-066). No orchestration, trust, or governance.
+
+**Impeccable** — impeccable.style
+- Design skills package (Paul Bakaus) | Active 2026
+- 20 invocable slash commands packaging professional design expertise (typography, color, layout, motion, anti-patterns) for AI coding assistants. Command composition graph: commands declare what they pair with and lead to (e.g. `/audit` → `/normalize` → `/harden`). Persistent context via `.impeccable.md`. Anti-pattern databases alongside best practices.
+- **Ditto relevance:** MEDIUM-HIGH — instance of a broader pattern (Insight-069: skills packages as agent capabilities). Three uses: (1) Dev process — Builder/Reviewer roles use design skills when producing/reviewing UI code. (2) Harness quality gate — meta-agents run design audit/polish on rendered view outputs before delivery, same pattern as metacognitive check. (3) Pattern — external domain expertise packaged as agent toolkit extensions (ADR-014 toolkit layer). Applies to design, writing, accessibility, financial formatting, and any domain with packageable expertise.
+- **Limitation:** Prompts only, not a runtime. The value is the pattern and the design expertise, not adoptable code.
+
 **Claude Agent SDK** — `@anthropic-ai/claude-agent-sdk` (TypeScript + Python)
 - Active March 2026 | TypeScript + Python
 - Full programmatic agent orchestration SDK (NOT just a CLI wrapper). Async generator API: `query()` yields messages as agent executes. Built-in tool implementations (Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch). Handles full tool execution loop internally.

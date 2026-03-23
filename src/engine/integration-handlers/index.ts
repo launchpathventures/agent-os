@@ -2,7 +2,7 @@
  * Ditto — Integration Protocol Handler Registry
  *
  * Resolves the appropriate protocol handler for an integration step.
- * Currently supports CLI. MCP (Brief 025) and REST (Brief 026) extend this.
+ * Supports CLI (Brief 024) and REST (Brief 025). MCP deferred (Insight-065).
  *
  * Provenance: Sim Studio handler registry pattern, ADR-005 multi-protocol resolution
  */
@@ -10,6 +10,7 @@
 import type { StepExecutionResult } from "../step-executor";
 import type { IntegrationDefinition } from "../integration-registry";
 import { executeCli } from "./cli";
+import { executeRest } from "./rest";
 
 export interface IntegrationStepConfig {
   service: string;
@@ -46,14 +47,34 @@ export async function executeIntegration(
       });
     }
 
+    case "rest": {
+      const restInterface = integration.interfaces.rest;
+      if (!restInterface) {
+        throw new Error(
+          `Integration '${config.service}' has no REST interface but protocol is 'rest'`
+        );
+      }
+      // For integration steps (not tool use), execute as a simple GET
+      const { result, logs } = await executeRest({
+        service: config.service,
+        restInterface,
+        method: "GET",
+        endpoint: config.command,
+      });
+      return {
+        outputs: {
+          result,
+          service: config.service,
+          protocol: "rest",
+        },
+        confidence: "high",
+        logs,
+      };
+    }
+
     case "mcp":
       throw new Error(
-        `MCP protocol not yet implemented (Brief 025). Service: ${config.service}`
-      );
-
-    case "rest":
-      throw new Error(
-        `REST protocol not yet implemented (Brief 026). Service: ${config.service}`
+        `MCP protocol deferred (Insight-065). Service: ${config.service}`
       );
 
     default:

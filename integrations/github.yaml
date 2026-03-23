@@ -15,3 +15,75 @@ interfaces:
     env_vars:
       - GH_TOKEN       # Optional — gh CLI falls back to interactive auth
 preferred: cli
+
+tools:
+  - name: search_issues
+    description: Search issues in a GitHub repository. Returns JSON with issue number, title, body, state, and labels.
+    parameters:
+      repo:
+        type: string
+        required: true
+        description: "Repository in owner/repo format"
+      query:
+        type: string
+        description: "Search query string"
+      state:
+        type: string
+        description: "Filter by state: open, closed, all"
+    execute:
+      protocol: cli
+      command_template: "gh issue list --repo {repo} --json number,title,body,state,labels --limit 20"
+      args:
+        query: "--search '{query}'"
+        state: "--state {state}"
+
+  - name: list_prs
+    description: List pull requests in a GitHub repository. Returns JSON with PR number, title, state, author, and URL.
+    parameters:
+      repo:
+        type: string
+        required: true
+        description: "Repository in owner/repo format"
+      state:
+        type: string
+        description: "Filter by state: open, closed, merged, all"
+    execute:
+      protocol: cli
+      command_template: "gh pr list --repo {repo} --json number,title,state,author,url --limit 20"
+      args:
+        state: "--state {state}"
+
+  - name: get_issue
+    description: Get details of a specific GitHub issue by number. Returns JSON with full issue details.
+    parameters:
+      repo:
+        type: string
+        required: true
+        description: "Repository in owner/repo format"
+      number:
+        type: string
+        required: true
+        description: "Issue number"
+    execute:
+      protocol: cli
+      command_template: "gh issue view {number} --repo {repo} --json number,title,body,state,labels,assignees,comments"
+
+  - name: create_issue
+    description: Create a new issue in a GitHub repository.
+    parameters:
+      repo:
+        type: string
+        required: true
+        description: "Repository in owner/repo format"
+      title:
+        type: string
+        required: true
+        description: "Issue title"
+      body:
+        type: string
+        description: "Issue body (markdown)"
+    execute:
+      protocol: cli
+      command_template: "gh issue create --repo {repo} --title '{title}'"
+      args:
+        body: "--body '{body}'"

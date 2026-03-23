@@ -12,6 +12,7 @@ import type { TrustTier, TrustAction, ReviewResult } from "../db/schema";
 import type { ProcessDefinition, StepDefinition } from "./process-loader";
 import type { StepExecutionResult } from "./step-executor";
 import type { RoutingDecision } from "./harness-handlers/routing";
+import type { ResolvedTools } from "./tool-resolver";
 
 // ============================================================
 // Types
@@ -41,6 +42,9 @@ export interface HarnessContext {
   trustAction: TrustAction;
   samplingHash: string | null;
   canAutoAdvance: boolean;
+
+  // Integration tools (Brief 025 — resolved by memory-assembly handler, consumed by step-execution)
+  resolvedTools: ResolvedTools | null;
 
   // Routing decision (Brief 016b — set by routing handler, consumed by heartbeat)
   routingDecision: RoutingDecision | null;
@@ -116,6 +120,7 @@ export function createHarnessContext(params: {
     trustAction: "pause", // Safe default: pause until trust gate decides
     samplingHash: null,
     canAutoAdvance: true,
+    resolvedTools: null,
     routingDecision: null,
     shortCircuit: false,
   };

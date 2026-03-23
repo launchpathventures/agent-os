@@ -22,11 +22,11 @@ Ditto is a harness creator for human-agent collaboration. It creates the evolvin
 - `docs/dev-process.md` — How Ditto gets built: role contracts, session flows, quality check layering
 - `docs/insights/` — Design discoveries that emerge during building. One file per insight. Capture here; absorb into architecture.md or ADRs when mature.
 - `docs/changelog.md` — Historical record: completed phases, retrospectives, resolved decisions. Read on demand, not every session.
-- `docs/research/README.md` — Index of all 27 research reports with status and consumers.
+- `docs/research/README.md` — Index of all 35 research reports with status and consumers.
 
 ## Principles
 
-1. **Composition over invention** — build from existing projects. First question: "what can we build FROM?" not "what can we build?"
+1. **Composition over invention** — build from existing projects the way real developers use open source. First question: "what can we build FROM?" not "what can we build?" Three pragmatic levels: **depend** (npm install — only for mature, governed libraries), **adopt** (grab source files, understand them, adapt them, own them — for good code from immature projects), **pattern** (study the approach, implement your way — when only the idea transfers). (Insight-068)
 2. **Research before design** — scout the gold standard before every significant decision
 3. **Plan before build** — define the framework thoroughly before building agents
 4. **Process as primitive** — the atomic unit is a process, not a task or agent

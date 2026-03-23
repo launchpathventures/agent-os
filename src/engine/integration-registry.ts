@@ -2,10 +2,11 @@
  * Ditto — Integration Registry
  *
  * Loads integration declarations from YAML files in the integrations/ directory.
- * Each file declares a service and its available protocol interfaces.
+ * Each file declares a service, its available protocol interfaces, and its tools.
  * Pattern: Mirrors process-loader (YAML → typed definitions).
  *
- * Provenance: ADR-005 (integration architecture), Insight-007 (declarations vs state)
+ * Provenance: ADR-005 (integration architecture), Insight-007 (declarations vs state),
+ * Insight-065 (integration tools are Ditto-native)
  */
 
 import fs from "fs";
@@ -33,6 +34,41 @@ export interface RestInterface {
   headers?: Record<string, string>;
 }
 
+/** Parameter definition for an integration tool */
+export interface IntegrationToolParam {
+  type: string;
+  description?: string;
+  required?: boolean;
+  default?: string;
+}
+
+/** Execute config for a CLI-backed tool */
+export interface CliExecuteConfig {
+  protocol: "cli";
+  command_template: string;
+  /** Optional per-arg templates keyed by parameter name. Appended when param is provided. */
+  args?: Record<string, string>;
+}
+
+/** Execute config for a REST-backed tool */
+export interface RestExecuteConfig {
+  protocol: "rest";
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  endpoint: string;
+  body?: Record<string, string>;
+  query?: Record<string, string>;
+}
+
+export type ToolExecuteConfig = CliExecuteConfig | RestExecuteConfig;
+
+/** A tool declared in an integration YAML's tools section (Brief 025, Insight-065) */
+export interface IntegrationTool {
+  name: string;
+  description: string;
+  parameters: Record<string, IntegrationToolParam>;
+  execute: ToolExecuteConfig;
+}
+
 export interface IntegrationDefinition {
   service: string;
   description: string;
@@ -42,11 +78,52 @@ export interface IntegrationDefinition {
     rest?: RestInterface;
   };
   preferred: "cli" | "mcp" | "rest";
+  tools?: IntegrationTool[];
 }
 
 // ============================================================
 // Validation
 // ============================================================
+
+/**
+ * Validate a single tool definition.
+ * Returns error messages (empty array = valid).
+ */
+function validateTool(tool: Record<string, unknown>, index: number): string[] {
+  const errors: string[] = [];
+  const prefix = `tools[${index}]`;
+
+  if (!tool.name || typeof tool.name !== "string") {
+    errors.push(`${prefix}: missing or invalid 'name'`);
+  }
+  if (!tool.description || typeof tool.description !== "string") {
+    errors.push(`${prefix}: missing or invalid 'description'`);
+  }
+  if (!tool.parameters || typeof tool.parameters !== "object") {
+    errors.push(`${prefix}: missing or invalid 'parameters'`);
+  }
+  if (!tool.execute || typeof tool.execute !== "object") {
+    errors.push(`${prefix}: missing or invalid 'execute'`);
+  } else {
+    const exec = tool.execute as Record<string, unknown>;
+    if (!exec.protocol || !["cli", "rest"].includes(exec.protocol as string)) {
+      errors.push(`${prefix}.execute: 'protocol' must be 'cli' or 'rest'`);
+    }
+    if (exec.protocol === "cli" && !exec.command_template) {
+      errors.push(`${prefix}.execute: CLI tool requires 'command_template'`);
+    }
+    if (exec.protocol === "rest") {
+      if (!exec.method || !["GET", "POST", "PUT", "DELETE"].includes(exec.method as string)) {
+        errors.push(`${prefix}.execute: REST tool requires valid 'method'`);
+      }
+      if (!exec.endpoint || typeof exec.endpoint !== "string") {
+        errors.push(`${prefix}.execute: REST tool requires 'endpoint'`);
+      }
+    }
+  }
+
+  return errors;
+}
 
 /**
  * Validate an integration definition has all required fields.
@@ -102,6 +179,28 @@ export function validateIntegration(def: Record<string, unknown>): string[] {
     errors.push(`Invalid preferred protocol: ${def.preferred}`);
   } else if (ifaces && !(ifaces as Record<string, unknown>)[def.preferred as string]) {
     errors.push(`Preferred protocol '${def.preferred}' has no matching interface`);
+  }
+
+  // Validate tools if present (Brief 025)
+  if (def.tools) {
+    if (!Array.isArray(def.tools)) {
+      errors.push("'tools' must be an array");
+    } else {
+      const toolNames = new Set<string>();
+      for (let i = 0; i < def.tools.length; i++) {
+        const tool = def.tools[i] as Record<string, unknown>;
+        const toolErrors = validateTool(tool, i);
+        errors.push(...toolErrors);
+
+        // Check for duplicate tool names within a service
+        if (tool.name && typeof tool.name === "string") {
+          if (toolNames.has(tool.name)) {
+            errors.push(`tools[${i}]: duplicate tool name '${tool.name}'`);
+          }
+          toolNames.add(tool.name);
+        }
+      }
+    }
   }
 
   return errors;
@@ -177,6 +276,18 @@ export function getIntegration(
   integrationDir?: string
 ): IntegrationDefinition | undefined {
   return getIntegrationRegistry(integrationDir).get(service);
+}
+
+/**
+ * Get tools for a specific service from the registry.
+ * Returns empty array if service has no tools.
+ */
+export function getIntegrationTools(
+  service: string,
+  integrationDir?: string
+): IntegrationTool[] {
+  const integration = getIntegration(service, integrationDir);
+  return integration?.tools ?? [];
 }
 
 /**

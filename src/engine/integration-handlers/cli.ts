@@ -58,8 +58,9 @@ export function resolveAuth(
 /**
  * Scrub known credential env var names from text.
  * Prevents accidental credential exposure in logs.
+ * Exported for reuse by REST handler (Brief 025).
  */
-function scrubCredentials(
+export function scrubCredentials(
   text: string,
   authEnv: Record<string, string>,
 ): string {

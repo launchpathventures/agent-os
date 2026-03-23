@@ -11,6 +11,7 @@ import YAML from "yaml";
 import { db, schema } from "../db";
 import type { ProcessStatus, TrustTier, AgentCategory } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { getIntegration } from "./integration-registry";
 
 // ============================================================
 // Types
@@ -47,6 +48,10 @@ export interface StepDefinition {
   instructions?: string;
   input_fields?: HumanInputField[];
   timeout?: string; // e.g. "24h", "7d"
+
+  // Integration tools (Brief 025): service.tool_name format
+  // Provenance: ADR-005, Insight-065 (Ditto-native tools)
+  tools?: string[];
 
   // Conditional routing (Brief 016b)
   // Provenance: Inngest AgentKit three-mode routing, LangGraph conditional edges
@@ -183,6 +188,49 @@ export function validateModelHints(definition: ProcessDefinition): string[] {
         errors.push(
           `Step "${step.id}": invalid model_hint "${hint}". Valid: ${VALID_MODEL_HINTS.join(", ")}`,
         );
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validate step-level tools declarations against the integration registry.
+ * Format: service.tool_name (e.g., github.search_issues).
+ * Returns error messages (empty array = valid).
+ */
+export function validateStepTools(definition: ProcessDefinition): string[] {
+  const errors: string[] = [];
+  const allSteps = flattenSteps(definition);
+
+  for (const step of allSteps) {
+    if (step.tools && step.tools.length > 0) {
+      for (const toolName of step.tools) {
+        const dotIndex = toolName.indexOf(".");
+        if (dotIndex === -1) {
+          errors.push(
+            `Step "${step.id}": tool "${toolName}" must use service.tool_name format`,
+          );
+          continue;
+        }
+
+        const service = toolName.slice(0, dotIndex);
+        const action = toolName.slice(dotIndex + 1);
+        const integration = getIntegration(service);
+        if (!integration) {
+          errors.push(
+            `Step "${step.id}": tool "${toolName}" — service "${service}" not in integration registry`,
+          );
+          continue;
+        }
+
+        const tool = integration.tools?.find((t) => t.name === action);
+        if (!tool) {
+          errors.push(
+            `Step "${step.id}": tool "${toolName}" — action "${action}" not found in service "${service}"`,
+          );
+        }
       }
     }
   }
@@ -347,6 +395,16 @@ export async function syncProcessesToDb(
         console.error(`    - ${err}`);
       }
       throw new Error(`Process "${def.name}" has model hint errors`);
+    }
+
+    // Validate step-level tools (Brief 025: service.tool_name format)
+    const stepToolErrors = validateStepTools(def);
+    if (stepToolErrors.length > 0) {
+      console.error(`  Step tool validation errors in ${def.name}:`);
+      for (const err of stepToolErrors) {
+        console.error(`    - ${err}`);
+      }
+      throw new Error(`Process "${def.name}" has step tool errors`);
     }
 
     const existing = await db

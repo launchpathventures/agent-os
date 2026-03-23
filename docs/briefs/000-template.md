@@ -69,10 +69,15 @@ What NOT to do. Boundaries. Things that must be preserved.
 
 Where do the patterns for this work come from? Include why each source was chosen.
 
-| What | Source | Why this source |
-|------|--------|----------------|
-| {pattern/approach} | {project} `{file path}` | {why it fits} |
-| ... | ... | ... |
+| What | Source | Level | Why this source |
+|------|--------|-------|----------------|
+| {pattern/approach} | {project} `{file path}` | {depend / adopt / pattern} | {why it fits} |
+| ... | ... | ... | ... |
+
+Composition levels (Insight-068 — pragmatic, like real developers use open source):
+- **depend** — npm install. Reserved for mature, governed libraries (v1+, multiple maintainers, community).
+- **adopt** — grab source files, understand them, adapt them, own them. For good code from immature/experimental projects.
+- **pattern** — study the approach, implement your way. When only the conceptual idea transfers.
 
 ## What Changes (Work Products)
 

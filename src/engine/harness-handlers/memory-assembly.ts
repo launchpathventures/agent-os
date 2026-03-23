@@ -20,6 +20,7 @@
 import { db, schema } from "../../db";
 import { eq, and, desc } from "drizzle-orm";
 import type { HarnessHandler, HarnessContext } from "../harness";
+import { resolveTools } from "../tool-resolver";
 
 /** Default token budget for memory injection (4 chars ≈ 1 token) */
 const DEFAULT_TOKEN_BUDGET = 2000;
@@ -223,11 +224,23 @@ export const memoryAssemblyHandler: HarnessHandler = {
     if (sections.length === 0) {
       context.memories = "";
       context.memoriesInjected = 0;
-      return context;
+    } else {
+      context.memories = sections.join("\n\n");
+      context.memoriesInjected = injectedCount;
     }
 
-    context.memories = sections.join("\n\n");
-    context.memoriesInjected = injectedCount;
+    // --- Integration tool resolution (Brief 025) ---
+    // Resolve step-level tools into LlmToolDefinitions + dispatch function.
+    // Separate from memory budget — tools don't consume token budget.
+    if (context.stepDefinition.tools && context.stepDefinition.tools.length > 0) {
+      const resolved = resolveTools(context.stepDefinition.tools);
+      if (resolved.tools.length > 0) {
+        context.resolvedTools = resolved;
+        console.log(
+          `    Resolved ${resolved.tools.length} integration tool(s): ${resolved.tools.map((t) => t.name).join(", ")}`,
+        );
+      }
+    }
 
     return context;
   },

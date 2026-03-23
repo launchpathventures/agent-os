@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
 **Last updated:** 2026-03-23
-**Current phase:** Model routing intelligence shipped (Brief 033). Cognitive Architecture section complete (Briefs 029-034b). Next: Briefs 025+026 (Phase 6b/6c) or PM triages next work.
+**Current phase:** ADR-009 v2 accepted (Process Output Architecture). Insights 066-069 captured. Brief 035+036 awaiting approval. Next: PM triages.
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -237,16 +237,17 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | **Step executor extension (Brief 024)** | | | | |
 | `integration` executor type in schema + step-executor | done | ADR-005 | Handler registry pattern (Sim Studio) | `src/db/schema.ts`, `src/engine/step-executor.ts` |
 | CLI protocol handler (execute CLI commands, parse JSON output) | done | ADR-005 | Script adapter (existing) + Google Workspace CLI pattern | `src/engine/integration-handlers/cli.ts` |
-| MCP protocol handler (connect to MCP server, invoke tools) | not started | ADR-005, architecture.md L2 | Claude Agent SDK MCP, OpenClaw skills-over-MCP | Brief 025 |
-| REST protocol handler (HTTP calls with auth) | not started | ADR-005 | Standard HTTP client patterns | Brief 026 |
+| MCP protocol handler (connect to MCP server, invoke tools) | deferred | ADR-005, Insight-065 | Re-entry: when CLI+REST insufficient for a required service | — |
+| REST protocol handler (HTTP calls with auth) | done | ADR-005 | Standard HTTP client patterns (native fetch) | `src/engine/integration-handlers/rest.ts` (Brief 025) |
 | **Credential management (Brief 026)** | | | | |
 | Credential vault (encrypted storage, isolated from agent runtime) | not started | ADR-005 | Composio brokered credentials pattern | Brief 026 |
 | Token lifecycle (refresh, rotation, revocation) | not started | ADR-005 | Nango managed auth | Brief 026 |
 | Per-process, per-agent credential scoping | not started | ADR-005 | Original | Brief 026 |
 | **Agent tool use (Brief 025)** | | | | |
-| Step-level `tools:` field in process definitions | not started | ADR-005, architecture.md L2 | OpenClaw skills pattern | Brief 025 |
-| Tool resolution from integration registry at harness assembly | not started | ADR-005 | Claude Agent SDK dynamic tool loading | Brief 025 |
-| Tool authorisation via agent permissions | not started | architecture.md (Governance) | Schema fields from Phase 1 | Brief 025 |
+| Step-level `tools:` field in process definitions | done | ADR-005, Insight-065 | Ditto-native tool pattern (LlmToolDefinition) | `src/engine/process-loader.ts` (Brief 025) |
+| Tool resolution from integration registry at harness assembly | done | ADR-005, Insight-065 | Integration YAML tools section + tool-resolver | `src/engine/tool-resolver.ts` (Brief 025) |
+| Tool authorisation via step declaration | done | ADR-005 | Original — per-step `tools:` field in process definition | `src/engine/tool-resolver.ts` (Brief 025) |
+| Tool call logging on stepRuns | done | ADR-005 | `toolCalls` JSON field | `src/db/schema.ts` (Brief 025) |
 | **Process I/O (Brief 026)** | | | | |
 | External input sources in process definitions | not started | ADR-005, architecture.md L1 | Process definition source/trigger fields (existing) | Brief 026 |
 | Polling-based trigger handler | not started | ADR-005 | Standard polling pattern | Brief 026 |
@@ -418,7 +419,7 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Activity Feed | human-layer.md | Original design |
 | Performance Sparkline | human-layer.md | Original design |
 | Review Queue (part of unified task surface) | human-layer.md, ADR-010 | Original design |
-| Output Viewer (6 output types) | human-layer.md | Original design |
+| Output Viewer (6 presentation types within view catalog; renders process outputs per ADR-009 v2) | human-layer.md, ADR-009 v2 | Original design + json-render patterns (adopt) |
 | Feedback Widget (implicit capture) | human-layer.md | Original design |
 | Conversation Thread (universal — Explore + Operate) | human-layer.md, ADR-010 | Original design |
 | Process Builder | human-layer.md | Original design |
@@ -445,10 +446,14 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | "Teach this" (bridge feedback to learning) | human-layer.md | Original |
 | "Approve batch" / "Spot-check N" | human-layer.md | Original |
 | Progressive disclosure (boiling frog) | human-layer.md | Original |
-| **Composition principles (ADR-009)** | | |
-| Trust-aware UI density (supervised=full, autonomous=exceptions) | ADR-009 | Original |
-| No ViewSpec protocol — standard React conditional rendering | ADR-009 | Standard React |
-| Output Viewer as key composability primitive (6 output types) | human-layer.md, ADR-009 | Original |
+| **Composition + Output principles (ADR-009 v2)** | | |
+| Process output schemas (5 destination types, static/dynamic lifecycle) | ADR-009 v2, Insight-066 | Original + json-render spec types (adopt) |
+| Catalog-constrained view rendering (catalog → registry → renderer) | ADR-009 v2 | json-render (adopt, not depend — Insight-068) |
+| Trust-aware UI density (supervised=full, autonomous=exceptions) | ADR-009 v2 | Original |
+| Trust-governed output delivery + catalog richness | ADR-009 v2 | Original |
+| No ViewSpec protocol for app's own UI — standard React | ADR-009 v2 | Standard React |
+| Output-as-interface between processes (typed contracts, sync-time validation) | ADR-009 v2 | Original |
+| Skills packages as agent toolkit extensions (design quality, etc.) | Insight-069 | Impeccable pattern |
 | **Deferred evaluations** | | |
 | QA/Tester role evaluation — browser-based behavioral testing (re-entry from Insight-038) | Insight-038, research/qa-tester-role-in-dev-pipeline.md | gstack `/qa` pattern |
 | **Tech stack** | | |
@@ -526,7 +531,7 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | — Offline approve/reject with conflict resolution | mobile-remote-experience-ux.md | Original |
 | — Capture → Classify → Route pipeline with AI classifier | mobile-remote-experience-ux.md, input-type-taxonomies.md | Original |
 | — PWA vs native decision | mobile-interfaces-for-agent-platforms.md | Architect decides based on voice constraint |
-| — Formal view composition protocol (re-evaluate A2UI adoption) | ADR-009, runtime-composable-ui.md | A2UI (Google, Apache 2.0) or custom — deferred from Phase 10 |
+| — Formal multi-platform output protocol (re-evaluate A2UI adoption for surfaces beyond web) | ADR-009 v2, rendered-output-architectures.md | A2UI (Google, Apache 2.0) or extend json-render registry pattern — deferred from Phase 10 |
 | Session persistence across heartbeats | architecture.md L2 | Paperclip session codec |
 | Budget enforcement (hard stops) | architecture.md L2 | Paperclip `/server/src/services/budgets.ts` |
 
@@ -593,7 +598,8 @@ Unblocks Phase 3 (always-on heartbeats for trust earning). Engine codebase is th
 | Parallel CLI aggregation + interactive workflows | GitHub CLI + @clack/prompts | Phase 4: heterogeneous work surface in terminal. Factory-injected dependencies |
 | 24-event hooks for harness interception | Claude Agent SDK | Phase 4+: PreToolUse block/modify pattern for trust gate enforcement on external calls |
 | Streaming generative UI | Vercel AI SDK | Phase 10: conversation layer (ADR-010) |
-| Progressive streaming UI rendering | OpenUI | Phase 10: dynamic UI (ADR-010, evaluate) |
+| Catalog-constrained view rendering (flat spec, progressive rendering) | json-render (adopt) | Phase 10: process output rendering (ADR-009 v2). Adopt source code, not npm dependency (Insight-068) |
+| Progressive streaming UI rendering | OpenUI | Phase 10: dynamic UI (ADR-010, evaluate — superseded by json-render for output rendering) |
 | Three-file agent briefing (AGENTS.md + SOUL.md + IDENTITY.md) | antfarm | Phase 0: briefing system |
 | SKILL.md per capability | Paperclip | Phase 0: brief structure |
 | Architecture review as agent skill | Paperclip pr-report | Phase 0: review loop |

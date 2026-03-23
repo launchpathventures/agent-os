@@ -2,6 +2,7 @@
 
 **Date:** 2026-03-20
 **Status:** complete
+**Superseded by:** `rendered-output-architectures.md` (2026-03-23) — deeper extraction of json-render, OpenUI, Vercel AI SDK with implementation-level patterns. This report retains value for its SDUI/AG-UI coverage not repeated in the newer report.
 **Researcher:** Dev Researcher
 **Research question:** How do we ensure our UI is composable at runtime around universal components in response to the need of the user? What is the best technical approach and what are others doing?
 

@@ -298,10 +298,12 @@ export const stepRuns = sqliteTable("step_runs", {
   model: text("model"),
 
   // Integration tracking (Brief 024 — which service/protocol was used per step)
-  // Populated by the step-execution harness handler after integration steps complete.
-  // TODO: Wire population in step-execution handler when Brief 025 adds tool use context.
   integrationService: text("integration_service"),
   integrationProtocol: text("integration_protocol"),
+
+  // Integration tool calls log (Brief 025 — name, args, result summary, timestamp per call)
+  toolCalls: text("tool_calls", { mode: "json" })
+    .$type<Array<{ name: string; args: Record<string, unknown>; resultSummary: string; timestamp: number }>>(),
 
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()

@@ -12,6 +12,7 @@ import { scriptAdapter } from "../adapters/script";
 import { resolveSystemAgent } from "./system-agents";
 import { getIntegration } from "./integration-registry";
 import { executeIntegration } from "./integration-handlers";
+import type { ResolvedTools } from "./tool-resolver";
 
 export interface StepExecutionResult {
   outputs: Record<string, unknown>;
@@ -20,6 +21,15 @@ export interface StepExecutionResult {
   confidence?: "high" | "medium" | "low";
   logs?: string[];
   model?: string; // Which model executed this step (for learning/routing)
+  toolCalls?: ToolCallRecord[]; // Integration tool calls made during this step (Brief 025)
+}
+
+/** Record of an integration tool call made during step execution (Brief 025) */
+export interface ToolCallRecord {
+  name: string;
+  args: Record<string, unknown>;
+  resultSummary: string;
+  timestamp: number;
 }
 
 /**
@@ -28,13 +38,14 @@ export interface StepExecutionResult {
 export async function executeStep(
   step: StepDefinition,
   runInputs: Record<string, unknown>,
-  processDefinition: ProcessDefinition
+  processDefinition: ProcessDefinition,
+  resolvedTools?: ResolvedTools,
 ): Promise<StepExecutionResult> {
   console.log(`  Executing step: ${step.name} (${step.executor})`);
 
   switch (step.executor) {
     case "ai-agent":
-      return claudeAdapter.execute(step, runInputs, processDefinition);
+      return claudeAdapter.execute(step, runInputs, processDefinition, resolvedTools);
 
     case "cli-agent":
       return cliAdapter.execute(step, runInputs, processDefinition);
