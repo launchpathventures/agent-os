@@ -1,7 +1,7 @@
 # Ditto — Current State
 
 **Last updated:** 2026-03-23
-**Current phase:** Brief 032 complete. Multi-provider LLM support (Anthropic, OpenAI, Ollama). No hardcoded default — user configures provider and model at deployment. Ditto-native types replace all Anthropic SDK leaks. Next: `/dev-pm` to triage — Brief 033 (Model Routing Intelligence) or Briefs 025+026 (Phase 6b/6c).
+**Current phase:** Brief 034a complete. Self has metacognitive oversight: `consult_role` tool (Inline weight), Self decision tracking (activities table), Self-correction memories. Cognitive framework updated with metacognitive checks section. Next: Brief 034b (harness-level metacognitive check for all agents), Brief 033 (model routing), or Briefs 025+026 (Phase 6b/6c).
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
@@ -24,8 +24,8 @@
 - **Review patterns** — Maker-checker, adversarial, spec-testing. Retry with feedback injection.
 - **Memory** — Three durable scopes: agent-scoped + process-scoped + self-scoped (ADR-003, ADR-016, Brief 029) + intra-run context (ephemeral, Brief 027). Salience sorting, token-budgeted assembly (2000 tokens durable, 1500 tokens run context), feedback-to-memory bridge.
 - **Sessions (Briefs 029+030)** — `sessions` table with full lifecycle: create, append turns, resume within timeout, suspend after 30min idle (summary generated). Cross-surface resumption (ADR-016). DB-backed, not in-memory.
-- **Cognitive framework (Brief 029)** — `cognitive/self.md` (~1090 words). Consultative framing protocol, communication principles (competent/direct/warm/purposeful), trade-off heuristics, escalation sensitivity, dev pipeline domain context. Identity substrate for the Conversational Self.
-- **Conversational Self (Brief 030)** — `src/engine/self.ts` + `self-context.ts` + `self-delegation.ts`. The outermost harness ring: persistent identity, tiered context assembly (~4K token budget), `selfConverse()` conversation loop with tool_use delegation, session lifecycle. 4 delegation tools: `start_dev_role`, `approve_review`, `edit_review`, `reject_review`. Delegated roles run through full harness (trust, memory, feedback). Telegram bot routes free-text through the Self. 22 integration tests.
+- **Cognitive framework (Brief 029, extended 034a)** — `cognitive/self.md`. Consultative framing protocol, communication principles (competent/direct/warm/purposeful), trade-off heuristics, metacognitive checks (5 pre-action checks + teammate consultation guidance), escalation sensitivity, dev pipeline domain context. Identity substrate for the Conversational Self.
+- **Conversational Self (Briefs 030+034a)** — `src/engine/self.ts` + `self-context.ts` + `self-delegation.ts`. The outermost harness ring: persistent identity, tiered context assembly (~4K token budget), `selfConverse()` conversation loop with tool_use delegation, session lifecycle. 5 tools: `start_dev_role`, `consult_role` (Inline weight — Brief 034a), `approve_review`, `edit_review`, `reject_review`. `consult_role` loads role contract and calls `createCompletion()` directly (no harness, no process run, `maxTokens: 1024`). Self decision tracking: every delegation, consultation, and inline response recorded as activities. Self-correction memories: human redirects feed back into self-scoped memory with reinforcement. Cross-turn redirect detection (prior session turn scan + negation keyword heuristic). Delegated roles run through full harness (trust, memory, feedback). Telegram bot routes free-text through the Self.
 - **Human steps** — `executor: human` suspends execution, creates action work item with input_fields, `aos complete` resumes with human input.
 - **Pattern notification** — After 3+ corrections of same pattern, read-only notification surfaced. Precursor to Phase 8 "Teach this".
 - **Parallel execution** — Promise.all for parallel groups, depends_on resolution
@@ -41,7 +41,7 @@
 - **Goal-directed orchestrator (Brief 021+022)** — Decomposes goals into child work items using process step list as blueprint. `orchestratorHeartbeat()` iterates spawned tasks, routes around trust gate pauses to independent work. Confidence-based stopping: low confidence triggers escalation (Types 1/3/4). CLI: scope negotiation in `capture`, goal tree in `status`, escalation display. Schema: `decomposition` on workItems, `orchestratorConfidence` on processRuns.
 - **Process templates (Brief 020)** — 3 non-coding templates in `templates/`: invoice-follow-up (4 steps, 1 human), content-review (3 steps, all AI), incident-response (4 steps, 2 human). All include governance declarations (trust, quality_criteria, feedback). Loaded as `status: draft` via `aos sync`. Process loader reads from both `processes/` and `templates/`.
 - **Auto-classification capture (Brief 014b)** — `aos capture` auto-classifies work item type (keyword patterns) and auto-routes to best matching process (LLM). Falls back to interactive @clack/prompts on low confidence. System processes filtered from routing targets.
-- **Test infrastructure (Brief 017)** — vitest + 161 tests across 13 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032 — startup validation, tool translation, cost tracking, message format conversion). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
+- **Test infrastructure (Brief 017)** — vitest + 177 tests across 13 test files covering process-loader, trust-diff, heartbeat (including orchestratorHeartbeat), feedback-recorder, trust computation, system agents (registry, classifier, orchestrator decomposition + scheduling + escalation, step dispatch), integration registry (8 tests), CLI protocol handler (6 tests), memory-assembly intra-run context (6 tests, Brief 027), agent tools (9 tests, Brief 031), standalone YAML structure (11 tests, Brief 031), LLM provider abstraction (31 tests, Brief 032 — startup validation, tool translation, cost tracking, message format conversion). Real SQLite per test (no mocks). Anthropic + OpenAI SDKs mocked at module level. `pnpm test` runs in ~3.3s.
 - **E2E verification (Brief 020)** — Full work evolution cycle verified: capture → classify → route → orchestrate → execute → human step → resume → review → trust update. All 6 architecture layers proven working. Report at `docs/verification/phase-5-e2e.md`.
 
 ## What Needs Rework
@@ -53,6 +53,7 @@
 
 ## Recently Completed
 
+- **Brief 034a complete** (Self Consultation + Decision Tracking) — `consult_role` as 5th Self tool (Inline weight, ADR-017 — no harness, no process run). Loads role contract, calls `createCompletion()` with `maxTokens: 1024`. Self decision tracking: every delegation, consultation, and inline response recorded via `recordSelfDecision()` in activities table. Self-correction memories: cross-turn redirect detection (prior session scan + negation heuristic) creates self-scoped correction memories with reinforcement. Cognitive framework (`cognitive/self.md`) updated with metacognitive checks section (5 pre-action checks + consultation guidance). Delegation guidance updated. `DelegationResult` extended with `costCents`. 16 new tests (177 total, 13 test files). Reviewed: PASS WITH FLAGS (4 flags, all fixed: `as any` removed, cross-turn detection added, recording path unified, mock test added). Approved 2026-03-23.
 - **Brief 032 complete** (LLM Provider Extensibility) — Multi-provider `llm.ts` rewrite: Anthropic, OpenAI, Ollama. Ditto-native LLM types replace all Anthropic SDK type leaks across 6 caller files. `initLlm()` startup validation. Tool format translation (Anthropic ↔ OpenAI). Per-provider cost tracking (fixed pre-existing 10x underreporting bug). `getConfiguredModel()` replaces `DEFAULT_AGENT_MODEL` env var in all callers. `openai` dependency added. 31 new tests (161 total, 13 test files). Reviewed: PASS WITH FLAGS (4 flags: cost bug fixed, CLI adapter default tracked as debt, brief scope wording, docs deferred to Documenter). Approved 2026-03-23.
 - **Brief 031 complete** (Ditto Execution Layer) — All 7 dev roles migrated from `cli-agent` to `ai-agent` with Ditto's own tools. `write_file` tool added to `tools.ts` with same security model (path validation, secret deny-list, symlink protection). `readOnlyTools`/`readWriteTools` exports. Claude adapter: role contract loading from `.claude/commands/dev-*.md`, tool subset selection via `step.config.tools`, confidence parsing from response text. All 7 standalone YAMLs updated to version 2. 20 new tests (130 total). Reviewed: PASS WITH FLAGS (3 flags: smoke test needs live confirmation, ADR-017 Section 3 update, Ditto-native types deferred to 032). Approved 2026-03-23.
 - **ADR-017 accepted** (Delegation Weight Classes) — Three execution levels: Inline (Self reasons directly), Light (`ai-agent` → Claude, ~10-30s), Heavy (`cli-agent` → Claude Code, ~5-10min). Process definitions declare capabilities, runtime resolves execution mode. Light roles: PM, Researcher, Designer, Architect. Heavy roles: Builder, Reviewer, Documenter. OpenClaw-informed user choice model. Model routing deferred to ADR-012 extension. Reviewed: PASS WITH FLAGS (4 flags, all addressed). Approved 2026-03-23.
@@ -117,22 +118,48 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 | 031 — Ditto Execution Layer | L2 | Complete — approved 2026-03-23. |
 | 032 — LLM Provider Extensibility | L2 | Complete — approved 2026-03-23. Multi-provider llm.ts, Ditto-native types, no default. |
 | 033 — Model Routing Intelligence | L2+L5 | Ready — approved 2026-03-23. Model hints, tracking, Self recommends. Depends on 032 (complete). |
-| 034a — Self Consultation + Decision Tracking | L2+L5 | Planned — consult_role tool, Self decision tracking, Self-correction memories. Insight-063. |
-| 034b — Harness-Level Metacognitive Check | L3 | Planned — metacognitive check handler for all agents. Auto-enabled for supervised tier. Insight-063. |
+| 034a — Self Consultation + Decision Tracking | L2+L5 | Complete — approved 2026-03-23. consult_role tool, decision tracking, correction memories. 177 tests (16 new). |
+| 034b — Harness-Level Metacognitive Check | L3 | Draft — reviewed PASS WITH FLAGS (1 must-fix + 3 should-fix, all addressed). Metacognitive check handler for all agents. Auto-enabled for supervised+critical tiers. Insight-063. |
 
 ## Next Steps
 
-1. **NOW:** Brief 032 complete. Execution layer transition done: all roles via `ai-agent`, Ditto-native types, multi-provider LLM. Next: `/dev-pm` to triage — Brief 033 (Model Routing Intelligence) is the natural continuation, or Briefs 025+026 (Phase 6b/6c) for the parallel track.
-2. **PARALLEL TRACK:** Briefs 025+026 (Phase 6b/6c) remain ready. Touch different subsystems (integration registry) from 033 (model routing). Can run in parallel.
-3. **Insight-062 partially absorbed:** Items 1-4 (multi-provider, tools, all-roles-ai-agent, cli-agent-optional) complete via Briefs 031+032. Items 5-7 (model routing as learned capability) remain for Brief 033.
-4. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite (now should reflect multi-provider). ADR-017 update/supersession.
-5. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
-6. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
-7. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
-8. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
-9. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
-10. **Insight-058/059:** Repos are process targets. Processes need context bindings.
-11. **Insight-063 actioned:** Cognitive framework updated with metacognitive checks section (`cognitive/self.md`). Briefs 034a (Self consultation + decision tracking) and 034b (harness-level metacognitive check) planned. Independent — can build in parallel.
+1. **NOW:** Brief 034a complete. Self has metacognitive oversight (internal loop + external consultation). Next: Brief 034b (harness-level metacognitive check — all agents), Brief 033 (model routing), or Briefs 025+026 (Phase 6b/6c).
+2. **Brief 034b ready:** Harness-level metacognitive check handler for all agents. Auto-enabled for supervised+critical tiers. Independent of 033 and 025+026. Reviewed and flags addressed — ready for builder.
+3. **Brief 033 ready:** Model Routing Intelligence. Natural continuation of 031+032. Completes Insight-062 items 5-7.
+4. **PARALLEL TRACK:** Briefs 025+026 (Phase 6b/6c) remain ready. Touch different subsystems (integration registry).
+5. **Insight-063 partially absorbed:** Cognitive framework updated, Brief 034a shipped. Brief 034b remaining for full absorption.
+6. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite. ADR-017 update/supersession.
+7. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
+8. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
+9. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
+10. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
+11. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
+12. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+
+## Documenter Retrospective (2026-03-23 — Brief 034a Build + Insight-063)
+
+**What was produced this session:**
+1. Insight-063 captured and actioned: Self has no oversight — two-loop metacognitive model (internal checks + external consultation). Extended to all agents ("when it counts").
+2. Cognitive framework updated (`cognitive/self.md`): 5 metacognitive pre-action checks + teammate consultation guidance.
+3. Brief 034a designed (Architect), reviewed (PASS WITH FLAGS), and built (Builder): `consult_role` tool, `recordSelfDecision()`, `detectSelfRedirect()`, `recordSelfCorrection()`. 16 new tests.
+4. Brief 034b designed (Architect), reviewed (PASS WITH FLAGS, all flags addressed): harness-level metacognitive check handler. Ready for builder.
+5. All 4 reviewer flags on 034a fixed before approval: `as any` removed, cross-turn detection added, recording path unified, mock test added.
+
+**What worked:**
+- **The insight-to-brief-to-code pipeline ran in a single session.** PM identified the gap, the insight was captured, the cognitive framework was updated immediately (zero-code value delivery), then the Architect wrote briefs, the Builder implemented, and the Documenter closed the loop. The full dev pipeline exercised end-to-end.
+- **The creator's framing drove the design.** "Two loops — internal self-awareness and external teammate feedback" and "every agent should operate in this mode when it counts" directly shaped the architecture: Brief 034a for the Self, Brief 034b for all agents via the harness.
+- **Existing patterns composed well.** `consult_role` reused role contract loading from `claude.ts`, activity logging from `feedback-recorder.ts`, memory creation from `createMemoryFromFeedback()`. No new abstractions needed.
+- **Reviewer flag discipline worked.** The creator asked "have the flags been fixed?" and the answer was honestly "no." Fixing them before approval caught real issues: the `as any` casts were unnecessary, cross-turn detection was a genuine gap, and the mock test proved the consultation path works.
+
+**What surprised:**
+- **test-utils.ts `DEFAULT 1` for `reinforcement_count`** diverges from the schema's `DEFAULT 0`. This caused the correction memory reinforcement test to fail unexpectedly. The test-utils SQL must be kept in sync with Drizzle schema — this is known debt but bit us here.
+- **The `detectSelfRedirect` keyword ordering matters.** `ROLE_KEYWORDS.find()` returns the first match, so a message containing both "research" and "triage" returns whichever comes first in the array. Test had to be adjusted. The heuristic is lightweight and will need refinement once live data shows real patterns.
+
+**What to change:**
+- **Report flags with explicit FIXED/NOT FIXED status.** The creator had to ask whether flags were addressed. Future handoffs should always include a table showing each flag's resolution status.
+- **test-utils.ts defaults should match schema.** The `reinforcement_count DEFAULT 1` divergence is a ticking bomb. Should be reconciled (existing debt item).
+
+---
 
 ## Documenter Retrospective (2026-03-23 — Brief 032 Build)
 

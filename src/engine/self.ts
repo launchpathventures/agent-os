@@ -32,6 +32,9 @@ import {
   loadSessionTurns,
   getOrCreateSession,
   appendSessionTurn,
+  recordSelfDecision,
+  detectSelfRedirect,
+  recordSelfCorrection,
   type SessionTurn,
 } from "./self-context";
 import { selfTools, executeDelegation } from "./self-delegation";
@@ -117,17 +120,23 @@ export async function assembleSelfContext(
   // Delegation guidance — when to use tools vs respond directly
   sections.push(
     `<delegation_guidance>
-You have tools to delegate work to dev pipeline roles. Use them ONLY when the human is requesting actual work — research, design, architecture, building, reviewing, or triaging.
+You have tools to delegate work and consult teammates.
 
-Do NOT delegate for:
+**Delegation** (start_dev_role) spawns a full process run — expensive (~1-5 min). Use ONLY when the human is requesting actual work that needs a specific role's expertise.
+
+**Consultation** (consult_role) is a quick perspective check — cheap (~10 sec, one LLM call). Use when you want a second opinion before committing to a direction:
+- You're unsure which role is right for a task
+- The human's request could be interpreted multiple ways
+- A delegation result surprised you
+- You're synthesizing conflicting outputs
+
+Do NOT delegate or consult for:
 - Greetings, casual conversation, or check-ins
 - Status questions (you already have work state above)
 - Clarifying questions or consultative framing
 - Anything you can answer from your loaded context
 
-When the human's first message is casual, respond conversationally using the work state you already have. Be the competent teammate — you don't need to call in a specialist to say good morning.
-
-Delegation is expensive (spawns a full process run). Only delegate when there is a concrete task that needs a specific role's expertise.
+When the human's first message is casual, respond conversationally. Be the competent teammate — you don't need to call in a specialist to say good morning.
 </delegation_guidance>`,
   );
 
@@ -166,6 +175,7 @@ export interface SelfConverseResult {
   response: string;
   sessionId: string;
   delegationsExecuted: number;
+  consultationsExecuted: number;
   costCents: number;
 }
 
@@ -230,8 +240,37 @@ export async function selfConverse(
 
   // 4. Conversation loop — handle tool_use calls
   let delegationsExecuted = 0;
+  let consultationsExecuted = 0;
   let totalCostCents = 0;
   let finalResponse = "";
+
+  // Track last delegated role for cross-turn redirect detection (Flag 2, Brief 034a).
+  // Scan prior session turns for the most recent delegation to seed the tracker.
+  let lastDelegatedRole: string | null = null;
+  for (let i = priorTurns.length - 1; i >= 0; i--) {
+    const turnContent = priorTurns[i].content;
+    if (typeof turnContent === "string") {
+      // Look for delegation results like "Role: pm\nStatus: ..."
+      const roleMatch = turnContent.match(/^Role: (\w+)$/m);
+      if (roleMatch && priorTurns[i].role === "assistant") {
+        lastDelegatedRole = roleMatch[1];
+        break;
+      }
+    }
+  }
+
+  // Cross-turn redirect: human's new message contradicts the previous delegation
+  if (lastDelegatedRole) {
+    const { isRedirect, mentionedRole } = detectSelfRedirect(message);
+    if (isRedirect && mentionedRole) {
+      await recordSelfCorrection(
+        userId,
+        lastDelegatedRole,
+        mentionedRole,
+        message.slice(0, 200),
+      );
+    }
+  }
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const completion = await createCompletion({
@@ -248,8 +287,15 @@ export async function selfConverse(
     const toolUses = extractToolUse(completion.content);
 
     if (toolUses.length === 0) {
-      // No tool calls — this is the final response
+      // No tool calls — this is the final response (inline response)
       finalResponse = textContent;
+
+      // Record inline response decision
+      await recordSelfDecision({
+        decisionType: "inline_response",
+        details: { responseLength: textContent.length },
+        costCents: completion.costCents,
+      });
       break;
     }
 
@@ -269,17 +315,57 @@ export async function selfConverse(
     const toolResults: LlmToolResultBlock[] = [];
 
     for (const toolUse of toolUses) {
-      delegationsExecuted++;
+      const input = toolUse.input as Record<string, unknown>;
 
-      // Notify surface before delegation starts
-      if (callbacks?.onDelegationStart) {
-        await callbacks.onDelegationStart(toolUse.name, toolUse.input as Record<string, unknown>);
+      // Track consultations separately from delegations
+      if (toolUse.name === "consult_role") {
+        consultationsExecuted++;
+      } else {
+        delegationsExecuted++;
       }
 
-      const result = await executeDelegation(
-        toolUse.name,
-        toolUse.input as Record<string, unknown>,
-      );
+      // Notify surface before delegation/consultation starts
+      if (callbacks?.onDelegationStart) {
+        await callbacks.onDelegationStart(toolUse.name, input);
+      }
+
+      const result = await executeDelegation(toolUse.name, input);
+
+      // Record all Self decisions in one place (unified path)
+      if (toolUse.name === "start_dev_role") {
+        const role = input.role as string;
+
+        // Detect Self-correction: delegating to a different role than last time
+        if (lastDelegatedRole && role !== lastDelegatedRole) {
+          const { isRedirect } = detectSelfRedirect(message);
+          if (isRedirect) {
+            await recordSelfCorrection(
+              userId,
+              lastDelegatedRole,
+              role,
+              (input.task as string).slice(0, 200),
+            );
+          }
+        }
+
+        lastDelegatedRole = role;
+
+        await recordSelfDecision({
+          decisionType: "delegation",
+          details: { role, task: (input.task as string).slice(0, 200) },
+          costCents: 0, // delegation cost tracked separately in the process run
+        });
+      } else if (toolUse.name === "consult_role") {
+        await recordSelfDecision({
+          decisionType: "consultation",
+          details: {
+            role: input.role,
+            question: input.question,
+            responseLength: result.output.length,
+          },
+          costCents: result.costCents ?? 0,
+        });
+      }
 
       toolResults.push({
         type: "tool_result",
@@ -313,6 +399,7 @@ export async function selfConverse(
     response: finalResponse,
     sessionId: context.sessionId,
     delegationsExecuted,
+    consultationsExecuted,
     costCents: totalCostCents,
   };
 }

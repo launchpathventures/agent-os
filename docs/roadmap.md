@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
 **Last updated:** 2026-03-23
-**Current phase:** LLM provider extensibility complete (Brief 032). Multi-provider support: Anthropic, OpenAI, Ollama. No hardcoded default. Ditto-native types. Next: Brief 033 (Model Routing Intelligence) or Briefs 025+026 (Phase 6b/6c).
+**Current phase:** Self metacognitive oversight complete (Brief 034a). Consultation tool, decision tracking, correction memories. Cognitive framework updated. Next: Brief 034b (harness-level metacognitive check), Brief 033 (model routing), or Briefs 025+026 (Phase 6b/6c).
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -287,6 +287,12 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Multi-provider `llm.ts` (Anthropic, OpenAI, Ollama) | done | Insight-062, Insight-041 | Vercel AI SDK pattern | `src/engine/llm.ts` (Brief 032) |
 | No hardcoded default model — user configures at deployment | done | Insight-062 | 12-factor app pattern | `src/engine/llm.ts` (Brief 032) |
 | Startup validation (fail clearly if LLM not configured) | done | Insight-062 | Existing DB sync pattern | `src/engine/llm.ts` (Brief 032) |
+| **Self Metacognitive Oversight (Briefs 034a+034b, Insight-063)** | | | | |
+| `consult_role` tool (Inline weight consultation) | done | ADR-017, Insight-063 | ADR-017 Inline weight + role contract pattern | `src/engine/self-delegation.ts` (Brief 034a) |
+| Self decision tracking (delegation/consultation/inline) | done | Insight-063 | Activity logging from feedback-recorder | `src/engine/self-context.ts` (Brief 034a) |
+| Self-correction memories (cross-turn redirect detection) | done | Insight-063 | feedback-to-memory bridge pattern | `src/engine/self-context.ts` (Brief 034a) |
+| Cognitive framework metacognitive checks | done | Insight-063, ADR-014 | Original | `cognitive/self.md` (Brief 034a) |
+| Harness-level metacognitive check handler (all agents) | not started | Insight-063, ADR-014 | HarnessHandler interface | Brief 034b |
 | **Model Routing Intelligence (Brief 033)** | | | | |
 | Step-level `model_hint` in process definitions | not started | ADR-017, ADR-014 | ADR-017 runtime resolution | Brief 033 |
 | Model tracking on step runs (which model produced what) | not started | ADR-014 Phase B1 | Original | Brief 033 |

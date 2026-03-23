@@ -314,6 +314,114 @@ export async function appendSessionTurn(
     .where(eq(schema.sessions.id, sessionId));
 }
 
+// ============================================================
+// Self Decision Tracking (Brief 034a, Insight-063)
+// ============================================================
+
+/**
+ * Record a Self-level decision as an activity.
+ * Tracks delegations, consultations, and inline responses for pattern detection.
+ *
+ * Provenance: Activity logging pattern from feedback-recorder.ts.
+ */
+export async function recordSelfDecision(params: {
+  decisionType: "delegation" | "consultation" | "inline_response";
+  details: Record<string, unknown>;
+  costCents: number;
+}): Promise<void> {
+  await db.insert(schema.activities).values({
+    action: `self.decision.${params.decisionType}`,
+    actorType: "self",
+    entityType: "session",
+    entityId: "self",
+    metadata: {
+      ...params.details,
+      costCents: params.costCents,
+    },
+  });
+}
+
+/** Negation keywords that suggest the human is redirecting the Self's decision */
+const NEGATION_KEYWORDS = ["no", "wrong", "not that", "i meant", "actually", "instead"];
+
+/** Role keywords for detection */
+const ROLE_KEYWORDS = [
+  "pm", "researcher", "designer", "architect", "builder", "reviewer", "documenter",
+  "triage", "research", "design", "architecture", "build", "review", "document",
+];
+
+/**
+ * Check if a human message is redirecting the Self's previous delegation choice.
+ * Detection: substring match on negation + role keywords.
+ *
+ * Provenance: Original — lightweight heuristic for Self-correction detection (Brief 034a).
+ */
+export function detectSelfRedirect(
+  humanMessage: string,
+): { isRedirect: boolean; mentionedRole: string | null } {
+  const lower = humanMessage.toLowerCase();
+  const hasNegation = NEGATION_KEYWORDS.some((kw) => lower.includes(kw));
+  if (!hasNegation) return { isRedirect: false, mentionedRole: null };
+
+  const mentionedRole = ROLE_KEYWORDS.find((kw) => lower.includes(kw)) ?? null;
+  return { isRedirect: mentionedRole !== null, mentionedRole };
+}
+
+/**
+ * Record a Self-correction memory when the human redirects a delegation choice.
+ * Uses self-scoped memory with the existing feedback-to-memory pattern.
+ *
+ * Provenance: createMemoryFromFeedback() from feedback-recorder.ts (adapted for self scope).
+ */
+export async function recordSelfCorrection(
+  userId: string,
+  originalRole: string,
+  correctedRole: string,
+  taskSummary: string,
+): Promise<void> {
+  const content = `Self delegated to ${originalRole} but human wanted ${correctedRole} for: ${taskSummary}`;
+
+  // Check for exact duplicate — reinforce if exists
+  const [existing] = await db
+    .select()
+    .from(schema.memories)
+    .where(
+      and(
+        eq(schema.memories.scopeType, "self"),
+        eq(schema.memories.scopeId, userId),
+        eq(schema.memories.content, content),
+        eq(schema.memories.active, true),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(schema.memories)
+      .set({
+        reinforcementCount: existing.reinforcementCount + 1,
+        lastReinforcedAt: new Date(),
+        confidence: Math.min(0.9, 0.3 + existing.reinforcementCount * 0.15),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.memories.id, existing.id));
+  } else {
+    await db.insert(schema.memories).values({
+      scopeType: "self",
+      scopeId: userId,
+      type: "correction",
+      content,
+      source: "feedback",
+      confidence: 0.3,
+      active: true,
+    });
+  }
+}
+
+// ============================================================
+// Session Helpers
+// ============================================================
+
 /**
  * Generate a simple summary from session turns.
  * Used when suspending a session (no LLM reconciliation in MVP — deferred).

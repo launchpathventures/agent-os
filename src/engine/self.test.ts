@@ -23,8 +23,20 @@ vi.mock("../db", async () => {
   };
 });
 
+// Mock LLM for consultation tests (Brief 034a, Flag 4)
+const mockCreateCompletion = vi.fn();
+const mockExtractText = vi.fn();
+vi.mock("./llm", async () => {
+  const real = await vi.importActual<typeof import("./llm")>("./llm");
+  return {
+    ...real,
+    createCompletion: (...args: unknown[]) => mockCreateCompletion(...args),
+    extractText: (...args: unknown[]) => mockExtractText(...args),
+  };
+});
+
 // Import after mock
-const { loadWorkStateSummary, loadSelfMemories, loadSessionTurns, getOrCreateSession, appendSessionTurn, SESSION_IDLE_TIMEOUT_MS } = await import("./self-context");
+const { loadWorkStateSummary, loadSelfMemories, loadSessionTurns, getOrCreateSession, appendSessionTurn, SESSION_IDLE_TIMEOUT_MS, recordSelfDecision, recordSelfCorrection, detectSelfRedirect } = await import("./self-context");
 const { selfTools, executeDelegation } = await import("./self-delegation");
 const { assembleSelfContext } = await import("./self");
 
@@ -283,13 +295,14 @@ describe("loadSessionTurns", () => {
 // ============================================================
 
 describe("selfTools", () => {
-  it("defines all four delegation tools", () => {
-    expect(selfTools).toHaveLength(4);
+  it("defines all five delegation and consultation tools", () => {
+    expect(selfTools).toHaveLength(5);
     const names = selfTools.map((t) => t.name);
     expect(names).toContain("start_dev_role");
     expect(names).toContain("approve_review");
     expect(names).toContain("edit_review");
     expect(names).toContain("reject_review");
+    expect(names).toContain("consult_role");
   });
 
   it("start_dev_role accepts all 7 roles", () => {
@@ -402,6 +415,221 @@ describe("assembleSelfContext", () => {
     const context = await assembleSelfContext("creator", "telegram");
     // 4K tokens * 4 chars/token = 16K chars
     expect(context.systemPrompt.length).toBeLessThanOrEqual(16000);
+  });
+});
+
+// ============================================================
+// Brief 034a: Consultation Tool (AC1, AC2, AC6)
+// ============================================================
+
+describe("consult_role tool definition", () => {
+  it("selfTools contains 5 tools including consult_role", () => {
+    expect(selfTools).toHaveLength(5);
+    const names = selfTools.map((t) => t.name);
+    expect(names).toContain("consult_role");
+  });
+
+  it("consult_role accepts role enum, question, and optional context", () => {
+    const consultTool = selfTools.find((t) => t.name === "consult_role")!;
+    const props = (consultTool.input_schema as any).properties;
+    expect(props.role.enum).toHaveLength(7);
+    expect(props.question.type).toBe("string");
+    expect(props.context.type).toBe("string");
+    expect((consultTool.input_schema as any).required).toEqual(["role", "question"]);
+  });
+
+  it("consult_role with invalid role returns graceful error", async () => {
+    const result = await executeDelegation("consult_role", {
+      role: "hacker",
+      question: "Is this a good idea?",
+    });
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("Invalid role");
+    expect(result.output).toContain("hacker");
+  });
+
+  it("consult_role calls createCompletion and returns role perspective", async () => {
+    // Mock LLM response
+    mockCreateCompletion.mockResolvedValueOnce({
+      content: [{ type: "text", text: "This approach looks sound. The scope is well-contained." }],
+      costCents: 1,
+      tokensUsed: 50,
+      stopReason: "end_turn",
+    });
+    mockExtractText.mockReturnValueOnce("This approach looks sound. The scope is well-contained.");
+
+    const result = await executeDelegation("consult_role", {
+      role: "architect",
+      question: "Does this design make sense?",
+      context: "We're adding a metacognitive check handler",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("[architect perspective]");
+    expect(result.output).toContain("This approach looks sound");
+    expect(result.costCents).toBe(1);
+
+    // Verify createCompletion was called with right shape
+    expect(mockCreateCompletion).toHaveBeenCalledOnce();
+    const callArgs = mockCreateCompletion.mock.calls[0][0];
+    expect(callArgs.maxTokens).toBe(1024);
+    expect(callArgs.system).toContain("consulted briefly");
+    expect(callArgs.messages[0].content).toContain("Does this design make sense?");
+    expect(callArgs.messages[0].content).toContain("metacognitive check handler");
+
+    mockCreateCompletion.mockReset();
+    mockExtractText.mockReset();
+  });
+});
+
+// ============================================================
+// Brief 034a: Self Decision Tracking (AC9, AC13)
+// ============================================================
+
+describe("recordSelfDecision", () => {
+  it("creates an activity record for delegation decision", async () => {
+    await recordSelfDecision({
+      decisionType: "delegation",
+      details: { role: "pm", task: "triage next work" },
+      costCents: 0,
+    });
+
+    const activities = testDb
+      .select()
+      .from(schema.activities)
+      .all();
+    expect(activities).toHaveLength(1);
+    expect(activities[0].action).toBe("self.decision.delegation");
+    expect((activities[0].metadata as any).role).toBe("pm");
+  });
+
+  it("creates an activity record for consultation decision", async () => {
+    await recordSelfDecision({
+      decisionType: "consultation",
+      details: { role: "architect", question: "Does this make sense?", responseLength: 150 },
+      costCents: 2,
+    });
+
+    const activities = testDb
+      .select()
+      .from(schema.activities)
+      .all();
+    expect(activities).toHaveLength(1);
+    expect(activities[0].action).toBe("self.decision.consultation");
+    expect((activities[0].metadata as any).role).toBe("architect");
+    expect((activities[0].metadata as any).costCents).toBe(2);
+  });
+
+  it("creates an activity record for inline response", async () => {
+    await recordSelfDecision({
+      decisionType: "inline_response",
+      details: { responseLength: 42 },
+      costCents: 1,
+    });
+
+    const activities = testDb
+      .select()
+      .from(schema.activities)
+      .all();
+    expect(activities).toHaveLength(1);
+    expect(activities[0].action).toBe("self.decision.inline_response");
+  });
+});
+
+// ============================================================
+// Brief 034a: Self Redirect Detection (AC11)
+// ============================================================
+
+describe("detectSelfRedirect", () => {
+  it("detects negation + role keyword as redirect", () => {
+    const result = detectSelfRedirect("No, I meant research on this topic");
+    expect(result.isRedirect).toBe(true);
+    expect(result.mentionedRole).toBe("research");
+  });
+
+  it("does not flag messages without negation", () => {
+    const result = detectSelfRedirect("Let's do some research");
+    expect(result.isRedirect).toBe(false);
+  });
+
+  it("does not flag negation without role keywords", () => {
+    const result = detectSelfRedirect("No, that's not what I meant");
+    expect(result.isRedirect).toBe(false);
+  });
+
+  it("detects 'actually' as negation keyword", () => {
+    const result = detectSelfRedirect("Actually, this needs the architect");
+    expect(result.isRedirect).toBe(true);
+    expect(result.mentionedRole).toBe("architect");
+  });
+
+  it("detects 'instead' as negation keyword", () => {
+    const result = detectSelfRedirect("Use the builder instead");
+    expect(result.isRedirect).toBe(true);
+    expect(result.mentionedRole).toBe("builder");
+  });
+});
+
+// ============================================================
+// Brief 034a: Self Correction Memories (AC11, AC12)
+// ============================================================
+
+describe("recordSelfCorrection", () => {
+  it("creates a self-scoped correction memory", async () => {
+    await recordSelfCorrection("creator", "pm", "architect", "design the auth system");
+
+    const memories = testDb
+      .select()
+      .from(schema.memories)
+      .all();
+    expect(memories).toHaveLength(1);
+    expect(memories[0].scopeType).toBe("self");
+    expect(memories[0].scopeId).toBe("creator");
+    expect(memories[0].type).toBe("correction");
+    expect(memories[0].content).toContain("Self delegated to pm");
+    expect(memories[0].content).toContain("human wanted architect");
+    expect(memories[0].confidence).toBe(0.3);
+  });
+
+  it("reinforces existing correction memory on duplicate", async () => {
+    await recordSelfCorrection("creator", "pm", "architect", "design the auth system");
+
+    // Verify first insert worked (test-utils defaults reinforcementCount to 1)
+    const first = testDb.select().from(schema.memories).all();
+    expect(first).toHaveLength(1);
+    const initialCount = first[0].reinforcementCount;
+
+    await recordSelfCorrection("creator", "pm", "architect", "design the auth system");
+
+    const memories = testDb
+      .select()
+      .from(schema.memories)
+      .all();
+    // Should still be 1 memory (deduplicated), with incremented count
+    expect(memories).toHaveLength(1);
+    expect(memories[0].reinforcementCount).toBe(initialCount + 1);
+    expect(memories[0].confidence).toBeGreaterThan(0.3);
+  });
+
+  it("self-correction memories are loaded by loadSelfMemories", async () => {
+    await recordSelfCorrection("creator", "pm", "architect", "design the auth system");
+
+    const result = await loadSelfMemories("creator");
+    expect(result).toContain("Self delegated to pm");
+    expect(result).toContain("human wanted architect");
+  });
+});
+
+// ============================================================
+// Brief 034a: Delegation Guidance Update (AC8)
+// ============================================================
+
+describe("delegation guidance includes consultation", () => {
+  it("system prompt includes consult_role guidance", async () => {
+    const context = await assembleSelfContext("creator", "telegram");
+    expect(context.systemPrompt).toContain("consult_role");
+    expect(context.systemPrompt).toContain("Consultation");
+    expect(context.systemPrompt).toContain("second opinion");
   });
 });
 
