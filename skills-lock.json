@@ -19,7 +19,7 @@
     "audit": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
-      "computedHash": "09eeec12735a0e43320e63dc5809d0dc6a5409d030a6347e4d68d45414a0e63b"
+      "computedHash": "eb9109e542194f8711cffce23095ef5da2deb4ed0b23f59c07e912e3931f1e17"
     },
     "bolder": {
       "source": "pbakaus/impeccable",
@@ -39,7 +39,7 @@
     "critique": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
-      "computedHash": "713963154b0339b3e57b71e3bc1438b56e0b500a6078aa2eec2a53e05232415a"
+      "computedHash": "59d3facaee0d7c969f23e938c35239183d3fdd9befff526908585e55afa3a9dd"
     },
     "delight": {
       "source": "pbakaus/impeccable",
