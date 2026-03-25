@@ -21,6 +21,7 @@ import {
   determineInitialMode,
   type SurfaceMode,
 } from "@/lib/layout-state";
+import { onProcessCreated } from "@/lib/workspace-events";
 
 interface EntryPointProps {
   userId: string;
@@ -54,6 +55,13 @@ export function EntryPoint({ userId }: EntryPointProps) {
     setMode("conversation");
     setSurfaceMode("conversation");
   }, []);
+
+  // Auto-switch to workspace when first process is created via Self (AC13)
+  useEffect(() => {
+    return onProcessCreated(() => {
+      switchToWorkspace();
+    });
+  }, [switchToWorkspace]);
 
   // Show nothing while loading initial state (avoids flash)
   if (!initialized || mode === null) {

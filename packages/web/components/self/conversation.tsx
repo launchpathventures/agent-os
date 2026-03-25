@@ -8,6 +8,8 @@ import { TypingIndicator } from "./typing-indicator";
 import { PromptInput } from "./prompt-input";
 import { MaskedCredentialInput } from "./masked-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isProcessSaved } from "@/lib/transition-map";
+import { emitProcessCreated } from "@/lib/workspace-events";
 
 /**
  * Ditto Conversation Surface (AI SDK v6)
@@ -62,6 +64,27 @@ export function Conversation({ userId = "default" }: ConversationProps) {
     }
     if (creds.length > 0) {
       setCredentialRequests(creds);
+    }
+  }, [messages]);
+
+  // Detect process creation for auto-switch to workspace (Brief 046 AC13)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role !== "assistant") return;
+
+    for (const part of lastMsg.parts) {
+      if (
+        "type" in part &&
+        (part as { type: string }).type === "tool-invocation" &&
+        (part as { state: string }).state === "result"
+      ) {
+        const toolPart = part as { toolName: string; output: unknown };
+        if (isProcessSaved(toolPart.toolName, toolPart.output)) {
+          const result = toolPart.output as { processId?: string };
+          emitProcessCreated(result?.processId ?? "");
+        }
+      }
     }
   }, [messages]);
 

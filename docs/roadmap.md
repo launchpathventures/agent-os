@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
 **Last updated:** 2026-03-25
-**Current phase:** Phase 10 **complete**. All 6 sub-briefs (039-045) shipped. 330 tests (23 test files). Proactive engine (briefing, risk detection, suggestions), onboarding experience (runtime process adaptation, knowledge synthesis, AI coaching), component protocol (16→19 ContentBlock types), and full workspace layout all live. Brief 046 (Workspace Transitions) designed and ready for build.
+**Current phase:** Phase 10 **complete**. All 7 sub-briefs (039-046) shipped. 330 tests (23 test files). Proactive engine, onboarding experience, component protocol, full workspace layout, and workspace transitions all live. Brief 046 delivered conversation in workspace, adaptive right panel (Process Builder / Artifact Viewer / Briefing), mobile bottom sheet, and auto-switch on first process creation.
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -465,6 +465,12 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | "Teach this" (bridge feedback to learning) | human-layer.md | Original |
 | "Approve batch" / "Spot-check N" | human-layer.md | Original |
 | Progressive disclosure (boiling frog) | human-layer.md | Original |
+| **Workspace Transitions (Brief 046)** — **done** | | |
+| Conversation renders in workspace centre column (between feed and input) | Brief 046, human-layer.md | AI SDK v6 `useChat` + `ConversationMessage` reuse |
+| Right panel adaptive modes (Process Builder, Artifact Viewer, Briefing) | Brief 046, human-layer.md | Melty IDE badge pattern, credential-request pattern (extend) |
+| Tool-result → panel transition map (`TRANSITION_TOOL_MAP`) | Brief 046 | Original |
+| Mobile bottom sheet for artifact review (<1024px) | Brief 046 | iOS/Android bottom sheet convention |
+| Auto-switch conversation → workspace on first process creation | Brief 046 | Custom event bus |
 | **Surface Protocol (ADR-021)** — **web surface done (Brief 045)** | | |
 | Self emits typed ContentBlock[] (16 block types, not string) — **done** | ADR-021 | Original — Adaptive Cards (pattern), Vercel AI SDK v6 (depend), Slack/Telegram (pattern) |
 | Per-surface renderers (web=React **done**, Telegram=inline keyboards, CLI=prompts) | ADR-021 | Original |

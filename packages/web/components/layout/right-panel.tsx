@@ -19,22 +19,31 @@
 
 import { useState, useCallback } from "react";
 import { useProcessDetail } from "@/lib/process-query";
+import { ProcessBuilderPanel } from "./process-builder-panel";
+import { ArtifactViewerPanel } from "./artifact-viewer-panel";
 
 // Context types that the panel reacts to
 export type PanelContext =
   | { type: "feed" }
   | { type: "process"; processId: string }
+  | { type: "process-builder"; yaml: string; slug?: string }
+  | { type: "artifact-review"; runId: string; processId: string }
+  | { type: "briefing"; data: Record<string, unknown> }
   | { type: "empty" };
 
 interface RightPanelProps {
   context?: PanelContext;
+  panelOverride?: PanelContext | null;
   defaultCollapsed?: boolean;
 }
 
 export function RightPanel({
   context = { type: "feed" },
+  panelOverride,
   defaultCollapsed = false,
 }: RightPanelProps) {
+  // Tool-driven override takes priority over centre-view-reactive context
+  const activeContext = panelOverride ?? context;
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
 
@@ -75,11 +84,20 @@ export function RightPanel({
 
       {/* Contextual content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {context.type === "feed" && <FeedContext />}
-        {context.type === "process" && (
-          <ProcessContext processId={context.processId} />
+        {activeContext.type === "feed" && <FeedContext />}
+        {activeContext.type === "process" && (
+          <ProcessContext processId={activeContext.processId} />
         )}
-        {context.type === "empty" && <DefaultContext />}
+        {activeContext.type === "process-builder" && (
+          <ProcessBuilderPanel yaml={activeContext.yaml} slug={activeContext.slug} />
+        )}
+        {activeContext.type === "artifact-review" && (
+          <ArtifactViewerPanel runId={activeContext.runId} processId={activeContext.processId} />
+        )}
+        {activeContext.type === "briefing" && (
+          <BriefingContext data={activeContext.data} />
+        )}
+        {activeContext.type === "empty" && <DefaultContext />}
       </div>
     </div>
   );
@@ -259,5 +277,83 @@ function SuggestionItem({ text }: { text: string }) {
       <span className="text-accent flex-shrink-0 mt-0.5">→</span>
       <span className="text-text-secondary">{text}</span>
     </div>
+  );
+}
+
+/** Briefing context — renders proactive engine briefing data (Brief 043) */
+function BriefingContext({ data }: { data: Record<string, unknown> }) {
+  const focus = data.focus as string | undefined;
+  const attention = data.attention as string[] | undefined;
+  const upcoming = data.upcoming as string[] | undefined;
+  const risks = data.risks as string[] | undefined;
+  const suggestions = data.suggestions as string[] | undefined;
+
+  return (
+    <>
+      {focus && (
+        <div className="text-sm text-text-secondary leading-relaxed">
+          <p>{focus}</p>
+        </div>
+      )}
+
+      {attention && attention.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+            Needs attention
+          </p>
+          <div className="space-y-1.5">
+            {attention.map((item, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <span className="text-caution flex-shrink-0 mt-0.5">!</span>
+                <span className="text-text-secondary">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {upcoming && upcoming.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+            Coming up
+          </p>
+          <div className="space-y-1.5">
+            {upcoming.map((item, i) => (
+              <div key={i} className="text-sm text-text-secondary">{item}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {risks && risks.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+            Worth knowing
+          </p>
+          <div className="space-y-1.5">
+            {risks.map((item, i) => (
+              <SuggestionItem key={i} text={item} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {suggestions && suggestions.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+            Suggestions
+          </p>
+          <div className="space-y-2">
+            {suggestions.map((item, i) => (
+              <SuggestionItem key={i} text={item} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!focus && (!attention || attention.length === 0) && (
+        <DefaultContext />
+      )}
+    </>
   );
 }
