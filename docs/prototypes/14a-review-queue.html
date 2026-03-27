@@ -25,7 +25,7 @@
   }
 
   body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; font-size: 16px; }
-  ::selection { background: var(--vivid-deep); color: #fff; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .skip-link { position: absolute; top: -100px; left: 16px; background: var(--accent); color: var(--accent-text); padding: 8px 16px; border-radius: var(--radius-md); z-index: 200; font-size: 14px; text-decoration: none; }
@@ -100,7 +100,7 @@
   .price-source { font-size: 12px; color: var(--text-muted); }
   .btn { font-family: var(--font); font-size: 13px; font-weight: 500; padding: 6px 16px; border-radius: 9999px; cursor: pointer; transition: all 0.15s; border: none; }
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn-primary { background: var(--vivid); color: #fff; }
+  .btn-primary { background: var(--vivid); color: var(--accent-text); }
   .btn-primary:hover { background: var(--vivid-deep); }
   .btn-secondary { background: var(--accent); color: var(--accent-text); }
   .btn-secondary:hover { background: var(--accent-hover); }
@@ -113,7 +113,7 @@
   /* Input bar */
   .input-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 24px 24px; background: var(--bg); border-top: 1px solid var(--border); }
   .input-container { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 8px 16px; transition: all 0.15s; }
-  .input-container:focus-within { border-color: var(--vivid); background: #fff; box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .input-container:focus-within { border-color: var(--vivid); background: var(--surface-raised); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
   .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
   .input-field { flex: 1; border: none; background: transparent; font-family: var(--font); font-size: 16px; color: var(--text-primary); resize: none; outline: none; line-height: 1.5; }
   .input-field::placeholder { color: var(--text-muted); }
@@ -124,6 +124,31 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
 </style>
 </head>
 <body>
@@ -153,7 +178,7 @@
 <main class="page" id="main-content">
 
   <!-- ═══ State 1: Full Queue ═══ -->
-  <div class="state-view active" data-view="full" role="tabpanel">
+  <div aria-live="polite" class="state-view active" data-view="full" role="tabpanel">
     <div class="page-title">What needs you</div>
     <div class="page-subtitle">8 items across 3 routines · 2 urgent</div>
 
@@ -300,7 +325,7 @@
   </div>
 
   <!-- ═══ State 2: Urgent Only ═══ -->
-  <div class="state-view" data-view="urgent" role="tabpanel">
+  <div aria-live="polite" class="state-view" data-view="urgent" role="tabpanel">
     <div class="page-title">What needs you</div>
     <div class="page-subtitle">2 urgent items</div>
 
@@ -358,7 +383,7 @@
 </div>
 
 <script>
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function initDots(canvas) {
     const parent = canvas.parentElement;

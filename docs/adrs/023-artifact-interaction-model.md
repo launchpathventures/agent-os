@@ -69,7 +69,7 @@ export interface ArtifactBlock {
   // Header
   title: string;
   subtitle?: string;              // "Quoting · v2" or "Sent to Henderson"
-  artifactType: "document" | "content" | "image" | "code" | "email" | "data" | "package";
+  artifactType: "document" | "spreadsheet" | "image" | "preview" | "email" | "pdf";  // Updated by Addendum Section 13
 
   // Status
   status?: {
@@ -98,28 +98,35 @@ export interface ArtifactBlock {
 
 **What ArtifactBlock does NOT contain:** The actual artifact content. No nested `content: ContentBlock[]`. The content lives in the artifact store and is rendered by the right panel. This keeps the conversation stream compact and avoids the scroll-separation problem.
 
-### 2. Right Panel: Two Modes
+### 2. Artifact Mode Layout
 
-The right panel (Ditto panel, 320px) gains a second mode:
+When an artifact is in focus, the workspace layout transitions from the standard three-column (sidebar + centre + context) to an artifact-optimised three-column layout:
 
-**Context mode** (existing): Shows Ditto's thinking, knowledge citations, process detail. Active when no artifact is focused.
+**Standard mode:** Sidebar (240px) | Centre content (flex) | Ditto Context (320px)
+**Artifact mode:** Conversation (300px) | Artifact (centre, flex) | Ditto Context (320px)
 
-**Artifact mode** (new): Shows the live artifact being created or refined. Active when an ArtifactBlock is the current focus. Includes:
+The sidebar **collapses** (icon rail at 56px or fully hidden). The conversation thread slides into the left column. The artifact takes the dominant centre. The context panel **stays put** — it never disappears.
 
-- **Artifact renderer** — polymorphic, adapts to artifactType:
-  - `document`: Formatted HTML preview of the document (what the PDF will look like)
-  - `content`: Content preview (social post in phone frame, listing in template)
-  - `image`: Image viewer with zoom
-  - `code`: Syntax-highlighted editor
-  - `email`: Email preview (To, Subject, Body as recipient sees it)
-  - `data`: Interactive table / spreadsheet view
-  - `package`: Tabbed view of component documents with completion status
+**Left column — Conversation (300px fixed):** Compact refinement thread. Messages during artifact editing are short instructions ("use Q4 rates", "punchier caption"). Input bar at bottom.
 
-- **Version bar** — v1 / v2 / v3 toggle with diff highlighting
-- **Provenance strip** — "Based on: PlaceMakers prices, Henderson specs, your margin rules"
-- **Action footer** — Approve, Send, Download (sticky, always visible)
+**Centre column — Artifact (flex, min 480px):** The dominant surface. Type-specific rendering via six universal viewers (see Addendum Section 8):
+  - `document`: Rich formatted text with sections. Max-width 720px.
+  - `spreadsheet`: Interactive table with sort, filter, inline edit, CRUD.
+  - `image`: Gallery with zoom, compare, carousel navigation.
+  - `preview`: Running HTML/app in sandboxed iframe (dashboards, forms, presentations).
+  - `email`: Email preview (To, Subject, Body as recipient sees it). Max-width 640px.
+  - `pdf`: Page-faithful rendering with navigation, zoom, annotations.
 
-The right panel may need to expand wider for artifact editing (480px or full half-screen). This is a surface decision, not a protocol decision.
+Includes version bar, provenance strip, and action footer (Approve, Send, Download — sticky, always visible).
+
+**Right column — Ditto Context (320px, collapsible):** Shows why you should trust this output:
+- **Knowledge used** — sources that informed the artifact
+- **Process context** — which process, what step, what trust level
+- **Related items** — other artifacts from same process run
+- **Version history** — v1 → v2 → v3 with change summaries
+- **Teach-this prompts** — when the system spots a learnable pattern
+
+User can dismiss the context panel (chevron/collapse icon) for wider artifact editing. Artifact expands to fill.
 
 ### 3. Artifact Lifecycle in Conversation
 
@@ -210,7 +217,7 @@ Artifacts are stored in the engine as process run outputs (ADR-009 output schema
 interface Artifact {
   id: string;
   processRunId: string;
-  type: "document" | "content" | "image" | "code" | "email" | "data" | "package";
+  type: "document" | "spreadsheet" | "image" | "preview" | "email" | "pdf";  // Updated by Addendum Section 13
   title: string;
   versions: ArtifactVersion[];
   status: "draft" | "approved" | "sent" | "rejected";
@@ -226,14 +233,14 @@ interface ArtifactVersion {
   changedSummary?: string;        // "Margin adjusted from 7.6% to 9%"
 }
 
+// Superseded by Addendum Section 13 — see updated ArtifactContent union below
 type ArtifactContent =
-  | { type: "document"; sections: { heading: string; body: string }[] }
-  | { type: "content"; text: string; imageUrl?: string; metadata?: Record<string, string> }
-  | { type: "image"; url: string; alt: string; dimensions?: { width: number; height: number } }
-  | { type: "code"; language: string; source: string }
-  | { type: "email"; to: string; subject: string; body: string }
-  | { type: "data"; format: "table" | "key_value"; data: Record<string, unknown>[] | Record<string, string> }
-  | { type: "package"; components: { artifactId: string; title: string; status: string }[] };
+  | { type: "document"; body: string; format: "markdown" | "html" }
+  | { type: "spreadsheet"; schema: SpreadsheetSchema; rows: Record<string, unknown>[] }
+  | { type: "image"; items: Array<{ url: string; alt: string; width?: number; height?: number }> }
+  | { type: "preview"; html: string; css?: string; js?: string; sandboxUrl?: string }
+  | { type: "email"; to: string; cc?: string; subject: string; body: string; signature?: string }
+  | { type: "pdf"; url?: string; binary?: string };
 ```
 
 The ArtifactBlock in conversation is a VIEW of this engine entity — it reads from the artifact store, not the other way around.
@@ -247,7 +254,7 @@ The ArtifactBlock in conversation is a VIEW of this engine entity — it reads f
 | **ADR-011 Attention Model** | Artifact focus is attention state. The Self knows which artifact is in the right panel and interprets messages accordingly. |
 | **ReviewCardBlock** | Deprecated over time. ReviewCardBlock is a special case of ArtifactBlock where content is plain text and there's no versioning or destination. Keep for backward compat during transition. |
 | **RecordBlock** | Not replaced. RecordBlock describes entities (inbox items, tasks, knowledge entries). ArtifactBlock describes deliverables (process outputs for review and delivery). Different concepts. |
-| `.impeccable.md` | Right panel gains artifact mode. May need width flexibility (320px for context, wider for artifact editing). Rendering follows cardless typographic flow — bordered flow region, not a card. |
+| `.impeccable.md` | Artifact Mode layout section added: sidebar collapses, conversation slides left (300px), artifact takes centre (flex), context panel stays right (320px, collapsible). Rendering follows cardless typographic flow. |
 
 ## Consequences
 
@@ -282,3 +289,199 @@ The ArtifactBlock in conversation is a VIEW of this engine entity — it reads f
 | **New** | Package | FICO application package — 12 component documents | P2 |
 
 These prototypes should show the full interaction loop: initial generation → conversational refinement (2-3 rounds) → approval → delivery. Not just the final state.
+
+---
+
+## Addendum: Viewer Taxonomy (2026-03-27)
+
+**Trigger:** Stress test of Act 5 prototypes revealed the original 7 artifact types mixed viewer types (document, image) with domain types (content, code) and composition types (package). Insight-104 captures the full analysis.
+
+### 8. Six Universal Viewers Replace Seven Artifact Types
+
+The original `artifactType` enum (`document | content | image | code | email | data | package`) is replaced by six **viewer types** — defined by how the user views and interacts with the output, not by what domain it comes from.
+
+| Viewer | Type key | What the user sees | Interaction | Engine content |
+|--------|----------|-------------------|-------------|----------------|
+| **Document** | `document` | Rich formatted text with sections | Read, edit sections, approve | Markdown or structured sections |
+| **Spreadsheet** | `spreadsheet` | Structured rows/columns | Sort, filter, inline edit, CRUD | Schema + rows (JSON) |
+| **Image** | `image` | Visual media (single or carousel) | Zoom, compare, navigate slides | URL(s) + alt text + dimensions |
+| **Live Preview** | `preview` | Running HTML/app in sandboxed iframe | Interact with result, request changes | HTML/CSS/JS bundle or URL |
+| **Email** | `email` | Mail as recipient would see it | Review tone, edit, approve to send | To/CC/Subject/Body/Signature |
+| **PDF** | `pdf` | Page-faithful document rendering | Review layout, annotate, approve | Binary content or URL reference |
+
+**What changed and why:**
+
+| Old type | New mapping | Rationale |
+|----------|------------|-----------|
+| `code` | `preview` | End users don't see source code. They see the running result — website, dashboard, form, presentation. "View Source" is a secondary developer action. |
+| `content` | Absorbed into `image` or `document` | "Content" was a domain category, not a viewer. Social posts are Images. Written content is Documents. |
+| `package` | Removed as viewer | Package is a composition pattern (a group of artifacts, each with its own viewer). Handled by the multi-part deliverable protocol (Section 4), not a viewer type. |
+| `data` | `spreadsheet` | Renamed to match user mental model. Gains CRUD and schema evolution for user-defined databases. |
+| — | `pdf` (new) | Documents reflow; PDFs preserve exact page layout. Fundamentally different rendering (PDF.js vs markdown). Contracts, compliance docs, print-ready outputs need page fidelity. |
+
+### 9. Two-Tier Viewer Architecture
+
+The six viewers split into two tiers:
+
+**Structured viewers** (5) — the engine produces structured data, the viewer renders it deterministically. No code generation needed. Cover ~80% of outputs.
+
+| Viewer | Engine produces | Viewer renders |
+|--------|----------------|---------------|
+| Document | `{ sections: [{ heading, body }] }` | Formatted HTML with typography |
+| Spreadsheet | `{ schema: [...], rows: [...] }` | Interactive table with sort/filter/edit |
+| Image | `{ urls: [...], alt, dimensions }` | Gallery with zoom/compare/carousel |
+| Email | `{ to, cc, subject, body, signature }` | Mail-client preview |
+| PDF | `{ url }` or `{ binary }` | PDF.js with page navigation |
+
+**Programmable viewer** (1) — the meta dev process vibe-codes HTML/CSS/JS that runs in a sandboxed iframe. Handles the ~20% that needs interactivity: dashboards, presentations, forms/surveys, calendars, kanban boards, custom tools.
+
+| Viewer | Engine produces | Viewer renders |
+|--------|----------------|---------------|
+| Live Preview | `{ html, css?, js? }` or `{ url }` | Sandboxed iframe |
+
+**Guidance — when to use which tier:**
+
+- Text-based output → Document
+- Rows and columns → Spreadsheet
+- Visual media → Image
+- Outbound message → Email
+- Page-faithful → PDF
+- **Only use Live Preview when the output requires interactivity the structured viewers can't provide**
+
+### 10. Templates: Process-Specific Customization
+
+Viewers are universal primitives. **Templates** customise how a viewer renders for a specific process. The meta dev process creates and evolves templates.
+
+| Template | Viewer | Example |
+|----------|--------|---------|
+| Rob's quote layout | Document | Logo, line items, margin calculation, terms |
+| Jay's clinical notes | Document | Assessment, Findings, Plan, Follow-ups sections |
+| Jay's blood panel | Spreadsheet | Ranges, flags, colour-coded status badges |
+| Rob's business email | Email | Branding, signature, tone rules |
+| Rob's invoice | PDF | Exact invoice format with page breaks |
+| Lisa's engagement dashboard | Live Preview | Vibe-coded charts + KPIs |
+| Libby's client intake form | Live Preview | Vibe-coded form with validation |
+| Lisa's slide presentation | Live Preview | Vibe-coded reveal.js slides |
+
+Templates are process definition artifacts — they live in the process definition's output section and are created/evolved by the meta dev process through conversation.
+
+### 11. Spreadsheet Viewer: User-Defined Databases
+
+The Spreadsheet viewer handles both process outputs (reconciliation results, analysis tables) and **user-defined databases** (contacts, leads, properties). The distinction:
+
+| Concern | Who handles it | How |
+|---------|---------------|-----|
+| Schema definition | Self + engine | User describes in conversation ("I need to track my leads"). Self infers schema from industry patterns + user description. |
+| Schema evolution | Self + engine | User says "add a phone field." Self adds nullable column, existing rows get blank. Additive = automatic. Destructive (remove, type change) = Self confirms impact first. |
+| Data display + CRUD | Spreadsheet viewer | Sort, filter, inline edit, add/delete rows. Standard table interaction. |
+| Relationships | Self + engine | Simple references only ("link leads to properties" = reference field). No complex relational modelling. Self resolves for display. |
+| Views | Self + engine | Saved filter/sort configurations. One underlying dataset, multiple named views. |
+
+**Simplicity rule:** Schema evolution is always conversational. No schema editor, no field-type picker, no relationship diagram. The user talks, the Self does it. Non-technical people never see "schema" — they see "your leads list" and say "add a column for site address."
+
+### 12. Knowledge Base Unification
+
+Artifacts, user databases, and uploaded files all converge into **one knowledge layer**. Viewers are the universal interaction layer for all knowledge in Ditto.
+
+| Item | How it enters knowledge | Viewer | How it's reused |
+|------|------------------------|--------|----------------|
+| Process output (Henderson quote) | Process produces it | Document | Self references margin in future quotes |
+| Uploaded file (supplier price list) | User drops it in | PDF | Process uses for pricing, Self alerts on changes |
+| User database (Rob's leads) | User defines through conversation | Spreadsheet | Self suggests follow-ups, processes trigger on status change |
+| Generated images (Libby's carousel) | Process produces them | Image | Self learns brand palette, other processes reuse assets |
+| Vibe-coded tool (Lisa's dashboard) | Meta dev process builds it | Live Preview | Process updates data, Self references metrics |
+| Drafted email (Henderson follow-up) | Process drafts it | Email | Self learns tone preference, tracks communication |
+
+**AI-readable companion files:** Alongside each knowledge item, the engine maintains an optimised text extraction (markdown or structured memory file) that supports the Self's ability to search, reference, and reason about the item — regardless of its viewer type. PDFs get text extraction. Images get alt text + context. Live Previews get a structured description. Spreadsheets get schema + summary stats. This ensures every knowledge item is AI-accessible, not just human-viewable.
+
+### 13. Updated Engine Types
+
+Replaces Section 7's type definitions:
+
+```typescript
+interface Artifact {
+  id: string;
+  processRunId?: string;           // null for uploaded/user-created items
+  viewerType: "document" | "spreadsheet" | "image" | "preview" | "email" | "pdf";
+  title: string;
+  versions: ArtifactVersion[];
+  status: "draft" | "approved" | "sent" | "rejected" | "living";  // "living" for databases
+  destination?: { label: string; type: string };
+  knowledgeUsed: string[];
+  provenance: string[];
+  templateId?: string;             // process-specific template
+}
+
+interface ArtifactVersion {
+  version: number;
+  content: ArtifactContent;
+  createdAt: string;
+  changedSummary?: string;
+  aiCompanion?: string;            // markdown extraction for AI search/reasoning
+}
+
+type ArtifactContent =
+  | { type: "document"; body: string; format: "markdown" | "html" }
+  | { type: "spreadsheet"; schema: SpreadsheetSchema; rows: Record<string, unknown>[] }
+  | { type: "image"; items: Array<{ url: string; alt: string; width?: number; height?: number }> }
+  | { type: "preview"; html: string; css?: string; js?: string; sandboxUrl?: string }
+  | { type: "email"; to: string; cc?: string; subject: string; body: string; signature?: string }
+  | { type: "pdf"; url?: string; binary?: string };  // binary = base64 for generated PDFs
+
+interface SpreadsheetSchema {
+  columns: Array<{
+    key: string;
+    label: string;
+    type: "text" | "number" | "date" | "enum" | "reference" | "boolean";
+    options?: string[];             // for enum type
+    referenceTable?: string;        // for reference type — artifact ID of related spreadsheet
+    required?: boolean;
+  }>;
+}
+```
+
+**ArtifactBlock update** (Section 1):
+
+```typescript
+// Replace artifactType in ArtifactBlock:
+artifactType: "document" | "spreadsheet" | "image" | "preview" | "email" | "pdf";
+```
+
+### 14. Updated Prototype Coverage
+
+One prototype per viewer type. Each demonstrates the viewer, not a scenario.
+
+| Prototype | Viewer | Test case | Persona |
+|-----------|--------|-----------|---------|
+| P36 | Document | Rawlinsons cost estimate — generate, refine, approve | Rob |
+| P37 | Image | Steven Leckie Instagram carousel — generate, refine colour, approve | Lisa |
+| P38 | Live Preview | Abodo reconciliation dashboard — vibe-coded, interactive | Nadia |
+| P39 | Email | Henderson follow-up — draft, tone adjust, send | Rob |
+| P40 | Spreadsheet | Jay's blood panel + patient database — view results, CRUD | Jay |
+| P41 | PDF | Contract/compliance document — page-faithful review, annotate | Rob |
+
+**Dropped from prototype set:**
+- P37 Content Pack → pack is a composition of viewers, not a viewer itself. Demonstrate via batch protocol on P37 Image.
+- P40 Clinical Notes as Document → already covered by P36 Document (clinical notes ARE documents).
+- P38 Code → replaced by Live Preview (user sees running result, not source).
+
+### 15. Live Preview Security
+
+The programmable viewer runs user-generated or meta-dev-process-generated code in a **sandboxed iframe**:
+
+- `sandbox="allow-scripts"` — no `allow-same-origin`, no `allow-top-navigation`
+- Strict CSP: `script-src 'unsafe-inline'` only (no external script loads)
+- No access to parent window, cookies, or localStorage
+- Communication via `postMessage` only (for action callbacks)
+- Size-limited: HTML/CSS/JS bundle max 2MB
+- Provenance: Claude Artifacts pattern (Anthropic), CodePen embed model
+
+This is the same security model used by Claude Artifacts and every online code playground.
+
+### Provenance
+
+- **Viewer taxonomy (6 types):** Original — derived from stress-testing all persona outputs against interaction models. No existing framework uses this exact taxonomy.
+- **Two-tier architecture:** Pattern from Claude Artifacts (structured components + freeform HTML preview).
+- **Spreadsheet as database:** Pattern from Notion databases and Airtable — schema stored as metadata, rows as JSON, evolution via conversation.
+- **AI companion files:** Pattern from RAG architectures — maintain searchable text alongside binary/visual content.
+- **Live Preview sandbox:** Pattern from Claude Artifacts (Anthropic), CodePen, JSFiddle — sandboxed iframe with CSP.

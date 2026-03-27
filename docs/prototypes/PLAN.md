@@ -85,25 +85,44 @@ These aren't journey moments — they're variants that must work across all mome
 | P27 | `27-process-flow-map.html` | Jordan's inter-process graph. Node-based layout with detail panel and impact view. | **v1** — palette ✓, cardless ✓, theme toggle ✓. Full-bleed layout. 3 states: Overview, Selected, Impact. |
 | P29 | `29-process-model-library.html` | Rob's capability catalog. Self recommends processes. Browse, detail, setup. | **v1** — palette ✓, cardless ✓, theme toggle ✓, dots ✓, centred 720px ✓. 4 states: Recommended, Browse, Detail, Setup. |
 
+### Act 5: Artifact Interaction (ADR-023)
+
+**One prototype per viewer type.** Six universal viewers (ADR-023 Addendum, Insight-104): Document, Image, Live Preview, Email, Spreadsheet, PDF. Three-column layout: conversation (300px left) | artifact (centre, flex) | context panel (320px right). Sidebar collapses. Reference: `.impeccable.md` Artifact Mode section.
+
+| # | Prototype | Viewer | Moment | Primary persona | Key design question | Status |
+|---|-----------|--------|--------|----------------|-------------------|--------|
+| P36 | `36-document-artifact.html` | Document | Rawlinsons cost estimate — generate, refine, approve. | Rob | Does the document dominate the centre? Does the context panel build trust through provenance? | **v3** — reference prototype. 4 states. |
+| P37 | `37-content-pack.html` | Image | Dubai Marina Instagram carousel — generate, compare, approve. | Libby | Does gallery/carousel work in centre? Before/after comparison clear? | **v3** — image gallery + compare. 4 states. |
+| P38 | `38-code-artifact.html` | Live Preview | Team performance dashboard — vibe-coded, viewport controls, publish. | Nadia | Does iframe preview feel interactive? Viewport switching natural? | **v3** — sandboxed preview + viewport. 4 states. |
+| P39 | `39-email-artifact.html` | Email | Henderson follow-up — email preview, tone adjustment, send. | Rob | Does email preview feel like real mail at 640px max-width in centre? | **v3** — macOS mail styling. 3 states. |
+| P40 | `40-clinical-notes.html` | Spreadsheet | Blood panel + patient database — view results, CRUD, schema evolution. | Jay | Does interactive table support both read-only results and user-defined databases? | **v3** — interactive table + CRUD + schema. 4 states. |
+| P41 | `41-image-artifact.html` | PDF | Subcontractor agreement — page-faithful, annotations, approve. | Rob | Does PDF rendering preserve page layout? Annotations workable? | **v1** — PDF.js-style viewer + annotations. 4 states. |
+
+**Act 5 proves:** Six viewer primitives cover all common artifact types. Structured viewers (Document, Spreadsheet, Image, Email, PDF) handle ~80% of outputs deterministically. The programmable viewer (Live Preview) handles the remaining ~20% via the meta dev process. All viewers share the same three-column layout, conversation refinement protocol, and context panel. Templates (process-specific) customise each viewer. All artifacts and databases enter the knowledge base.
+
 ---
 
-## Design System Compliance (2026-03-26)
+## Design System Compliance (2026-03-27)
 
-| Feature | P08 | P08a | P09 | P10 | P11 | P12 | P13 | P14 | P15 | P16 | P17 | P18 | P19 | P20 | P00 | P23 | P21 | P22 | P14a | P27 | P29 |
-|---------|-----|------|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|------|-----|-----|
-| Palette (#059669) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| DM Sans | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Theme toggle | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Dot particles | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ |
-| Cardless flow | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Centred 720px | ✗ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ~ | ~ | ~ | ~ | ✗ | ✗ | ~ | ✓ | ✓ | ✗ | ✓ |
-| Flat vivid buttons | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Feature | P08 | P08a | P09 | P10 | P11 | P12 | P13 | P14 | P15 | P16 | P17 | P18 | P19 | P20 | P00 | P23 | P21 | P22 | P14a | P27 | P29 | P36 | P37 | P38 | P39 | P40 | P41 |
+|---------|-----|------|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|------|-----|-----|-----|-----|-----|-----|-----|-----|
+| Palette (#059669) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| DM Sans | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Theme toggle | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Dot particles | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Cardless flow | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Centred 720px | ✗ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ~ | ~ | ~ | ~ | ✗ | ✗ | ~ | ✓ | ✓ | ✗ | ✓ | ~ | ~ | ~ | ~ | ~ | ~ |
+| Flat vivid buttons | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Artifact-centre layout | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Context panel | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Collapsible context | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 **Fully compliant:** P08a (reference), P00, P09, P10, P11, P14, P15, P22, P14a, P29
 **Compliant (mobile — centred N/A):** P12, P16, P17, P18, P20, P21
 **Compliant (multi-panel — centred N/A):** P13, P19, P27
 **P23:** Now v3 with theme toggle + dots
 **P27:** No dots (full-bleed graph layout — N/A)
+**Act 5 (P36-P41):** Artifact-centre layout. No dots (artifact-mode — N/A). Centred ~ (type-specific max-width: 720px document/clinical, 640px email, none for code/image/pack)
 
 ---
 

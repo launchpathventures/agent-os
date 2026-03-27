@@ -50,7 +50,7 @@
     -webkit-font-smoothing: antialiased; min-height: 100vh;
     overflow: hidden; font-size: 16px;
   }
-  ::selection { background: var(--vivid-deep); color: #fff; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
 
   /* Content layers above background canvas, but stays transparent so ribbon shows through */
   .proto-nav, .state-bar { position: relative; }
@@ -101,7 +101,7 @@
   }
   .state-btn:hover { color: var(--text-primary); }
   .state-btn.active {
-    color: #fff; background: var(--vivid);
+    color: var(--accent-text); background: var(--vivid);
     font-weight: 600;
   }
   .state-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -270,7 +270,7 @@
   .guided-option:hover { border-color: var(--accent); }
   .guided-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .guided-option.selected {
-    border-color: var(--vivid); background: var(--vivid); color: #fff;
+    border-color: var(--vivid); background: var(--vivid); color: var(--accent-text);
   }
 
   /* Connect rows */
@@ -301,7 +301,7 @@
   .connect-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .connect-btn.connected {
     border-color: var(--vivid); background: var(--vivid);
-    color: #fff; pointer-events: none;
+    color: var(--accent-text); pointer-events: none;
   }
   .connect-skip {
     font-size: 12px; color: var(--text-muted); text-align: center;
@@ -314,7 +314,7 @@
   }
   .process-icon {
     width: 40px; height: 40px; border-radius: var(--radius-md);
-    background: var(--vivid); color: #fff;
+    background: var(--vivid); color: var(--accent-text);
     display: flex; align-items: center; justify-content: center;
   }
   .process-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
@@ -404,7 +404,7 @@
     width: 100%; max-width: 720px;
     box-shadow: var(--shadow-subtle);
   }
-  .input-container:focus-within { border-color: var(--vivid); background: #fff; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
+  .input-container:focus-within { border-color: var(--vivid); background: var(--surface-raised); box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
   .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
   .input-field {
     flex: 1; border: none; background: transparent;
@@ -534,6 +534,31 @@
     --vivid-deep: #4A4A55;
     --vivid-subtle: #E7E7EB;
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
   body.theme-focus .state-btn.active {
     background: var(--accent); color: var(--accent-text);
   }
@@ -572,9 +597,15 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+
+    .skip-link { position: absolute; top: -100%; left: 16px; padding: 8px 16px; background: var(--accent); color: var(--accent-text); border-radius: 9999px; z-index: 1000; font-size: 14px; text-decoration: none; }
+    .skip-link:focus { top: 16px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
 
 <!-- Proto Nav -->
 <nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
@@ -600,12 +631,12 @@
   <button class="state-btn" role="tab" data-state="artifact" tabindex="-1">First output</button>
 </div>
 
-<main>
+<main id="main-content">
 
 <!-- ═══════════════════════════════════════════════════
      STATE 1: Opening
      ═══════════════════════════════════════════════════ -->
-<div class="layout state-view active" data-view="early" role="tabpanel">
+<div class="layout state-view active" data-view="early" role="tabpanel" aria-live="polite">
   <div class="convo-panel">
     <div class="convo-scroll">
       <div class="messages">
@@ -723,7 +754,7 @@
 <!-- ═══════════════════════════════════════════════════
      STATE 2: Voice & rules
      ═══════════════════════════════════════════════════ -->
-<div class="layout state-view" data-view="mid" role="tabpanel">
+<div class="layout state-view" data-view="mid" role="tabpanel" aria-live="polite">
   <div class="convo-panel">
     <div class="convo-scroll">
       <div class="messages">
@@ -845,7 +876,7 @@
 <!-- ═══════════════════════════════════════════════════
      STATE 3: Connect
      ═══════════════════════════════════════════════════ -->
-<div class="layout state-view" data-view="connect" role="tabpanel">
+<div class="layout state-view" data-view="connect" role="tabpanel" aria-live="polite">
   <div class="convo-panel">
     <div class="convo-scroll">
       <div class="messages">
@@ -1001,7 +1032,7 @@
 <!-- ═══════════════════════════════════════════════════
      STATE 4: Build process
      ═══════════════════════════════════════════════════ -->
-<div class="layout state-view" data-view="deep" role="tabpanel">
+<div class="layout state-view" data-view="deep" role="tabpanel" aria-live="polite">
   <div class="convo-panel">
     <div class="convo-scroll">
       <div class="messages">
@@ -1181,7 +1212,7 @@
 <!-- ═══════════════════════════════════════════════════
      STATE 5: Artifact Mode
      ═══════════════════════════════════════════════════ -->
-<div class="layout-artifact state-view" data-view="artifact" role="tabpanel">
+<div class="layout-artifact state-view" data-view="artifact" role="tabpanel" aria-live="polite">
 
   <div class="convo-thread">
     <div class="convo-scroll">
@@ -1313,7 +1344,7 @@ Tell me in the comments: what moment made you think "I want to do this"? 💛</d
   // ═══════════════════════════════════════════════════
   // DITTO DOTS — Input field particle fields
   // ═══════════════════════════════════════════════════
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function initDots(canvas) {

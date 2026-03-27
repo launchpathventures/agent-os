@@ -1,0 +1,615 @@
+<!-- v3 — Agent relationship map: three-column workspace with Paperclip-style graph, 2026-03-27 -->
+<!-- Pattern: sidebar | pan+zoom graph canvas (centre) | Ditto context panel (right) -->
+<!-- Production: hand-rolled layout works for <10 agents. Evaluate React Flow for scale. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P42 — Team Relationships | Ditto Prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #EDEDF0; --surface: #E2E2E6; --surface-raised: #F9F9FB;
+    --border: #D5D5DA; --border-strong: #BBBBC2;
+    --text-primary: #111118; --text-secondary: #4A4A55; --text-muted: #65656F;
+    --accent: #111118; --accent-hover: #000; --accent-subtle: #E7E7EB; --accent-text: #F9F9FB;
+    --vivid: #059669; --vivid-deep: #3D5A48; --vivid-subtle: #ECFDF5;
+    --positive: #16a34a; --positive-subtle: #EEFAF0;
+    --caution: #D4960A; --caution-subtle: #FDF8E8;
+    --negative: #C4352A; --negative-subtle: #FDF0EE;
+    --info: #2563eb; --info-subtle: #EEF4FF;
+    --shadow-subtle: 0 1px 3px rgba(26,26,26,0.05);
+    --shadow-medium: 0 4px 16px rgba(26,26,26,0.07);
+    --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+    --font: 'DM Sans', system-ui, sans-serif;
+  }
+
+  body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; font-size: 16px; overflow: hidden; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .skip-link { position: absolute; top: -100px; left: 16px; background: var(--accent); color: var(--accent-text); padding: 8px 16px; border-radius: 9999px; z-index: 200; font-size: 14px; text-decoration: none; }
+  .skip-link:focus { top: 8px; }
+
+  /* ═══ Proto Nav ═══ */
+  .proto-nav { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; font-size: 14px; }
+  .proto-nav-label { color: var(--text-muted); font-weight: 500; }
+  .proto-nav-centre { color: var(--text-secondary); font-weight: 500; }
+  .proto-nav-centre span { color: var(--text-primary); font-weight: 600; }
+  .proto-nav-right { display: flex; align-items: center; gap: 8px; }
+  .proto-arrow { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text-secondary); text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.12s; }
+  .proto-arrow:hover { border-color: var(--accent); color: var(--accent); }
+  .proto-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* State + theme toggles in nav */
+  .toggle-group { display: flex; align-items: center; gap: 4px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--border); }
+  .toggle-btn { font-family: var(--font); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 4px 12px; cursor: pointer; transition: all 0.15s; }
+  .toggle-btn:hover { color: var(--text-primary); }
+  .toggle-btn.active { color: var(--text-primary); border-color: var(--border-strong); background: var(--surface); }
+  .toggle-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  body.theme-focus { --vivid: #111118; --vivid-deep: #4A4A55; --vivid-subtle: #E7E7EB; }
+
+  /* ═══ THREE-COLUMN WORKSPACE ═══ */
+  .workspace { display: grid; grid-template-columns: 240px 1fr 320px; height: calc(100vh - 48px); margin-top: 48px; }
+
+  /* ─── LEFT: SIDEBAR ─── */
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+  .sidebar::-webkit-scrollbar { width: 0; }
+  .ws { padding: 16px 16px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .ws-avatar { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-text); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .ws-name { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
+  .ws-chev { color: var(--text-muted); font-size: 10px; }
+  .nav-group { padding: 8px 10px 0; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--text-secondary); text-decoration: none; transition: all 0.1s; border-left: 2px solid transparent; }
+  .nav-item:hover { background: var(--accent-subtle); color: var(--text-primary); }
+  .nav-item.active { background: var(--surface-raised); color: var(--text-primary); font-weight: 500; border-left-color: var(--vivid); }
+  .nav-item-icon { width: 16px; height: 16px; flex-shrink: 0; color: inherit; }
+  .nav-item-label { flex: 1; }
+  .nav-count { font-size: 11px; font-weight: 600; background: var(--vivid); color: var(--accent-text); min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  .sidebar-spacer { flex: 1; }
+  .sidebar-foot { padding: 8px 10px 14px; border-top: 1px solid var(--border); }
+  .sidebar-foot .nav-item { font-size: 13px; color: var(--text-muted); padding: 5px 10px; }
+
+  /* ─── CENTRE: GRAPH CANVAS ─── */
+  .main { display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  .canvas-area {
+    flex: 1; position: relative; overflow: hidden; cursor: grab;
+    background-image: radial-gradient(circle, var(--border) 0.7px, transparent 0.7px);
+    background-size: 24px 24px;
+  }
+  .canvas-area:active { cursor: grabbing; }
+
+  .canvas-transform { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+
+  /* SVG edge layer */
+  .edge-layer { position: absolute; top: 0; left: 0; width: 900px; height: 520px; pointer-events: none; }
+
+  /* Agent cards */
+  .agent-card {
+    position: absolute; width: 184px; padding: 12px 14px;
+    background: var(--surface-raised); border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg); cursor: pointer;
+    transition: border-color 0.12s, box-shadow 0.12s, opacity 0.15s;
+    user-select: none;
+  }
+  .agent-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-medium); }
+  .agent-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .agent-card.selected { border-color: var(--vivid); box-shadow: 0 0 0 3px rgba(5,150,105,0.12); }
+  .agent-card.dimmed { opacity: 0.3; pointer-events: none; }
+  .agent-card.human-card { border-color: var(--vivid-deep); border-width: 2px; }
+
+  .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .card-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; position: relative; }
+  .status-dot { position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--surface-raised); }
+  .status-dot.healthy { background: var(--positive); }
+  .status-dot.attention { background: var(--caution); }
+  .card-name { font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+  .card-role { font-size: 10px; color: var(--text-muted); }
+  .card-bottom { display: flex; align-items: center; gap: 6px; }
+  .card-trust { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
+  .card-trust.autonomous { background: var(--positive-subtle); color: var(--positive); }
+  .card-trust.spot-check { background: var(--info-subtle); color: var(--info); }
+  .card-trust.supervised { background: var(--caution-subtle); color: var(--caution); }
+  .card-trust.human { background: var(--vivid-subtle); color: var(--vivid-deep); }
+  .card-now { font-size: 9px; color: var(--vivid-deep); font-style: italic; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Edge labels */
+  .edge-label { position: absolute; font-size: 9px; color: var(--text-muted); background: var(--bg); padding: 1px 5px; border-radius: 99px; white-space: nowrap; pointer-events: all; cursor: pointer; transition: color 0.12s; }
+  .edge-label:hover { color: var(--text-primary); }
+  .edge-label.highlight { color: var(--vivid-deep); font-weight: 600; }
+
+  /* Zoom controls */
+  .zoom-controls { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 2px; z-index: 10; }
+  .zoom-btn { width: 28px; height: 28px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-secondary); transition: all 0.12s; }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .zoom-level { font-size: 9px; color: var(--text-muted); text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; }
+
+  /* Legend */
+  .legend { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 12px; font-size: 10px; color: var(--text-muted); background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; z-index: 10; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+
+  /* Input bar (centre column) */
+  .input-bar { position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 20px 24px; display: flex; justify-content: center; background: linear-gradient(transparent, var(--bg) 40%); pointer-events: none; }
+  .input-container { display: flex; align-items: center; gap: 10px; background: var(--surface-raised); border: 1.5px solid var(--border); border-radius: 24px; padding: 10px 16px; transition: all 0.15s; width: 100%; max-width: 480px; box-shadow: var(--shadow-medium); pointer-events: all; }
+  .input-container:focus-within { border-color: var(--vivid); background: var(--surface-raised); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .input-field { flex: 1; border: none; background: transparent; font-family: var(--font); font-size: 14px; color: var(--text-primary); outline: none; resize: none; overflow: hidden; min-height: 20px; max-height: 200px; line-height: 1.5; }
+  .input-field::placeholder { color: var(--text-muted); }
+
+  /* ─── RIGHT: DITTO PANEL ─── */
+  .ditto-panel { background: var(--surface-raised); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .ditto-header { padding: 14px 20px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .ditto-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vivid); animation: pulse 3s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+  .ditto-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .ditto-status { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+  .ditto-scroll { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .ditto-scroll::-webkit-scrollbar { width: 4px; }
+  .ditto-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .ditto-sh { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+
+  /* Ditto panel content blocks */
+  .relationship-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; line-height: 1.5; }
+  .relationship-item:last-child { border-bottom: none; }
+  .rel-type { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+  .rel-type.reviews { color: var(--vivid-deep); }
+  .rel-type.feeds { color: var(--info); }
+  .rel-type.escalates { color: var(--caution); }
+  .rel-desc { color: var(--text-secondary); }
+  .rel-stat { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .process-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .process-pill { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 99px; background: var(--accent-subtle); color: var(--text-secondary); }
+  .detail-metrics { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .detail-edge { border-left: 2px solid var(--vivid); padding-left: 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+  .suggestion { padding: 0 0 0 12px; border-left: 2px solid var(--vivid-deep); font-size: 12px; line-height: 1.55; color: var(--text-primary); }
+  .suggestion-label { font-size: 9px; font-weight: 600; color: var(--vivid-deep); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .suggestion-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { font-family: var(--font); font-size: 11px; font-weight: 600; border: none; border-radius: 99px; padding: 5px 12px; cursor: pointer; transition: all 0.12s; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-s { background: transparent; color: var(--text-primary); border: 1.5px solid var(--border); }
+  .btn-s:hover { border-color: var(--accent); }
+  .btn-g { background: transparent; color: var(--text-muted); }
+  .btn-g:hover { color: var(--text-primary); }
+
+  /* Donut chart */
+  .donut-container { display: flex; align-items: center; gap: 14px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+  .donut-legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+  .donut-legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ═══ State visibility ═══ */
+  .ditto-context { display: none; }
+  .ditto-context.active { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ═══ Responsive ═══ */
+  @media (max-width: 1100px) { .workspace { grid-template-columns: 240px 1fr; } .ditto-panel { display: none; } }
+  @media (max-width: 768px) { .workspace { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  /* Dark mode */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.theme-light) {
+      --bg: #111118; --surface: #1A1A22; --surface-raised: #222230;
+      --border: #2A2A35; --border-strong: #3A3A45;
+      --text-primary: #F9F9FB; --text-secondary: #A0A0AD; --text-muted: #8A8A96;
+      --accent: #F9F9FB; --accent-hover: #FFFFFF; --accent-subtle: #2A2A35; --accent-text: #111118;
+      --vivid: #10B981; --vivid-deep: #6B8F71; --vivid-subtle: #1A2E22;
+      --positive: #22c55e; --caution: #E5A820; --negative: #E8453A; --info: #3B82F6;
+    }
+  }
+</style>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to content</a>
+<h1 class="sr-only">Team Relationships — How Nadia's agents work together</h1>
+
+<nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
+  <div class="proto-nav-label">Ditto Prototypes</div>
+  <div class="proto-nav-centre">Cross-Cutting · <span>Team Relationships</span></div>
+  <div class="proto-nav-right">
+    <div class="toggle-group" role="tablist" aria-label="View">
+      <button class="toggle-btn active" data-state="overview" role="tab" aria-selected="true">Map</button>
+      <button class="toggle-btn" data-state="selected" role="tab" aria-selected="false">Selected</button>
+      <button class="toggle-btn" data-state="edge" role="tab" aria-selected="false">Edge</button>
+    </div>
+    <div class="toggle-group">
+      <button class="toggle-btn active" data-theme="signature">Signature</button>
+      <button class="toggle-btn" data-theme="focus">Focus</button>
+    </div>
+    <a href="index.html" class="proto-arrow" title="Index" aria-label="Index">&#8862;</a>
+    <a href="41-image-artifact.html" class="proto-arrow" aria-label="Previous">&larr;</a>
+  </div>
+</nav>
+
+<div class="workspace">
+
+  <!-- ─── LEFT: SIDEBAR ─── -->
+  <nav class="sidebar">
+    <div class="ws">
+      <div class="ws-avatar">N</div>
+      <span class="ws-name">Nadia's Studio</span>
+      <span class="ws-chev">&#9662;</span>
+    </div>
+    <div class="nav-group">
+      <a class="nav-item" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg><span class="nav-item-label">Today</span></a>
+      <a class="nav-item" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M12 3v8.25m0 0l-3-3m3 3l3-3"/></svg><span class="nav-item-label">Inbox</span><span class="nav-count">3</span></a>
+      <a class="nav-item" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-item-label">Work</span></a>
+      <a class="nav-item" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z"/></svg><span class="nav-item-label">Projects</span></a>
+      <a class="nav-item active" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></svg><span class="nav-item-label">Routines</span></a>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-foot">
+      <a class="nav-item" href="#"><svg class="nav-item-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg><span class="nav-item-label">Settings</span></a>
+    </div>
+  </nav>
+
+  <!-- ─── CENTRE: GRAPH CANVAS ─── -->
+  <main id="main-content" class="main">
+    <div class="canvas-area" id="canvasArea">
+      <div class="canvas-transform" id="canvasTransform">
+
+        <!-- SVG edge layer -->
+        <svg class="edge-layer" id="edgeLayer">
+          <!-- Reporting lines (You → agents) -->
+          <path class="edge edge-report" data-from="you" data-to="content" d="M 400,100 L 400,140 L 170,140 L 170,170" stroke="var(--border-strong)" stroke-width="1.5" fill="none" />
+          <path class="edge edge-report" data-from="you" data-to="quote" d="M 400,100 L 400,140 L 630,140 L 630,170" stroke="var(--border-strong)" stroke-width="1.5" fill="none" />
+          <path class="edge edge-report" data-from="you" data-to="compliance" d="M 400,100 L 400,320" stroke="var(--border-strong)" stroke-width="1.5" fill="none" />
+          <!-- Content Reviewer → Quote Generator (reviews language) -->
+          <path class="edge edge-review" data-rel="cr-qg" d="M 262,215 L 540,215" stroke="var(--vivid-deep)" stroke-width="1.5" stroke-dasharray="6 3" fill="none" />
+          <polygon class="edge edge-review" data-rel="cr-qg" points="536,211 544,215 536,219" fill="var(--vivid-deep)" />
+          <!-- Compliance → Quote Generator (reviews pricing) -->
+          <path class="edge edge-review" data-rel="cc-qg" d="M 492,355 L 540,355 L 630,355 L 630,260" stroke="var(--vivid-deep)" stroke-width="1.5" stroke-dasharray="6 3" fill="none" />
+          <polygon class="edge edge-review" data-rel="cc-qg" points="626,264 630,256 634,264" fill="var(--vivid-deep)" />
+          <!-- Compliance → Service Responder (reviews warranty) — only in overview -->
+          <!-- Quote Generator → Content Reviewer (shares context) -->
+          <path class="edge edge-context" d="M 540,235 L 262,235" stroke="var(--info)" stroke-width="1.5" stroke-dasharray="2 4" fill="none" />
+          <polygon class="edge edge-context" points="266,231 258,235 266,239" fill="var(--info)" />
+        </svg>
+
+        <!-- Edge labels -->
+        <div class="edge-label" data-rel="cr-qg" style="left:360px; top:205px;">reviews language</div>
+        <div class="edge-label" data-rel="cc-qg" style="left:548px; top:300px;">reviews pricing</div>
+        <div class="edge-label" style="left:360px; top:225px;">shares context</div>
+
+        <!-- AGENT CARDS -->
+
+        <!-- You (Nadia) — top centre -->
+        <div class="agent-card human-card" style="left:308px; top:24px;" tabindex="0" data-agent="you">
+          <div class="card-top">
+            <div class="card-icon" style="background:var(--vivid-subtle); color:var(--vivid-deep);">N<span class="status-dot healthy"></span></div>
+            <div><div class="card-name">You</div><div class="card-role">Nadia · Outcome owner</div></div>
+          </div>
+          <div class="card-bottom"><span class="card-trust human">Judgment calls</span></div>
+        </div>
+
+        <!-- Content Reviewer — left -->
+        <div class="agent-card" style="left:78px; top:170px;" tabindex="0" data-agent="content">
+          <div class="card-top">
+            <div class="card-icon">CR<span class="status-dot healthy"></span></div>
+            <div><div class="card-name">Content Reviewer</div><div class="card-role">3 processes · 48 tasks</div></div>
+          </div>
+          <div class="card-bottom"><span class="card-trust spot-check">Spot-checked</span><span class="card-now">Approved 3 posts 18m ago</span></div>
+        </div>
+
+        <!-- Quote Generator — right -->
+        <div class="agent-card" style="left:540px; top:170px;" tabindex="0" data-agent="quote">
+          <div class="card-top">
+            <div class="card-icon">QG<span class="status-dot attention"></span></div>
+            <div><div class="card-name">Quote Generator</div><div class="card-role">2 processes · 52 tasks</div></div>
+          </div>
+          <div class="card-bottom"><span class="card-trust supervised">You review</span><span class="card-now">Drafting Henderson</span></div>
+        </div>
+
+        <!-- Compliance Checker — bottom centre -->
+        <div class="agent-card" style="left:308px; top:320px;" tabindex="0" data-agent="compliance">
+          <div class="card-top">
+            <div class="card-icon">CC<span class="status-dot healthy"></span></div>
+            <div><div class="card-name">Compliance Checker</div><div class="card-role">2 processes · 14 tasks</div></div>
+          </div>
+          <div class="card-bottom"><span class="card-trust spot-check">Spot-checked</span><span class="card-now">Verified invoices 1h ago</span></div>
+        </div>
+
+      </div>
+
+      <div class="zoom-controls">
+        <button class="zoom-btn" data-zoom="in" aria-label="Zoom in">+</button>
+        <div class="zoom-level" id="zoomLevel">100%</div>
+        <button class="zoom-btn" data-zoom="out" aria-label="Zoom out">&minus;</button>
+        <button class="zoom-btn" data-zoom="fit" aria-label="Fit to view" style="margin-top:4px; font-size:10px;">Fit</button>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--border-strong)" stroke-width="1.5"/></svg> Reports to</div>
+        <div class="legend-item"><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--vivid-deep)" stroke-width="1.5" stroke-dasharray="6 3"/></svg> Reviews</div>
+        <div class="legend-item"><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--info)" stroke-width="1.5" stroke-dasharray="2 4"/></svg> Context</div>
+        <div class="legend-item"><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--caution)" stroke-width="1.5"/></svg> Escalates</div>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar">
+      <div class="input-container">
+        <textarea class="input-field" rows="1" placeholder="Ask about your team..." aria-label="Ask Ditto"></textarea>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─── RIGHT: DITTO PANEL ─── -->
+  <aside class="ditto-panel">
+    <div class="ditto-header">
+      <span class="ditto-dot"></span>
+      <span class="ditto-label">Ditto</span>
+      <span class="ditto-status">Watching your team</span>
+    </div>
+    <div class="ditto-scroll">
+
+      <!-- Context: Overview (default) -->
+      <div class="ditto-context active" data-context="overview">
+        <div>
+          <div class="ditto-sh">Team health</div>
+          <div class="donut-container">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="22" fill="none" stroke="var(--border)" stroke-width="7"/>
+              <circle cx="32" cy="32" r="22" fill="none" stroke="var(--positive)" stroke-width="7" stroke-dasharray="103.67 34.56" stroke-dashoffset="34.56" transform="rotate(-90 32 32)" stroke-linecap="round"/>
+              <circle cx="32" cy="32" r="22" fill="none" stroke="var(--caution)" stroke-width="7" stroke-dasharray="34.56 103.67" stroke-dashoffset="-103.67" transform="rotate(-90 32 32)" stroke-linecap="round"/>
+              <text x="32" y="30" text-anchor="middle" font-family="var(--font)" font-size="13" font-weight="700" fill="var(--text-primary)">3/4</text>
+              <text x="32" y="40" text-anchor="middle" font-family="var(--font)" font-size="8" fill="var(--text-muted)">healthy</text>
+            </svg>
+            <div class="donut-legend">
+              <div class="donut-legend-item"><span class="donut-legend-dot" style="background:var(--positive)"></span> Healthy (3)</div>
+              <div class="donut-legend-item"><span class="donut-legend-dot" style="background:var(--caution)"></span> Needs attention (1)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="suggestion">
+          <div class="suggestion-label">Team insight</div>
+          Content Reviewer checks Quote Generator's language — and catches issues QG keeps repeating. Upgrade CR to autonomous to tighten that loop.
+          <div class="suggestion-actions">
+            <button class="btn btn-s">Upgrade CR</button>
+            <button class="btn btn-g">Not yet</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Relationships</div>
+          <div class="detail-metrics">
+            <strong>6</strong> active relationships<br>
+            <strong>2</strong> review loops<br>
+            <strong>1</strong> escalation path<br>
+            <strong>1</strong> context share
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Cost this month</div>
+          <div class="detail-metrics">
+            <strong>$12.40</strong> total · 4 roles · 142 tasks
+          </div>
+        </div>
+      </div>
+
+      <!-- Context: Agent selected (Content Reviewer) -->
+      <div class="ditto-context" data-context="selected">
+        <div>
+          <div class="ditto-sh">Content Reviewer</div>
+          <div class="detail-metrics">Spot-checked · 48 tasks · 95% accuracy · $3.20/mo</div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Serves</div>
+          <div class="process-list">
+            <span class="process-pill">Content review</span>
+            <span class="process-pill">Brand voice</span>
+            <span class="process-pill">Social approval</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Relationships</div>
+          <div class="relationship-item">
+            <div class="rel-type reviews">Reviews</div>
+            <div class="rel-desc"><strong>Quote Generator</strong> — customer-facing language</div>
+            <div class="rel-stat">23 quotes this month · flagged 4 for tone</div>
+          </div>
+          <div class="relationship-item">
+            <div class="rel-type reviews">Reviewed by</div>
+            <div class="rel-desc"><strong>You</strong> — spot-check 20% of approvals</div>
+            <div class="rel-stat">Last check: 2 days ago · no corrections</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Trust trajectory</div>
+          <div class="detail-edge">
+            95% over 48 tasks — strong enough for autonomous. 7 more clean runs at current rate.
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Shared memory</div>
+          <div class="detail-metrics">
+            Shares process-scoped memory with Quote Generator for customer communication tone. Your corrections teach both agents.
+          </div>
+        </div>
+      </div>
+
+      <!-- Context: Edge selected (CR → QG) -->
+      <div class="ditto-context" data-context="edge">
+        <div>
+          <div class="ditto-sh">Content Reviewer &rarr; Quote Generator</div>
+          <div class="detail-metrics">Maker-checker · reviews customer-facing language</div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">How this works</div>
+          <div class="detail-metrics">
+            When QG drafts a quote, CR checks greeting, description, and sign-off against brand voice rules. QG sees corrections and adapts.
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">This month</div>
+          <div class="detail-metrics">
+            <strong>23</strong> quotes reviewed<br>
+            <strong>19</strong> approved clean · <strong>4</strong> flagged for tone
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">What gets flagged</div>
+          <div class="detail-edge">
+            Mostly tone mismatch — QG defaults to formal when customers write casually. Improving: 6 flags wk1 &rarr; 4 wk2 &rarr; 2 wk3.
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Shared memory</div>
+          <div class="detail-metrics">
+            &bull; Tone preferences per customer<br>
+            &bull; Approved greeting patterns<br>
+            &bull; Your corrections (shorten sign-offs)
+          </div>
+        </div>
+
+        <div>
+          <div class="ditto-sh">Trust implication</div>
+          <div class="detail-edge">
+            Upgrading CR to autonomous tightens this loop from hours to seconds — auto-approves QG language without your spot-check.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+
+<script>
+  // ═══ PAN & ZOOM ═══
+  const container = document.getElementById('canvasArea');
+  const transform = document.getElementById('canvasTransform');
+  const zoomLabel = document.getElementById('zoomLevel');
+  let scale = 1, panX = 0, panY = 0, isDragging = false, startX = 0, startY = 0;
+
+  function applyTransform() {
+    transform.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    zoomLabel.textContent = Math.round(scale * 100) + '%';
+  }
+
+  function fitToView() {
+    const cw = container.offsetWidth, ch = container.offsetHeight;
+    const gw = 800, gh = 440;
+    scale = Math.min(cw / gw, ch / gh, 1.2) * 0.85;
+    panX = (cw - gw * scale) / 2;
+    panY = (ch - gh * scale) / 2 + 10;
+    applyTransform();
+  }
+
+  container.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.agent-card, .edge-label, .zoom-btn')) return;
+    isDragging = true; startX = e.clientX - panX; startY = e.clientY - panY;
+  });
+  window.addEventListener('mousemove', (e) => { if (!isDragging) return; panX = e.clientX - startX; panY = e.clientY - startY; applyTransform(); });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const ns = Math.min(2, Math.max(0.3, scale * delta));
+    const r = ns / scale;
+    panX = mx - r * (mx - panX); panY = my - r * (my - panY);
+    scale = ns; applyTransform();
+  }, { passive: false });
+
+  document.querySelectorAll('.zoom-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.zoom === 'in') scale = Math.min(2, scale * 1.2);
+      else if (btn.dataset.zoom === 'out') scale = Math.max(0.3, scale * 0.8);
+      else if (btn.dataset.zoom === 'fit') { fitToView(); return; }
+      applyTransform();
+    });
+  });
+
+  requestAnimationFrame(fitToView);
+
+  // ═══ STATE SWITCHING — updates graph highlighting + Ditto panel ═══
+  const stateBtns = document.querySelectorAll('.toggle-btn[data-state]');
+  const dittoContexts = document.querySelectorAll('.ditto-context');
+  const allCards = document.querySelectorAll('.agent-card');
+  const allEdges = document.querySelectorAll('.edge');
+  const allLabels = document.querySelectorAll('.edge-label');
+
+  function switchState(state) {
+    // Update buttons
+    stateBtns.forEach(b => { b.classList.toggle('active', b.dataset.state === state); b.setAttribute('aria-selected', b.dataset.state === state); });
+    // Update Ditto panel
+    dittoContexts.forEach(c => c.classList.toggle('active', c.dataset.context === state));
+    // Update graph highlighting
+    allCards.forEach(c => c.classList.remove('selected', 'dimmed'));
+    allEdges.forEach(e => { e.style.opacity = ''; e.style.strokeWidth = ''; });
+    allLabels.forEach(l => l.classList.remove('highlight'));
+
+    if (state === 'selected') {
+      // Highlight Content Reviewer + connected
+      document.querySelector('[data-agent="content"]').classList.add('selected');
+      document.querySelector('[data-agent="compliance"]').classList.add('dimmed');
+      allEdges.forEach(e => {
+        const rel = e.dataset.rel;
+        if (rel === 'cr-qg') { e.style.strokeWidth = '2'; }
+        else if (!e.dataset.from || (e.dataset.from !== 'you' || e.dataset.to !== 'content')) { e.style.opacity = '0.2'; }
+      });
+      allLabels.forEach(l => { if (l.dataset.rel === 'cr-qg') l.classList.add('highlight'); });
+    } else if (state === 'edge') {
+      // Highlight CR → QG relationship
+      document.querySelector('[data-agent="content"]').classList.add('selected');
+      document.querySelector('[data-agent="quote"]').classList.add('selected');
+      document.querySelector('[data-agent="you"]').classList.add('dimmed');
+      document.querySelector('[data-agent="compliance"]').classList.add('dimmed');
+      allEdges.forEach(e => {
+        if (e.dataset.rel === 'cr-qg') { e.style.strokeWidth = '2.5'; e.style.stroke = 'var(--vivid)'; }
+        else { e.style.opacity = '0.15'; }
+      });
+      allLabels.forEach(l => { if (l.dataset.rel === 'cr-qg') l.classList.add('highlight'); });
+    }
+  }
+
+  stateBtns.forEach(btn => btn.addEventListener('click', () => switchState(btn.dataset.state)));
+
+  // Click agent cards to select
+  allCards.forEach(card => {
+    card.addEventListener('click', () => {
+      if (card.dataset.agent === 'content') switchState('selected');
+    });
+  });
+
+  // Click edge labels to show edge detail
+  allLabels.forEach(label => {
+    label.addEventListener('click', () => {
+      if (label.dataset.rel === 'cr-qg') switchState('edge');
+    });
+  });
+
+  // ═══ THEME TOGGLE ═══
+  document.querySelectorAll('.toggle-btn[data-theme]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.toggle-btn[data-theme]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.body.classList.toggle('theme-focus', btn.dataset.theme === 'focus');
+    });
+  });
+</script>
+
+</body>
+</html>
