@@ -1,0 +1,584 @@
+<!-- v3, 2026-03-27 — P41 PDF Viewer: Rob/R.M. Building subcontractor agreement. Page-faithful rendering with navigation, annotations, approval stamp. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P41 — PDF Viewer | Ditto Prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #EDEDF0; --surface: #E2E2E6; --surface-raised: #F9F9FB; --border: #D5D5DA; --border-strong: #BBBBC2; --text-primary: #111118; --text-secondary: #4A4A55; --text-muted: #65656F; --accent: #111118; --accent-hover: #000000; --accent-subtle: #E7E7EB; --accent-text: #F9F9FB; --vivid: #059669; --vivid-deep: #3D5A48; --vivid-subtle: #ECFDF5; --positive: #16a34a; --positive-subtle: #EEFAF0; --caution: #D4960A; --caution-subtle: #FDF8E8; --negative: #C4352A; --negative-subtle: #FDF0EE; --info: #2563eb; --info-subtle: #EEF4FF; --shadow-subtle: 0 1px 3px rgba(26,26,26,0.05); --shadow-medium: 0 4px 16px rgba(26,26,26,0.07); --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --font: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vivid-subtle); }
+  .skip-link { position: absolute; top: -100%; left: 16px; background: var(--accent); color: white; padding: 8px 16px; border-radius: var(--radius-md); z-index: 1000; font-size: 14px; text-decoration: none; }
+  .skip-link:focus { top: 56px; }
+  .proto-nav { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; font-size: 14px; }
+  .proto-nav-label { color: var(--text-muted); font-weight: 500; letter-spacing: -0.01em; }
+  .proto-nav-centre { color: var(--text-secondary); font-weight: 500; }
+  .proto-nav-centre span { color: var(--text-primary); }
+  .proto-nav-right { display: flex; align-items: center; gap: 12px; }
+  .proto-arrow { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease-out; }
+  .proto-arrow:hover:not(.disabled) { border-color: var(--border-strong); color: var(--text-primary); box-shadow: var(--shadow-subtle); }
+  .proto-arrow.disabled { opacity: 0.35; cursor: not-allowed; }
+  .proto-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .state-bar { position: fixed; top: 48px; left: 0; right: 0; height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 99; padding: 0 16px; }
+  .state-btn { font-family: var(--font); font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: 1px solid transparent; border-radius: var(--radius-md); padding: 6px 14px; cursor: pointer; transition: all 0.15s ease-out; white-space: nowrap; }
+  .state-btn:hover { color: var(--text-primary); background: var(--surface-raised); }
+  .state-btn.active { color: var(--text-primary); background: var(--surface-raised); border-color: var(--border); box-shadow: var(--shadow-subtle); }
+  .state-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme-toggle { display: flex; align-items: center; gap: 4px; margin-right: 12px; padding-right: 12px; border-right: 1px solid var(--border); }
+  .theme-btn { font-family: var(--font); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 4px 12px; cursor: pointer; transition: all 0.15s; }
+  .theme-btn:hover { color: var(--text-primary); }
+  .theme-btn.active { color: var(--text-primary); border-color: var(--border-strong); background: var(--surface); }
+  body.theme-focus { --vivid: #111118; --vivid-deep: #4A4A55; --vivid-subtle: #E7E7EB; }
+  body.theme-focus ::selection { background: var(--accent); color: var(--accent-text); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+  .workspace { position: fixed; top: 92px; left: 0; right: 0; bottom: 0; display: flex; overflow: hidden; }
+  .conversation-col { width: 300px; min-width: 300px; background: var(--surface-raised); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .conversation-header { padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .conversation-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .ditto-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vivid); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+  .conversation-context { font-size: 12px; color: var(--text-muted); }
+  .conversation-thread { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .conversation-thread::-webkit-scrollbar { width: 4px; }
+  .conversation-thread::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .msg { line-height: 1.5; font-size: 13px; }
+  .msg.ditto { color: var(--text-primary); }
+  .msg.user { background: var(--surface); padding: 8px 12px; border-radius: var(--radius-lg); align-self: flex-end; max-width: 90%; display: table; color: var(--text-primary); }
+  .artifact-ref { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-left: 2px solid var(--vivid); background: var(--vivid-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 12px; font-weight: 500; color: var(--text-primary); }
+  .artifact-ref .badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 99px; background: var(--accent-subtle); color: var(--text-secondary); }
+  .artifact-ref .badge-positive { background: var(--positive-subtle); color: var(--positive); }
+  .change-note { font-size: 12px; color: var(--vivid-deep); font-weight: 500; display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+  .change-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--vivid); flex-shrink: 0; }
+  .teach-this { border-left: 2px solid var(--vivid); padding: 8px 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .teach-this-label { font-weight: 600; color: var(--vivid); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .conversation-input { padding: 8px 12px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .conversation-input-container { display: flex; align-items: flex-end; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 10px 16px; transition: border-color 0.15s, box-shadow 0.15s; }
+  .conversation-input-container:focus-within { border-color: var(--vivid); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
+  .conversation-input-field { flex: 1; border: none; background: transparent; font-family: var(--font); font-size: 14px; color: var(--text-primary); outline: none; line-height: 1.4; resize: none; min-height: 20px; max-height: 80px; }
+  .conversation-input-field::placeholder { color: var(--text-muted); }
+  .attach-btn { width: 28px; height: 28px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.12s; }
+  .attach-btn:hover { color: var(--text-primary); background: var(--surface-raised); }
+  .attach-btn svg { width: 16px; height: 16px; }
+  .centre { flex: 1; min-width: 480px; display: flex; flex-direction: column; background: var(--bg); }
+  .artifact-header-bar { padding: 16px 32px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .artifact-header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .artifact-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--vivid-subtle); color: var(--vivid-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .artifact-icon svg { width: 20px; height: 20px; }
+  .artifact-title { font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
+  .artifact-meta { font-size: 13px; color: var(--text-muted); margin-left: 48px; }
+  .artifact-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 8px; border-radius: 99px; margin-left: auto; }
+  .status-draft { background: var(--accent-subtle); color: var(--text-secondary); }
+  .status-ready { background: var(--positive-subtle); color: var(--positive); }
+  .version-bar { padding: 8px 32px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border); font-size: 12px; flex-shrink: 0; }
+  .version-tab { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 3px 10px; cursor: pointer; transition: all 0.12s; }
+  .version-tab:hover { color: var(--text-primary); }
+  .version-tab.active { color: var(--text-primary); background: var(--surface); border-color: var(--border); }
+  .centre-footer { padding: 12px 32px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .centre-footer .spacer { flex: 1; }
+  .footer-destination { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+  .footer-destination svg { width: 14px; height: 14px; }
+  .resolved-banner { display: flex; align-items: center; gap: 10px; padding: 12px 32px; background: var(--positive-subtle); border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 500; color: var(--positive); flex-shrink: 0; }
+  .resolved-banner svg { width: 20px; height: 20px; }
+  .btn { font-family: var(--font); font-size: 13px; font-weight: 500; border: none; border-radius: 99px; padding: 7px 16px; cursor: pointer; transition: all 0.12s; line-height: 1.3; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: var(--accent-text); }
+  .btn-primary:hover { filter: brightness(1.2); }
+  .btn-secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong); }
+  .btn-secondary:hover { background: var(--surface); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); padding: 7px 12px; }
+  .btn-ghost:hover { color: var(--text-primary); background: var(--surface); }
+  .btn-sm { font-size: 12px; padding: 5px 12px; }
+  .context-panel { width: 320px; min-width: 320px; background: var(--surface-raised); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: width 0.2s ease-in-out, min-width 0.2s ease-in-out; }
+  .context-panel.collapsed { width: 0; min-width: 0; border-left: none; overflow: hidden; }
+  .context-panel-header { padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .context-panel-title { font-size: 13px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .collapse-btn { width: 24px; height: 24px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+  .collapse-btn:hover { color: var(--text-primary); background: var(--surface); }
+  .context-scroll { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
+  .context-scroll::-webkit-scrollbar { width: 4px; }
+  .context-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .context-section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .context-section { display: flex; flex-direction: column; }
+  .knowledge-list { display: flex; flex-direction: column; gap: 6px; }
+  .knowledge-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+  .knowledge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vivid); flex-shrink: 0; margin-top: 5px; }
+  .process-context { font-size: 13px; line-height: 1.5; }
+  .process-context-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .process-context-label { color: var(--text-muted); font-size: 12px; }
+  .process-context-value { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+  .trust-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--caution-subtle); color: var(--caution); }
+  .version-history { display: flex; flex-direction: column; gap: 8px; }
+  .version-entry { display: flex; gap: 10px; font-size: 12px; line-height: 1.4; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .version-entry:last-child { border-bottom: none; }
+  .version-num { font-weight: 600; color: var(--text-primary); min-width: 24px; }
+  .version-desc { color: var(--text-secondary); }
+  .version-active { color: var(--vivid); }
+  .context-teach { border-left: 2px solid var(--vivid); padding: 10px 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; background: var(--vivid-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .context-teach-label { font-weight: 600; color: var(--vivid); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .state-content { display: none; }
+  .state-content.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .conv-state { display: none; }
+  .conv-state.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .ctx-state { display: none; }
+  .ctx-state.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .expand-btn { position: fixed; right: 8px; top: 100px; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-muted); cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 50; transition: all 0.12s; }
+  .expand-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .context-panel.collapsed ~ .expand-btn { display: flex; }
+  @media (max-width: 1279px) { .conversation-col { width: 280px; min-width: 280px; } .context-panel { width: 280px; min-width: 280px; } }
+  @media (max-width: 1024px) { .context-panel { display: none; } }
+  @media (max-width: 860px) { .conversation-col { display: none; } }
+
+  /* PDF Viewer specific */
+  .pdf-toolbar { padding: 8px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .pdf-toolbar .spacer { flex: 1; }
+  .page-nav { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+  .page-nav-btn { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+  .page-nav-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .page-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .page-current { font-weight: 600; color: var(--text-primary); }
+  .zoom-controls { display: flex; align-items: center; gap: 4px; }
+  .zoom-btn { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+  .zoom-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .zoom-level { font-size: 12px; color: var(--text-muted); min-width: 36px; text-align: center; }
+  .pdf-frame { flex: 1; display: flex; align-items: flex-start; justify-content: center; background: #808088; overflow: auto; padding: 32px; }
+  .pdf-page { background: white; width: 612px; min-height: 792px; box-shadow: 0 2px 12px rgba(0,0,0,0.2); padding: 72px 72px 96px; font-family: 'Merriweather', Georgia, serif; font-size: 12px; line-height: 1.8; color: #1a1a1a; position: relative; }
+  .pdf-page h1 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 6px; line-height: 1.3; }
+  .pdf-page h2 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .pdf-page h3 { font-size: 12px; font-weight: 700; margin: 14px 0 6px; }
+  .pdf-page .subtitle { text-align: center; font-size: 13px; color: #555; margin-bottom: 24px; }
+  .pdf-page .parties { margin: 16px 0; }
+  .pdf-page .party-row { display: flex; gap: 24px; margin-bottom: 8px; }
+  .pdf-page .party-label { font-weight: 700; min-width: 100px; }
+  .pdf-page .clause { margin-bottom: 12px; text-align: justify; }
+  .pdf-page .clause-num { font-weight: 700; }
+  .pdf-page .table-simple { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 11px; }
+  .pdf-page .table-simple th { text-align: left; font-weight: 700; padding: 6px 8px; border-bottom: 2px solid #333; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pdf-page .table-simple td { padding: 5px 8px; border-bottom: 1px solid #ddd; }
+  .pdf-page .page-number { position: absolute; bottom: 36px; left: 0; right: 0; text-align: center; font-size: 10px; color: #999; font-family: var(--font); }
+  .pdf-highlight { background: rgba(255, 235, 59, 0.4); padding: 1px 2px; position: relative; }
+  .annotation-bubble { position: absolute; right: -8px; top: -28px; background: #FDF8E8; border: 1px solid var(--caution); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 10px; font-family: var(--font); color: var(--caution); font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-subtle); }
+  .annotation-bubble::after { content: ''; position: absolute; bottom: -5px; left: 16px; width: 8px; height: 8px; background: #FDF8E8; border-right: 1px solid var(--caution); border-bottom: 1px solid var(--caution); transform: rotate(45deg); }
+  .approved-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); border: 4px solid var(--positive); color: var(--positive); font-family: var(--font); font-size: 42px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 12px 32px; border-radius: var(--radius-md); opacity: 0.25; pointer-events: none; }
+  .annotation-sidebar { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .annotation-item { display: flex; gap: 8px; font-size: 12px; padding: 8px 10px; background: var(--caution-subtle); border-radius: var(--radius-sm); border-left: 3px solid var(--caution); }
+  .annotation-item .ann-page { font-weight: 600; color: var(--caution); min-width: 28px; }
+  .annotation-item .ann-text { color: var(--text-secondary); }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.theme-light) {
+      --bg: #111118; --surface: #1A1A22; --surface-raised: #222230;
+      --border: #2A2A35; --border-strong: #3A3A45;
+      --text-primary: #F9F9FB; --text-secondary: #A0A0AD; --text-muted: #8A8A96;
+      --accent: #F9F9FB; --accent-hover: #FFFFFF; --accent-subtle: #2A2A35; --accent-text: #111118;
+      --vivid: #10B981; --vivid-deep: #6B8F71; --vivid-subtle: #1A2E22;
+      --positive: #22c55e; --caution: #E5A820; --negative: #E8453A; --info: #3B82F6;
+    }
+  }
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
+  <div class="proto-nav-label">Ditto Prototypes</div>
+  <div class="proto-nav-centre">Artifact &middot; <span>PDF Viewer</span></div>
+  <div class="proto-nav-right">
+    <div class="theme-toggle"><button class="theme-btn active" data-theme="signature">Signature</button><button class="theme-btn" data-theme="focus">Focus</button></div>
+    <a href="index.html" class="proto-arrow" title="Index" aria-label="Index">&#8862;</a>
+    <a href="40-clinical-notes.html" class="proto-arrow" aria-label="Previous">&#8592;</a>
+    <a class="proto-arrow disabled" aria-label="Next (none)">&#8594;</a>
+  </div>
+</nav>
+<div class="state-bar" role="tablist" aria-label="Prototype states">
+  <button class="state-btn active" role="tab" data-state="1" aria-selected="true">1. Generated</button>
+  <button class="state-btn" role="tab" data-state="2">2. Page Navigation</button>
+  <button class="state-btn" role="tab" data-state="3">3. Annotation</button>
+  <button class="state-btn" role="tab" data-state="4">4. Approved</button>
+</div>
+
+<div class="workspace" id="main">
+  <!-- LEFT — Conversation -->
+  <aside class="conversation-col">
+    <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span>Rob &middot; R.M. Building</div><div class="conversation-context">Subcontractor agreement</div></div>
+
+    <!-- State 1 conversation -->
+    <div class="conv-state active" data-conv="1">
+      <div class="conversation-thread">
+        <div class="msg user">I need a subcontractor agreement for Dave Kearney doing the foundation work at 42 Rimu Street. Standard NZS 3910 terms, $38,500 fixed price.</div>
+        <div class="msg ditto">I've drafted a subcontractor agreement based on NZS 3910 conditions. It includes the scope for foundation and concrete work at 42 Rimu Street, Christchurch.</div>
+        <div class="artifact-ref">&#128196; Subcontractor Agreement <span class="badge">Draft</span></div>
+        <div class="msg ditto">Key terms: $38,500 fixed price, 6-week programme, standard retention and defects liability. Please review the parties and scope details.</div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" placeholder="Ask about this contract..." rows="1"></textarea></div></div>
+    </div>
+
+    <!-- State 2 conversation -->
+    <div class="conv-state" data-conv="2">
+      <div class="conversation-thread">
+        <div class="msg user">Go to the insurance and H&S section — I need to check the minimum cover amounts.</div>
+        <div class="msg ditto">Navigated to page 3. The insurance section requires $2M public liability and $1M professional indemnity. H&S obligations reference the HSWA 2015 requirements.</div>
+        <div class="artifact-ref">&#128196; Subcontractor Agreement <span class="badge">p.3 of 4</span></div>
+        <div class="change-note">Jumped to insurance &amp; H&amp;S clauses</div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" placeholder="Ask about this contract..." rows="1"></textarea></div></div>
+    </div>
+
+    <!-- State 3 conversation -->
+    <div class="conv-state" data-conv="3">
+      <div class="conversation-thread">
+        <div class="msg user">Highlight the completion date on page 2, I want to flag it for Dave to confirm.</div>
+        <div class="msg ditto">I've highlighted the completion date clause on page 2. The current date is 28 April 2026 — 6 weeks from the proposed start of 17 March.</div>
+        <div class="artifact-ref">&#128196; Subcontractor Agreement <span class="badge">p.2 — annotated</span></div>
+        <div class="change-note">Highlighted completion date for review</div>
+        <div class="teach-this"><div class="teach-this-label">Teach This</div>Rob frequently flags completion dates for subcontractor confirmation. Auto-highlight date clauses in future contracts?</div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" placeholder="Ask about this contract..." rows="1"></textarea></div></div>
+    </div>
+
+    <!-- State 4 conversation -->
+    <div class="conv-state" data-conv="4">
+      <div class="conversation-thread">
+        <div class="msg user">Looks good. Approve it and send to Dave for signing.</div>
+        <div class="msg ditto">Agreement approved and marked for signature. I'll send it to Dave Kearney at dave@kearneybuilding.co.nz for e-signature via the standard process.</div>
+        <div class="artifact-ref">&#128196; Subcontractor Agreement <span class="badge badge-positive">Approved</span></div>
+        <div class="change-note">Approved — sent for e-signature</div>
+        <div class="teach-this"><div class="teach-this-label">Teach This</div>This contract follows the same structure as the Mason Ave agreement. Save as a template for future residential subcontractor agreements?</div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" placeholder="Ask about this contract..." rows="1"></textarea></div></div>
+    </div>
+  </aside>
+
+  <!-- CENTRE — PDF Viewer -->
+  <main class="centre">
+    <!-- State 1: Generated — Page 1 -->
+    <div class="state-content active" data-state="1">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="artifact-title">Subcontractor Agreement</div>
+          <div class="artifact-status status-draft">Draft</div>
+        </div>
+        <div class="artifact-meta">42 Rimu St foundation works &middot; D. Kearney &middot; 4 pages</div>
+      </div>
+      <div class="version-bar"><button class="version-tab active">v1</button><span style="color:var(--text-muted)">Generated from NZS 3910 template</span></div>
+      <div class="pdf-toolbar">
+        <div class="page-nav">
+          <button class="page-nav-btn" disabled>&#8592;</button>
+          <span>Page <span class="page-current">1</span> of 4</span>
+          <button class="page-nav-btn">&#8594;</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="zoom-controls"><button class="zoom-btn">&#8722;</button><span class="zoom-level">100%</span><button class="zoom-btn">+</button></div>
+      </div>
+      <div class="pdf-frame">
+        <div class="pdf-page">
+          <h1>Subcontractor Agreement</h1>
+          <div class="subtitle">Based on NZS 3910:2013 Conditions of Contract</div>
+          <h2>1. Parties</h2>
+          <div class="parties">
+            <div class="party-row"><span class="party-label">Principal:</span><span>R.M. Building Ltd, 18 Colombo Street, Christchurch 8011</span></div>
+            <div class="party-row"><span class="party-label">Subcontractor:</span><span>David Kearney T/A Kearney Foundations, 7 Marshland Road, Christchurch 8083</span></div>
+          </div>
+          <h2>2. Project</h2>
+          <div class="clause"><span class="clause-num">2.1</span> The Works comprise foundation and concrete slab construction at 42 Rimu Street, Halswell, Christchurch 7674 ("the Site"), as detailed in the attached scope of works (Schedule A).</div>
+          <div class="clause"><span class="clause-num">2.2</span> The Subcontractor shall execute and complete the Works in accordance with the drawings, specifications, and conditions set out in this Agreement.</div>
+          <h2>3. Contract Sum</h2>
+          <div class="clause"><span class="clause-num">3.1</span> The Contract Sum is <strong>$38,500.00</strong> (plus GST) as a fixed lump sum price, inclusive of all labour, materials, plant, and equipment necessary to complete the Works.</div>
+          <div class="clause"><span class="clause-num">3.2</span> Payment shall be made monthly in arrears upon receipt of a valid tax invoice, subject to a retention of 5% up to a maximum of $1,925.00.</div>
+          <div class="page-number">1</div>
+        </div>
+      </div>
+      <div class="centre-footer">
+        <button class="btn btn-ghost btn-sm">&#128206; Attach scope</button>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-sm">Export PDF</button>
+        <button class="btn btn-primary btn-sm">Approve</button>
+      </div>
+    </div>
+
+    <!-- State 2: Page Navigation — Page 3 -->
+    <div class="state-content" data-state="2">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="artifact-title">Subcontractor Agreement</div>
+          <div class="artifact-status status-draft">Draft</div>
+        </div>
+        <div class="artifact-meta">42 Rimu St foundation works &middot; D. Kearney &middot; 4 pages</div>
+      </div>
+      <div class="version-bar"><button class="version-tab active">v1</button><span style="color:var(--text-muted)">Generated from NZS 3910 template</span></div>
+      <div class="pdf-toolbar">
+        <div class="page-nav">
+          <button class="page-nav-btn">&#8592;</button>
+          <span>Page <span class="page-current">3</span> of 4</span>
+          <button class="page-nav-btn">&#8594;</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="zoom-controls"><button class="zoom-btn">&#8722;</button><span class="zoom-level">100%</span><button class="zoom-btn">+</button></div>
+      </div>
+      <div class="pdf-frame">
+        <div class="pdf-page">
+          <h2>7. Insurance</h2>
+          <div class="clause"><span class="clause-num">7.1</span> The Subcontractor shall maintain the following insurance cover for the duration of the Works:</div>
+          <table class="table-simple">
+            <thead><tr><th>Insurance Type</th><th>Minimum Cover</th><th>Evidence Required</th></tr></thead>
+            <tbody>
+              <tr><td>Public Liability</td><td>$2,000,000</td><td>Certificate of currency</td></tr>
+              <tr><td>Professional Indemnity</td><td>$1,000,000</td><td>Certificate of currency</td></tr>
+              <tr><td>Motor Vehicle — Third Party</td><td>$1,000,000</td><td>Policy schedule</td></tr>
+              <tr><td>Workers' Compensation</td><td>Statutory</td><td>ACC cover letter</td></tr>
+            </tbody>
+          </table>
+          <div class="clause"><span class="clause-num">7.2</span> Certificates of currency must be provided to the Principal prior to commencing work on Site and upon each renewal during the contract period.</div>
+          <h2>8. Health &amp; Safety</h2>
+          <div class="clause"><span class="clause-num">8.1</span> The Subcontractor acknowledges their duties as a Person Conducting a Business or Undertaking (PCBU) under the Health and Safety at Work Act 2015 (HSWA).</div>
+          <div class="clause"><span class="clause-num">8.2</span> The Subcontractor shall:</div>
+          <div class="clause" style="padding-left: 24px;">(a) provide a site-specific safety plan prior to commencing works;<br>(b) ensure all workers hold current Site Safe certification;<br>(c) comply with the Principal's site safety rules and induction requirements;<br>(d) report all notifiable events to the Principal within 2 hours of occurrence.</div>
+          <div class="clause"><span class="clause-num">8.3</span> The Principal reserves the right to suspend the Works immediately if, in their reasonable opinion, the Subcontractor is in breach of any health and safety obligation.</div>
+          <div class="page-number">3</div>
+        </div>
+      </div>
+      <div class="centre-footer">
+        <button class="btn btn-ghost btn-sm">&#128206; Attach scope</button>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-sm">Export PDF</button>
+        <button class="btn btn-primary btn-sm">Approve</button>
+      </div>
+    </div>
+
+    <!-- State 3: Annotation — Page 2 with highlight -->
+    <div class="state-content" data-state="3">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="artifact-title">Subcontractor Agreement</div>
+          <div class="artifact-status status-draft">Draft &middot; 1 annotation</div>
+        </div>
+        <div class="artifact-meta">42 Rimu St foundation works &middot; D. Kearney &middot; 4 pages</div>
+      </div>
+      <div class="version-bar"><button class="version-tab active">v1</button><span style="color:var(--text-muted)">Generated from NZS 3910 template</span></div>
+      <div class="pdf-toolbar">
+        <div class="page-nav">
+          <button class="page-nav-btn">&#8592;</button>
+          <span>Page <span class="page-current">2</span> of 4</span>
+          <button class="page-nav-btn">&#8594;</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="zoom-controls"><button class="zoom-btn">&#8722;</button><span class="zoom-level">100%</span><button class="zoom-btn">+</button></div>
+        <button class="btn btn-ghost btn-sm" style="border: 1px solid var(--caution); color: var(--caution);">&#9998; Annotating</button>
+      </div>
+      <div class="pdf-frame">
+        <div class="pdf-page">
+          <h2>4. Programme</h2>
+          <div class="clause"><span class="clause-num">4.1</span> The Subcontractor shall commence the Works on or about <strong>17 March 2026</strong>, subject to reasonable notice from the Principal and site readiness.</div>
+          <div class="clause"><span class="clause-num">4.2</span> The Works shall be completed by <span class="pdf-highlight"><strong>28 April 2026</strong><span class="annotation-bubble">&#9873; Confirm with Dave</span></span>, being six (6) weeks from the commencement date.</div>
+          <div class="clause"><span class="clause-num">4.3</span> If the Subcontractor fails to complete the Works by the date for completion, liquidated damages of $250.00 per working day shall apply unless an extension of time has been granted in writing.</div>
+          <h2>5. Variations</h2>
+          <div class="clause"><span class="clause-num">5.1</span> No variation to the Works shall be carried out unless authorised in writing by the Principal or the Principal's representative.</div>
+          <div class="clause"><span class="clause-num">5.2</span> Variations shall be valued at fair and reasonable rates. Where possible, rates shall be derived from the rates and prices in this Agreement.</div>
+          <h2>6. Defects Liability</h2>
+          <div class="clause"><span class="clause-num">6.1</span> The defects liability period shall be twelve (12) months from the date of practical completion.</div>
+          <div class="clause"><span class="clause-num">6.2</span> During the defects liability period, the Subcontractor shall rectify any defects notified by the Principal at no additional cost, within a reasonable time having regard to the nature and extent of the defect.</div>
+          <div class="clause"><span class="clause-num">6.3</span> Retention monies shall be released as follows: 50% upon practical completion; 50% upon expiry of the defects liability period, subject to all defects being rectified.</div>
+          <div class="page-number">2</div>
+        </div>
+      </div>
+      <div class="centre-footer">
+        <button class="btn btn-ghost btn-sm">&#128206; Attach scope</button>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-sm">Export PDF</button>
+        <button class="btn btn-primary btn-sm">Approve</button>
+      </div>
+    </div>
+
+    <!-- State 4: Approved — Page 1 with stamp -->
+    <div class="state-content" data-state="4">
+      <div class="resolved-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Agreement approved — sent to Dave Kearney for e-signature</div>
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon" style="background: var(--positive-subtle); color: var(--positive);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="artifact-title">Subcontractor Agreement</div>
+          <div class="artifact-status status-ready">Approved</div>
+        </div>
+        <div class="artifact-meta">42 Rimu St foundation works &middot; D. Kearney &middot; 4 pages</div>
+      </div>
+      <div class="version-bar"><button class="version-tab active">v1</button><span style="color:var(--text-muted)">Approved 27 Mar 2026</span></div>
+      <div class="pdf-toolbar">
+        <div class="page-nav">
+          <button class="page-nav-btn" disabled>&#8592;</button>
+          <span>Page <span class="page-current">1</span> of 4</span>
+          <button class="page-nav-btn">&#8594;</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="zoom-controls"><button class="zoom-btn">&#8722;</button><span class="zoom-level">100%</span><button class="zoom-btn">+</button></div>
+      </div>
+      <div class="pdf-frame">
+        <div class="pdf-page">
+          <div class="approved-stamp">Approved</div>
+          <h1>Subcontractor Agreement</h1>
+          <div class="subtitle">Based on NZS 3910:2013 Conditions of Contract</div>
+          <h2>1. Parties</h2>
+          <div class="parties">
+            <div class="party-row"><span class="party-label">Principal:</span><span>R.M. Building Ltd, 18 Colombo Street, Christchurch 8011</span></div>
+            <div class="party-row"><span class="party-label">Subcontractor:</span><span>David Kearney T/A Kearney Foundations, 7 Marshland Road, Christchurch 8083</span></div>
+          </div>
+          <h2>2. Project</h2>
+          <div class="clause"><span class="clause-num">2.1</span> The Works comprise foundation and concrete slab construction at 42 Rimu Street, Halswell, Christchurch 7674 ("the Site"), as detailed in the attached scope of works (Schedule A).</div>
+          <div class="clause"><span class="clause-num">2.2</span> The Subcontractor shall execute and complete the Works in accordance with the drawings, specifications, and conditions set out in this Agreement.</div>
+          <h2>3. Contract Sum</h2>
+          <div class="clause"><span class="clause-num">3.1</span> The Contract Sum is <strong>$38,500.00</strong> (plus GST) as a fixed lump sum price, inclusive of all labour, materials, plant, and equipment necessary to complete the Works.</div>
+          <div class="clause"><span class="clause-num">3.2</span> Payment shall be made monthly in arrears upon receipt of a valid tax invoice, subject to a retention of 5% up to a maximum of $1,925.00.</div>
+          <div class="page-number">1</div>
+        </div>
+      </div>
+      <div class="centre-footer">
+        <button class="btn btn-ghost btn-sm">&#128438; Download signed copy</button>
+        <div class="spacer"></div>
+        <div class="footer-destination"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> dave@kearneybuilding.co.nz</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT — Context Panel -->
+  <aside class="context-panel" id="contextPanel">
+    <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel">&#10005;</button></div>
+
+    <!-- State 1 context -->
+    <div class="ctx-state active" data-ctx="1">
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Process</div>
+          <div class="process-context">
+            <div class="process-context-row"><span class="process-context-label">Type</span><span class="process-context-value">Contract generation</span></div>
+            <div class="process-context-row"><span class="process-context-label">Template</span><span class="process-context-value">NZS 3910 Subcontract</span></div>
+            <div class="process-context-row"><span class="process-context-label">Trust</span><span class="trust-badge">Review required</span></div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Knowledge Used</div>
+          <div class="knowledge-list">
+            <div class="knowledge-item"><span class="knowledge-dot"></span>NZS 3910:2013 standard conditions</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>R.M. Building company details</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>Previous Kearney Foundations engagement</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>42 Rimu St project specifications</div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Document Structure</div>
+          <div class="knowledge-list" style="font-size: 12px; color: var(--text-secondary);">
+            <div class="knowledge-item"><span class="knowledge-dot" style="background: var(--text-muted);"></span>p.1 — Parties, project, contract sum</div>
+            <div class="knowledge-item"><span class="knowledge-dot" style="background: var(--text-muted);"></span>p.2 — Programme, variations, defects</div>
+            <div class="knowledge-item"><span class="knowledge-dot" style="background: var(--text-muted);"></span>p.3 — Insurance, health &amp; safety</div>
+            <div class="knowledge-item"><span class="knowledge-dot" style="background: var(--text-muted);"></span>p.4 — Disputes, termination, signatures</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 2 context -->
+    <div class="ctx-state" data-ctx="2">
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Insurance Requirements</div>
+          <div class="knowledge-list">
+            <div class="knowledge-item"><span class="knowledge-dot"></span>$2M public liability (NZ industry standard)</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>$1M professional indemnity</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>Statutory workers' comp via ACC</div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">H&amp;S Compliance</div>
+          <div class="knowledge-list">
+            <div class="knowledge-item"><span class="knowledge-dot"></span>HSWA 2015 PCBU obligations</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>Site Safe certification required</div>
+            <div class="knowledge-item"><span class="knowledge-dot"></span>2-hour notifiable event reporting</div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Kearney Foundations Status</div>
+          <div class="process-context">
+            <div class="process-context-row"><span class="process-context-label">Last engagement</span><span class="process-context-value">Nov 2025</span></div>
+            <div class="process-context-row"><span class="process-context-label">Insurance expiry</span><span class="process-context-value">14 Jun 2026</span></div>
+            <div class="process-context-row"><span class="process-context-label">Site Safe</span><span class="process-context-value">Current</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 3 context -->
+    <div class="ctx-state" data-ctx="3">
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Annotations</div>
+          <div class="annotation-sidebar">
+            <div class="annotation-item"><span class="ann-page">p.2</span><span class="ann-text">Completion date <strong>28 April 2026</strong> — flagged for Dave to confirm</span></div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Programme Summary</div>
+          <div class="process-context">
+            <div class="process-context-row"><span class="process-context-label">Start</span><span class="process-context-value">17 Mar 2026</span></div>
+            <div class="process-context-row"><span class="process-context-label">Completion</span><span class="process-context-value" style="color: var(--caution);">28 Apr 2026 &#9873;</span></div>
+            <div class="process-context-row"><span class="process-context-label">Duration</span><span class="process-context-value">6 weeks</span></div>
+            <div class="process-context-row"><span class="process-context-label">LDs</span><span class="process-context-value">$250/day</span></div>
+          </div>
+        </div>
+        <div class="context-section">
+          <div class="context-teach"><div class="context-teach-label">Pattern Detected</div>3 of Rob's last 5 contracts had completion date discussions with subcontractors. Consider adding a confirmation step to the contract generation process.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 4 context -->
+    <div class="ctx-state" data-ctx="4">
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Approval</div>
+          <div class="process-context">
+            <div class="process-context-row"><span class="process-context-label">Approved by</span><span class="process-context-value">Rob Mitchell</span></div>
+            <div class="process-context-row"><span class="process-context-label">Date</span><span class="process-context-value">27 Mar 2026</span></div>
+            <div class="process-context-row"><span class="process-context-label">Sent to</span><span class="process-context-value">D. Kearney</span></div>
+            <div class="process-context-row"><span class="process-context-label">E-sign status</span><span class="process-context-value" style="color: var(--caution);">Pending</span></div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Version History</div>
+          <div class="version-history">
+            <div class="version-entry"><span class="version-num version-active">v1</span><span class="version-desc">Generated from NZS 3910 template. Approved without amendments.</span></div>
+          </div>
+        </div>
+        <div class="context-section">
+          <div class="context-teach"><div class="context-teach-label">Template Opportunity</div>This agreement matches the Mason Ave pattern. Save as "Residential Subcontractor — Fixed Price" for future use?</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <button class="expand-btn" onclick="document.getElementById('contextPanel').classList.remove('collapsed')" aria-label="Expand context panel">&#9776;</button>
+</div>
+
+<script>
+  // State switching
+  document.querySelectorAll('.state-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = btn.dataset.state;
+      document.querySelectorAll('.state-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+      btn.classList.add('active'); btn.setAttribute('aria-selected', 'true');
+      document.querySelectorAll('.state-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.conv-state').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.ctx-state').forEach(c => c.classList.remove('active'));
+      const sc = document.querySelector(`.state-content[data-state="${s}"]`);
+      const cc = document.querySelector(`.conv-state[data-conv="${s}"]`);
+      const xc = document.querySelector(`.ctx-state[data-ctx="${s}"]`);
+      if (sc) sc.classList.add('active');
+      if (cc) cc.classList.add('active');
+      if (xc) xc.classList.add('active');
+    });
+  });
+
+  // Theme toggle
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.body.classList.toggle('theme-focus', btn.dataset.theme === 'focus');
+    });
+  });
+</script>
+<script>
+function initDots(canvas){const W=28,H=28;canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');const dots=Array.from({length:5},()=>({x:Math.random()*W,y:Math.random()*H,r:1.5+Math.random(),vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,o:0.3+Math.random()*0.5}));function draw(){ctx.clearRect(0,0,W,H);const cs=getComputedStyle(document.documentElement);const vivid=cs.getPropertyValue('--vivid').trim()||'#059669';dots.forEach(d=>{d.x+=d.vx;d.y+=d.vy;if(d.x<0||d.x>W)d.vx*=-1;if(d.y<0||d.y>H)d.vy*=-1;ctx.globalAlpha=d.o;ctx.fillStyle=vivid;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,Math.PI*2);ctx.fill();});requestAnimationFrame(draw);}draw();}
+document.querySelectorAll('.dots-field').forEach(initDots);
+</script>
+</body>
+</html>

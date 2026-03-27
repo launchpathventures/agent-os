@@ -1,625 +1,737 @@
-<!-- v1, 2026-03-27 — P40 Clinical Notes: Jay/Status voice-to-structure. Proves ADR-023 voice input to structured artifact with section-level refinement. -->
+<!-- v5, 2026-03-27 — P40 Spreadsheet Viewer: Jay/Status blood panel + patient database. Interactive table with CRUD, polished inline edit, schema evolution, and add-column field type picker. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>P40 — Clinical Notes | Ditto Prototypes</title>
+<title>P40 — Spreadsheet Viewer | Ditto Prototypes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #EDEDF0; --surface: #E2E2E6; --surface-raised: #F9F9FB;
-    --border: #D5D5DA; --border-strong: #BBBBC2;
-    --text-primary: #111118; --text-secondary: #4A4A55; --text-muted: #65656F;
-    --accent: #111118; --accent-hover: #000000; --accent-subtle: #E7E7EB; --accent-text: #F9F9FB;
-    --vivid: #059669; --vivid-deep: #3D5A48; --vivid-subtle: #ECFDF5;
-    --positive: #16a34a; --positive-subtle: #EEFAF0;
-    --caution: #D4960A; --caution-subtle: #FDF8E8;
-    --negative: #C4352A; --negative-subtle: #FDF0EE;
-    --info: #2563eb; --info-subtle: #EEF4FF;
-    --shadow-subtle: 0 1px 3px rgba(26,26,26,0.05);
-    --shadow-medium: 0 4px 16px rgba(26,26,26,0.07);
-    --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
-    --font: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
-  }
+  :root { --bg: #EDEDF0; --surface: #E2E2E6; --surface-raised: #F9F9FB; --border: #D5D5DA; --border-strong: #BBBBC2; --text-primary: #111118; --text-secondary: #4A4A55; --text-muted: #65656F; --accent: #111118; --accent-hover: #000000; --accent-subtle: #E7E7EB; --accent-text: #F9F9FB; --vivid: #059669; --vivid-deep: #3D5A48; --vivid-subtle: #ECFDF5; --positive: #16a34a; --positive-subtle: #EEFAF0; --caution: #D4960A; --caution-subtle: #FDF8E8; --negative: #C4352A; --negative-subtle: #FDF0EE; --info: #2563eb; --info-subtle: #EEF4FF; --shadow-subtle: 0 1px 3px rgba(26,26,26,0.05); --shadow-medium: 0 4px 16px rgba(26,26,26,0.07); --shadow-large: 0 8px 24px rgba(26,26,26,0.12); --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --font: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
   body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; -webkit-font-smoothing: antialiased; }
   ::selection { background: var(--vivid-subtle); }
   .skip-link { position: absolute; top: -100%; left: 16px; background: var(--accent); color: white; padding: 8px 16px; border-radius: var(--radius-md); z-index: 1000; font-size: 14px; text-decoration: none; }
   .skip-link:focus { top: 56px; }
 
+  /* Proto nav */
   .proto-nav { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; font-size: 14px; }
-  .proto-nav-label { color: var(--text-muted); font-weight: 500; }
+  .proto-nav-label { color: var(--text-muted); font-weight: 500; letter-spacing: -0.01em; }
   .proto-nav-centre { color: var(--text-secondary); font-weight: 500; }
   .proto-nav-centre span { color: var(--text-primary); }
   .proto-nav-right { display: flex; align-items: center; gap: 12px; }
   .proto-arrow { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.15s ease-out; }
-  .proto-arrow:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .proto-arrow:hover:not(.disabled) { border-color: var(--border-strong); color: var(--text-primary); box-shadow: var(--shadow-subtle); }
+  .proto-arrow.disabled { opacity: 0.35; cursor: not-allowed; }
   .proto-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .state-bar { position: fixed; top: 48px; left: 0; right: 0; height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 99; padding: 0 16px; }
+  /* State bar */
+  .state-bar { position: fixed; top: 48px; left: 0; right: 0; height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 99; padding: 0 16px; overflow-x: auto; }
   .state-btn { font-family: var(--font); font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: 1px solid transparent; border-radius: var(--radius-md); padding: 6px 14px; cursor: pointer; transition: all 0.15s ease-out; white-space: nowrap; }
   .state-btn:hover { color: var(--text-primary); background: var(--surface-raised); }
   .state-btn.active { color: var(--text-primary); background: var(--surface-raised); border-color: var(--border); box-shadow: var(--shadow-subtle); }
   .state-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+  /* Theme toggle */
   .theme-toggle { display: flex; align-items: center; gap: 4px; margin-right: 12px; padding-right: 12px; border-right: 1px solid var(--border); }
   .theme-btn { font-family: var(--font); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 4px 12px; cursor: pointer; transition: all 0.15s; }
   .theme-btn:hover { color: var(--text-primary); }
   .theme-btn.active { color: var(--text-primary); border-color: var(--border-strong); background: var(--surface); }
   body.theme-focus { --vivid: #111118; --vivid-deep: #4A4A55; --vivid-subtle: #E7E7EB; }
+  body.theme-focus ::selection { background: var(--accent); color: var(--accent-text); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
-  .workspace { display: flex; margin-top: 92px; min-height: calc(100vh - 92px); }
-  .sidebar { width: 240px; flex-shrink: 0; background: var(--surface-raised); border-right: 1px solid var(--border); padding: 16px 0; }
-  .sidebar-label { display: flex; align-items: center; gap: 10px; padding: 7px 20px; font-size: 14px; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; }
-  .sidebar-label:hover { background: var(--accent-subtle); color: var(--text-primary); }
-  .sidebar-label.active { color: var(--text-primary); font-weight: 600; background: var(--accent-subtle); }
-  .sidebar-label svg { width: 18px; height: 18px; flex-shrink: 0; }
-  .sidebar-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 16px 20px 6px; }
+  /* Layout */
+  .workspace { position: fixed; top: 92px; left: 0; right: 0; bottom: 0; display: flex; overflow: hidden; }
 
-  .centre { flex: 1; max-width: 720px; min-width: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-  .centre-header { padding: 20px 28px 16px; border-bottom: 1px solid var(--border); }
-  .centre-header h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
-  .centre-header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-  .conversation { flex: 1; padding: 20px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+  /* Conversation column */
+  .conversation-col { width: 300px; min-width: 300px; background: var(--surface-raised); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .conversation-header { padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .conversation-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .ditto-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vivid); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+  .conversation-context { font-size: 12px; color: var(--text-muted); }
+  .conversation-thread { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .conversation-thread::-webkit-scrollbar { width: 4px; }
+  .conversation-thread::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .msg { line-height: 1.5; font-size: 13px; }
+  .msg.ditto { color: var(--text-primary); }
+  .msg.user { background: var(--surface); padding: 8px 12px; border-radius: var(--radius-lg); align-self: flex-end; max-width: 90%; display: table; color: var(--text-primary); }
+  .artifact-ref { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-left: 2px solid var(--vivid); background: var(--vivid-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 12px; font-weight: 500; color: var(--text-primary); }
+  .artifact-ref .badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 99px; background: var(--accent-subtle); color: var(--text-secondary); }
+  .artifact-ref .badge-positive { background: var(--positive-subtle); color: var(--positive); }
+  .change-note { font-size: 12px; color: var(--vivid-deep); font-weight: 500; display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+  .change-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--vivid); flex-shrink: 0; }
+  .teach-this { border-left: 2px solid var(--vivid); padding: 8px 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .teach-this-label { font-weight: 600; color: var(--vivid); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .conversation-input { padding: 8px 12px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .conversation-input-container { display: flex; align-items: flex-end; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 10px 16px; transition: border-color 0.15s, box-shadow 0.15s; }
+  .conversation-input-container:focus-within { border-color: var(--vivid); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
+  .conversation-input-field { flex: 1; border: none; background: transparent; font-family: var(--font); font-size: 14px; color: var(--text-primary); outline: none; line-height: 1.4; resize: none; min-height: 20px; max-height: 80px; }
+  .conversation-input-field::placeholder { color: var(--text-muted); }
 
-  .right-panel { width: 420px; flex-shrink: 0; background: var(--surface-raised); overflow-y: auto; display: flex; flex-direction: column; }
-  .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .panel-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-  .panel-body { padding: 20px; flex: 1; overflow-y: auto; }
+  /* Centre column */
+  .centre { flex: 1; min-width: 480px; display: flex; flex-direction: column; background: var(--bg); }
+  .artifact-header-bar { padding: 16px 32px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .artifact-header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .artifact-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--vivid-subtle); color: var(--vivid-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .artifact-icon svg { width: 20px; height: 20px; }
+  .artifact-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .artifact-meta { font-size: 13px; color: var(--text-muted); margin-left: 48px; }
+  .artifact-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 8px; border-radius: 99px; margin-left: auto; }
+  .status-draft { background: var(--accent-subtle); color: var(--text-secondary); }
+  .status-ready { background: var(--positive-subtle); color: var(--positive); }
+  .status-living { background: var(--info-subtle); color: var(--info); }
+  .version-bar { padding: 8px 32px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border); font-size: 12px; flex-shrink: 0; }
+  .version-tab { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 3px 10px; cursor: pointer; transition: all 0.12s; }
+  .version-tab:hover { color: var(--text-primary); }
+  .version-tab.active { color: var(--text-primary); background: var(--surface); border-color: var(--border); }
+  .version-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .centre-scroll { flex: 1; overflow-y: auto; overflow-x: auto; padding: 0; }
+  .centre-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .centre-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .centre-footer { padding: 12px 32px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .centre-footer .spacer { flex: 1; }
+  .footer-destination { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+  .footer-destination svg { width: 14px; height: 14px; }
 
-  .state-view { display: none; }
-  .state-view.active { display: flex; width: 100%; min-height: calc(100vh - 92px); }
+  /* Buttons */
+  .btn { font-family: var(--font); font-size: 13px; font-weight: 500; border: none; border-radius: 99px; padding: 7px 16px; cursor: pointer; transition: all 0.12s; line-height: 1.3; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: var(--accent-text); }
+  .btn-primary:hover { filter: brightness(1.2); }
+  .btn-secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong); }
+  .btn-secondary:hover { background: var(--surface); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); padding: 7px 12px; }
+  .btn-ghost:hover { color: var(--text-primary); background: var(--surface); }
+  .btn-sm { font-size: 12px; padding: 5px 12px; }
 
-  .msg { font-size: 14px; line-height: 1.6; }
-  .msg-user { background: var(--accent-subtle); padding: 10px 16px; border-radius: var(--radius-lg); align-self: flex-end; max-width: 80%; }
-  .msg-ditto { display: flex; flex-direction: column; gap: 8px; }
-  .msg-ditto-label { font-size: 12px; color: var(--text-muted); font-weight: 500; display: flex; align-items: center; gap: 6px; }
-  .msg-ditto-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vivid); }
+  /* Context panel */
+  .context-panel { width: 320px; min-width: 320px; background: var(--surface-raised); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: width 0.2s ease-in-out, min-width 0.2s ease-in-out; }
+  .context-panel.collapsed { width: 0; min-width: 0; border-left: none; }
+  .context-panel-header { padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .context-panel-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .collapse-btn { width: 24px; height: 24px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+  .collapse-btn:hover { color: var(--text-primary); background: var(--surface); }
+  .collapse-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .context-scroll { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
+  .context-scroll::-webkit-scrollbar { width: 4px; }
+  .context-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .context-section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .context-section { display: flex; flex-direction: column; }
+  .knowledge-list { display: flex; flex-direction: column; gap: 6px; }
+  .knowledge-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; }
+  .knowledge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vivid); flex-shrink: 0; margin-top: 5px; }
+  .process-context { font-size: 13px; line-height: 1.5; }
+  .process-context-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .process-context-label { color: var(--text-muted); font-size: 12px; }
+  .process-context-value { font-size: 13px; font-weight: 500; }
+  .trust-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--caution-subtle); color: var(--caution); }
+  .version-history { display: flex; flex-direction: column; gap: 8px; }
+  .version-entry { display: flex; gap: 10px; font-size: 12px; line-height: 1.4; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .version-entry:last-child { border-bottom: none; }
+  .version-num { font-weight: 600; min-width: 24px; }
+  .version-desc { color: var(--text-secondary); }
+  .version-active { color: var(--vivid); }
+  .context-teach { border-left: 2px solid var(--vivid); padding: 10px 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; background: var(--vivid-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .context-teach-label { font-weight: 600; color: var(--vivid); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
 
-  .artifact-block { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
-  .artifact-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .artifact-icon { width: 32px; height: 32px; border-radius: var(--radius-md); background: var(--vivid-subtle); color: var(--vivid-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .artifact-icon svg { width: 16px; height: 16px; }
-  .artifact-meta { flex: 1; min-width: 0; }
-  .artifact-title { font-size: 14px; font-weight: 600; }
-  .artifact-subtitle { font-size: 12px; color: var(--text-muted); }
-  .artifact-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
-  .artifact-status-created { background: var(--vivid-subtle); color: var(--vivid-deep); }
-  .artifact-status-updated { background: var(--info-subtle); color: var(--info); }
-  .artifact-status-resolved { background: var(--positive-subtle); color: var(--positive); }
-  .artifact-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
-  .artifact-actions { display: flex; gap: 8px; margin-top: 10px; }
+  /* State toggles */
+  .state-content { display: none; }
+  .state-content.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .conv-state { display: none; }
+  .conv-state.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .ctx-state { display: none; }
+  .ctx-state.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .expand-btn { position: fixed; right: 8px; top: 100px; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-muted); cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 50; }
+  .expand-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .context-panel.collapsed ~ .expand-btn { display: flex; }
 
-  .btn-primary { font-family: var(--font); font-size: 13px; font-weight: 600; background: var(--vivid); color: #fff; border: none; border-radius: 99px; padding: 6px 16px; cursor: pointer; transition: all 0.15s; }
-  .btn-primary:hover { background: var(--vivid-deep); }
-  .btn-secondary { font-family: var(--font); font-size: 13px; font-weight: 500; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 99px; padding: 6px 16px; cursor: pointer; transition: all 0.15s; }
-  .btn-secondary:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  /* Responsive */
+  @media (max-width: 1279px) { .conversation-col { width: 280px; min-width: 280px; } .context-panel { width: 280px; min-width: 280px; } }
+  @media (max-width: 1024px) { .context-panel { display: none; } }
+  @media (max-width: 860px) { .conversation-col { display: none; } }
 
-  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
-  .badge-positive { background: var(--positive-subtle); color: var(--positive); }
-  .badge-caution { background: var(--caution-subtle); color: var(--caution); }
-  .badge-info { background: var(--info-subtle); color: var(--info); }
-  .badge-neutral { background: var(--accent-subtle); color: var(--text-secondary); }
+  /* ── Spreadsheet ── */
+  .spreadsheet-wrap { padding: 24px 32px; }
+  .spreadsheet { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .spreadsheet th { text-align: left; font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 12px; border-bottom: 2px solid var(--border); background: var(--surface-raised); position: sticky; top: 0; z-index: 2; }
+  .spreadsheet td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+  .spreadsheet tbody tr { transition: background 0.1s ease-out; }
+  .spreadsheet tbody tr:hover td { background: rgba(5,150,105,0.03); }
+  .range-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+  .range-normal { background: var(--positive-subtle); color: var(--positive); }
+  .range-high { background: var(--negative-subtle); color: var(--negative); }
+  .range-borderline { background: var(--caution-subtle); color: var(--caution); }
+  /* ── Editable cell hints ── */
+  .spreadsheet td.editable { cursor: text; position: relative; }
+  .spreadsheet td.editable:hover { background: var(--surface); }
+  .spreadsheet td.editable:hover::after { content: ''; position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 14px; height: 14px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2365656F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z'/%3E%3C/%3Csvg%3E"); background-size: contain; background-repeat: no-repeat; opacity: 0.5; }
 
-  .provenance { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); padding: 6px 0; }
-  .provenance-icon { width: 14px; height: 14px; color: var(--vivid-deep); flex-shrink: 0; }
+  /* ── Active editing row ── */
+  .cell-editing { background: var(--vivid-subtle) !important; position: relative; }
+  .cell-editing td { border-bottom-color: var(--vivid) !important; }
+  .cell-editing td:first-child { box-shadow: inset 3px 0 0 var(--vivid); }
 
-  .version-bar { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
-  .version-dot { width: 8px; height: 8px; border-radius: 50%; }
-  .version-dot.current { background: var(--vivid); }
-  .version-dot.past { background: var(--border-strong); }
+  /* ── Cell input ── */
+  .cell-editing .cell-input-wrap { display: inline-flex; align-items: center; gap: 6px; }
+  .cell-editing input { font-family: var(--font); font-size: 13px; font-weight: 600; border: 1.5px solid var(--vivid); border-radius: var(--radius-sm); padding: 4px 8px; width: 72px; outline: none; background: white; color: var(--text-primary); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .cell-editing input:focus { box-shadow: 0 0 0 3px rgba(5,150,105,0.18); }
+  .cell-old-value { font-size: 11px; color: var(--text-muted); text-decoration: line-through; }
 
-  /* Voice indicator */
-  .voice-msg { background: var(--accent-subtle); padding: 10px 16px; border-radius: var(--radius-lg); align-self: flex-end; max-width: 80%; display: flex; align-items: center; gap: 10px; }
-  .voice-wave { display: flex; align-items: center; gap: 2px; height: 24px; }
-  .voice-bar { width: 3px; border-radius: 2px; background: var(--vivid); animation: pulse 1.2s ease-in-out infinite; }
-  .voice-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
-  .voice-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
-  .voice-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
-  .voice-bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
-  .voice-bar:nth-child(5) { height: 14px; animation-delay: 0.4s; }
-  .voice-bar:nth-child(6) { height: 10px; animation-delay: 0.5s; }
-  .voice-bar:nth-child(7) { height: 18px; animation-delay: 0.6s; }
-  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-  .voice-duration { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  /* ── Inline save/cancel ── */
+  .cell-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+  .cell-action-btn { width: 22px; height: 22px; border: none; border-radius: var(--radius-sm); background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); transition: all 0.1s ease-out; }
+  .cell-action-btn:hover { background: var(--surface); color: var(--text-primary); }
+  .cell-action-btn.save:hover { background: var(--vivid-subtle); color: var(--vivid); }
+  .cell-action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .crud-toolbar { padding: 8px 32px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .crud-toolbar input { font-family: var(--font); font-size: 13px; border: 1px solid var(--border); border-radius: 99px; padding: 5px 14px; background: var(--surface-raised); outline: none; width: 200px; transition: border-color 0.15s; }
+  .crud-toolbar input:focus { border-color: var(--vivid); }
+  .filter-chip { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; background: var(--vivid-subtle); color: var(--vivid-deep); display: inline-flex; align-items: center; gap: 4px; }
+  .filter-chip .x { cursor: pointer; font-weight: 700; }
+  .schema-new { border-left: 3px solid var(--vivid) !important; }
+  .empty-cell { color: var(--text-muted); }
+  .status-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+  .status-active { background: var(--positive-subtle); color: var(--positive); }
+  .status-pending { background: var(--caution-subtle); color: var(--caution); }
+  .status-discharged { background: var(--accent-subtle); color: var(--text-muted); }
 
-  /* Clinical note sections */
-  .note-section { margin-bottom: 20px; }
-  .note-section-header { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vivid-deep); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
-  .note-section-body { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
-  .note-section-body p { margin-bottom: 8px; }
-  .note-section-body p:last-child { margin-bottom: 0; }
+  /* ── Add Column header button ── */
+  .add-col-th { width: 44px; text-align: center; cursor: pointer; color: var(--text-muted); transition: color 0.15s; position: relative; }
+  .add-col-th:hover { color: var(--vivid); }
+  .add-col-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px dashed var(--border-strong); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s ease-out; font-size: 16px; font-weight: 500; }
+  .add-col-btn:hover { border-color: var(--vivid); color: var(--vivid); background: var(--vivid-subtle); }
+  .add-col-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .changed { background: rgba(5,150,105,0.08); border-left: 2px solid var(--vivid); padding-left: 8px; margin-left: -10px; }
-  .moved { background: rgba(37,99,235,0.06); border-left: 2px solid var(--info); padding-left: 8px; margin-left: -10px; }
+  /* ── Add Column popover ── */
+  .add-col-popover { position: absolute; top: 100%; right: 0; margin-top: 4px; width: 280px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-large); z-index: 20; padding: 16px; display: none; text-align: left; }
+  .add-col-popover.open { display: block; }
+  .popover-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; text-transform: none; letter-spacing: 0; }
+  .popover-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .popover-input { font-family: var(--font); font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px; width: 100%; outline: none; background: white; color: var(--text-primary); transition: border-color 0.15s; margin-bottom: 12px; }
+  .popover-input:focus { border-color: var(--vivid); }
+  .popover-input::placeholder { color: var(--text-muted); }
+  .field-type-grid { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+  .field-type-option { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s ease-out; font-size: 13px; color: var(--text-secondary); border: none; background: transparent; width: 100%; text-align: left; font-family: var(--font); }
+  .field-type-option:hover { background: var(--surface); color: var(--text-primary); }
+  .field-type-option.selected { background: var(--vivid-subtle); color: var(--vivid-deep); font-weight: 500; }
+  .field-type-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .field-type-icon { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--surface); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; color: var(--text-muted); }
+  .field-type-option.selected .field-type-icon { background: var(--vivid-subtle); color: var(--vivid); }
+  .field-type-label { font-size: 13px; }
+  .field-type-desc { font-size: 11px; color: var(--text-muted); }
+  .popover-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; border-top: 1px solid var(--border); }
 
-  /* Checklist */
-  .checklist { list-style: none; }
-  .checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; font-size: 14px; line-height: 1.5; }
-  .check-icon { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-  .check-pending { background: var(--accent-subtle); color: var(--text-muted); }
-  .check-icon svg { width: 12px; height: 12px; }
+  /* ── Row number column ── */
+  .row-num { width: 36px; text-align: center; color: var(--text-muted); font-size: 11px; font-weight: 500; user-select: none; }
+  .spreadsheet th.row-num-th { width: 36px; text-align: center; }
 
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-    .voice-bar { animation: none; opacity: 0.7; }
+  /* ── Hover row highlight ── */
+  .spreadsheet tbody tr:hover .row-num { color: var(--text-secondary); }
+
+  /* Attach button */
+  .attach-btn { width: 28px; height: 28px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.12s; }
+  .attach-btn:hover { color: var(--text-primary); background: var(--surface-raised); }
+  .attach-btn svg { width: 16px; height: 16px; }
+
+  /* Dark mode */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.theme-light) {
+      --bg: #111118; --surface: #1A1A22; --surface-raised: #222230;
+      --border: #2A2A35; --border-strong: #3A3A45;
+      --text-primary: #F9F9FB; --text-secondary: #A0A0AD; --text-muted: #8A8A96;
+      --accent: #F9F9FB; --accent-hover: #FFFFFF; --accent-subtle: #2A2A35; --accent-text: #111118;
+      --vivid: #10B981; --vivid-deep: #6B8F71; --vivid-subtle: #1A2E22;
+      --positive: #22c55e; --caution: #E5A820; --negative: #E8453A; --info: #3B82F6;
+    }
   }
 </style>
 </head>
 <body>
-
-<a href="#main-content" class="skip-link">Skip to content</a>
-<h1 class="sr-only">Clinical Notes — Voice-to-structure consultation notes for Jay/Status longevity practice</h1>
-
-<nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
+<a href="#main" class="skip-link">Skip to content</a>
+<nav class="proto-nav">
   <div class="proto-nav-label">Ditto Prototypes</div>
-  <div class="proto-nav-centre">Artifact · <span>Clinical Notes</span></div>
+  <div class="proto-nav-centre">Artifact &middot; <span>Spreadsheet</span></div>
   <div class="proto-nav-right">
     <div class="theme-toggle">
       <button class="theme-btn active" data-theme="signature">Signature</button>
       <button class="theme-btn" data-theme="focus">Focus</button>
     </div>
-    <a href="index.html" class="proto-arrow" title="Index" aria-label="Index">&#8862;</a>
-    <a href="39-email-artifact.html" class="proto-arrow" aria-label="Previous">&larr;</a>
-    <a href="index.html" class="proto-arrow" aria-label="Index (last prototype)" style="opacity: 0.4;">&rarr;</a>
+    <a href="index.html" class="proto-arrow" title="Index">&#8862;</a>
+    <a href="39-email-artifact.html" class="proto-arrow" aria-label="Previous">&#8592;</a>
+    <a href="41-image-artifact.html" class="proto-arrow" aria-label="Next">&#8594;</a>
   </div>
 </nav>
-
-<div class="state-bar" role="tablist" aria-label="Prototype state controls">
-  <button class="state-btn active" role="tab" aria-selected="true" data-state="s1" tabindex="0">1 &middot; Transcription</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="s2" tabindex="-1">2 &middot; Reorganisation</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="s3" tabindex="-1">3 &middot; Addition</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="s4" tabindex="-1">4 &middot; Saved</button>
+<div class="state-bar" role="tablist">
+  <button class="state-btn active" role="tab" data-state="1" aria-selected="true">1. Blood Panel</button>
+  <button class="state-btn" role="tab" data-state="2">2. Inline Edit</button>
+  <button class="state-btn" role="tab" data-state="3">3. Patient Database</button>
+  <button class="state-btn" role="tab" data-state="4">4. Schema via Chat</button>
+  <button class="state-btn" role="tab" data-state="5">5. Add Column</button>
 </div>
 
-<main id="main-content">
+<main class="workspace" id="main">
+  <!-- ═══ CONVERSATION COLUMN ═══ -->
+  <aside class="conversation-col" aria-label="Conversation">
 
-<!-- ═══ STATE 1: Transcription ═══ -->
-<div class="state-view active" data-view="s1" role="tabpanel">
-  <div class="workspace">
-    <aside class="sidebar" aria-label="Workspace navigation">
-      <div class="sidebar-label active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Today</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg> Inbox</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Work</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></svg> Routines</div>
-      <div class="sidebar-section">Recent Clients</div>
-      <div class="sidebar-label" style="font-size: 13px; color: var(--text-muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Sarah M. — consult today</div>
-      <div class="sidebar-label" style="font-size: 13px; color: var(--text-muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> David K. — follow-up</div>
-      <div class="sidebar-section">Settings</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</div>
-    </aside>
-
-    <section class="centre">
-      <div class="centre-header">
-        <h2>Sarah M. — Consultation</h2>
-        <p>Status Longevity &middot; Session Notes</p>
+    <!-- State 1 -->
+    <div class="conv-state active" data-state="1">
+      <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span> Ditto</div><div class="conversation-context">Clinical Review</div></div>
+      <div class="conversation-thread">
+        <div class="msg user">Pull up Sarah Chen's latest blood work.</div>
+        <div class="msg ditto">Here's Sarah Chen's blood panel from this morning. LDL is elevated at 4.2 &mdash; flagged it. Everything else within range.</div>
+        <div class="artifact-ref">Sarah Chen Blood Panel v1 <span class="badge">Draft</span></div>
       </div>
-      <div class="conversation">
-        <!-- Voice message indicator -->
-        <div class="voice-msg">
-          <div class="voice-wave">
-            <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
-            <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
-            <div class="voice-bar"></div>
-          </div>
-          <span class="voice-duration">4:32 voice note</span>
-        </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" rows="1" placeholder="Tell Ditto what to change..." aria-label="Message Ditto"></textarea></div></div>
+    </div>
 
-        <div class="msg msg-ditto">
-          <div class="msg-ditto-label"><span class="msg-ditto-dot"></span> Ditto</div>
-          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
-            Session notes structured from your voice recording. 4 sections: Assessment, Findings, Plan, and Follow-ups. Review in the panel.
-          </div>
-
-          <div class="artifact-block">
-            <div class="artifact-header">
-              <div class="artifact-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              </div>
-              <div class="artifact-meta">
-                <div class="artifact-title">Session Notes — Sarah M.</div>
-                <div class="artifact-subtitle">27 Mar 2026 &middot; 4 sections from voice</div>
-              </div>
-              <span class="artifact-status artifact-status-created">Created</span>
-            </div>
-            <div class="artifact-body">Assessment, Findings, Plan, Follow-ups &middot; Structured from 4:32 voice note</div>
-            <div class="artifact-actions">
-              <button class="btn-primary">Review in panel &rarr;</button>
-            </div>
-          </div>
-
-          <div class="provenance">
-            <svg class="provenance-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            Voice transcription, Sarah M. patient history, previous session notes (12 Feb)
-          </div>
-        </div>
+    <!-- State 2 -->
+    <div class="conv-state" data-state="2">
+      <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span> Ditto</div><div class="conversation-context">Clinical Review</div></div>
+      <div class="conversation-thread">
+        <div class="msg user">Pull up Sarah Chen's blood work.</div>
+        <div class="artifact-ref">Blood Panel v1 <span class="badge">Draft</span></div>
+        <div class="msg user">The LDL retest came back at 3.8 &mdash; update that.</div>
+        <div class="msg ditto">Updated LDL to 3.8. That brings it into the borderline range. Status updated.</div>
+        <div class="change-note">LDL: 4.2 &rarr; 3.8 &middot; Status: High &rarr; Borderline</div>
+        <div class="artifact-ref">Blood Panel v2 <span class="badge">Draft</span></div>
       </div>
-    </section>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" rows="1" placeholder="Tell Ditto what to change..." aria-label="Message Ditto"></textarea></div></div>
+    </div>
 
-    <aside class="right-panel" aria-label="Clinical notes">
-      <div class="panel-header">
-        <span class="panel-title">Session Notes — Sarah M.</span>
-        <span class="badge badge-neutral">v1</span>
+    <!-- State 3 -->
+    <div class="conv-state" data-state="3">
+      <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span> Ditto</div><div class="conversation-context">Patient Management</div></div>
+      <div class="conversation-thread">
+        <div class="msg user">Show me my patient list.</div>
+        <div class="msg ditto">Here's your patient database. 6 active patients. Filtered to active status.</div>
+        <div class="artifact-ref">Patient Database <span class="badge" style="background:var(--info-subtle);color:var(--info)">Living</span></div>
+        <div class="msg user">Add a new patient &mdash; Tom Williams, DOB 15 March 1985.</div>
+        <div class="msg ditto">Added Tom Williams. I've set his status to Pending until the first appointment is confirmed.</div>
       </div>
-      <div class="panel-body">
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-          <span style="color: var(--text-muted);">Client</span><span style="font-weight: 500;">Sarah M., 42F</span>
-          <span style="color: var(--text-muted);">Date</span><span style="font-weight: 500;">27 March 2026, 10:00 AM</span>
-          <span style="color: var(--text-muted);">Type</span><span style="font-weight: 500;">Follow-up consultation</span>
-          <span style="color: var(--text-muted);">Duration</span><span style="font-weight: 500;">45 minutes</span>
-        </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" rows="1" placeholder="Tell Ditto what to change..." aria-label="Message Ditto"></textarea></div></div>
+    </div>
 
-        <div class="note-section">
-          <div class="note-section-header">Assessment</div>
-          <div class="note-section-body">
-            <p>Client presents for 6-week follow-up after initiating longevity protocol. Reports improved energy levels and sleep quality. Subjective mood improvement noted.</p>
-            <p>Current supplements: NMN 500mg, Omega-3 2g, Magnesium glycinate 400mg.</p>
-          </div>
-        </div>
+    <!-- State 4 -->
+    <div class="conv-state" data-state="4">
+      <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span> Ditto</div><div class="conversation-context">Patient Management</div></div>
+      <div class="conversation-thread">
+        <div class="msg user">Show me my patient list.</div>
+        <div class="artifact-ref">Patient Database <span class="badge" style="background:var(--info-subtle);color:var(--info)">Living</span></div>
+        <div class="msg user">I need to track allergies. Add an allergies column.</div>
+        <div class="msg ditto">Done &mdash; added "Allergies" as a text field. Existing patients show blank until you fill them in. Want me to pull known allergies from their records?</div>
+        <div class="change-note">Added column: Allergies (text)</div>
+        <div class="artifact-ref">Patient Database v2 <span class="badge" style="background:var(--info-subtle);color:var(--info)">Living</span></div>
+        <div class="teach-this"><div class="teach-this-label">Quick thing</div>I notice you're building up a solid patient schema. Want me to suggest other fields clinics typically track &mdash; like Medicare number or emergency contact?<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-secondary btn-sm">Yeah, suggest fields</button><button class="btn btn-ghost btn-sm">I'm good for now</button></div></div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" rows="1" placeholder="Tell Ditto what to change..." aria-label="Message Ditto"></textarea></div></div>
+    </div>
 
-        <div class="note-section">
-          <div class="note-section-header">Findings</div>
-          <div class="note-section-body">
-            <p>Blood panel review (drawn 24 Mar):</p>
-            <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 4px 16px; font-size: 13px; margin: 8px 0;">
-              <span style="color: var(--text-muted);">HbA1c</span><span style="font-weight: 500;">5.2%</span><span class="badge badge-positive">Optimal</span>
-              <span style="color: var(--text-muted);">Fasting insulin</span><span style="font-weight: 500;">4.8 mU/L</span><span class="badge badge-positive">Optimal</span>
-              <span style="color: var(--text-muted);">Vitamin D</span><span style="font-weight: 500;">28 ng/mL</span><span class="badge badge-caution">Low</span>
-              <span style="color: var(--text-muted);">Cortisol (AM)</span><span style="font-weight: 500;">22 mcg/dL</span><span class="badge badge-caution">Elevated</span>
-              <span style="color: var(--text-muted);">hsCRP</span><span style="font-weight: 500;">0.8 mg/L</span><span class="badge badge-positive">Optimal</span>
-            </div>
-            <p>Morning cortisol elevated — correlates with reported work stress. Worth monitoring at next follow-up.</p>
-          </div>
-        </div>
+    <!-- State 5: Add Column (direct manipulation) -->
+    <div class="conv-state" data-state="5">
+      <div class="conversation-header"><div class="conversation-title"><span class="ditto-dot"></span> Ditto</div><div class="conversation-context">Patient Management</div></div>
+      <div class="conversation-thread">
+        <div class="msg user">Show me my patient list.</div>
+        <div class="artifact-ref">Patient Database <span class="badge" style="background:var(--info-subtle);color:var(--info)">Living</span></div>
+        <div class="msg ditto" style="color:var(--text-secondary);font-style:italic;font-size:12px">You're adding a new column via the table header...</div>
+        <div class="msg ditto">Added "Blood Type" as a dropdown column with options: A+, A&minus;, B+, B&minus;, AB+, AB&minus;, O+, O&minus;. I'll try to fill in known values from patient records.</div>
+        <div class="change-note">Added column: Blood Type (dropdown, 8 options)</div>
+      </div>
+      <div class="conversation-input"><div class="conversation-input-container"><div class="input-dot"><canvas class="dots-field" aria-hidden="true"></canvas></div><button class="attach-btn" aria-label="Attach file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="conversation-input-field" rows="1" placeholder="Tell Ditto what to change..." aria-label="Message Ditto"></textarea></div></div>
+    </div>
 
-        <div class="note-section">
-          <div class="note-section-header">Plan</div>
-          <div class="note-section-body">
-            <p>Continue current supplement protocol. Address Vitamin D and cortisol findings:</p>
-            <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px; color: var(--text-secondary);">
-              <li style="margin-bottom: 4px;">Continue NMN 500mg, Omega-3 2g, Magnesium glycinate 400mg</li>
-              <li style="margin-bottom: 4px;">Consider breathwork or meditation protocol for cortisol management</li>
-              <li style="margin-bottom: 4px;">Retest cortisol in 6 weeks</li>
-            </ul>
-          </div>
-        </div>
+  </aside>
 
-        <div class="note-section">
-          <div class="note-section-header">Follow-ups</div>
-          <ul class="checklist">
-            <li class="checklist-item">
-              <span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span>
-              <div>Blood panel retest — 8 May 2026</div>
-            </li>
-            <li class="checklist-item">
-              <span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span>
-              <div>Follow-up consultation — 8 May 2026</div>
-            </li>
-            <li class="checklist-item">
-              <span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span>
-              <div>Send breathwork resources to client</div>
-            </li>
-          </ul>
+  <!-- ═══ CENTRE COLUMN ═══ -->
+  <section class="centre" role="main">
+
+    <!-- STATE 1: Blood Panel -->
+    <div class="state-content active" data-state="1">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5" /></svg></div>
+          <div class="artifact-title">Sarah Chen &mdash; Blood Panel</div>
+          <span class="artifact-status status-draft">Draft</span>
+        </div>
+        <div class="artifact-meta">Spreadsheet &middot; Lab results &middot; 27 Mar 2026</div>
+      </div>
+      <div class="version-bar"><button class="version-tab active">v1</button></div>
+      <div class="centre-scroll">
+        <div class="spreadsheet-wrap">
+          <table class="spreadsheet">
+            <thead><tr><th class="row-num-th">#</th><th>Test</th><th>Result</th><th>Unit</th><th>Reference Range</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="row-num">1</td><td>Haemoglobin</td><td class="editable">135</td><td>g/L</td><td>120&ndash;160</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">2</td><td>White Blood Cells</td><td class="editable">7.2</td><td>&times;10&#8313;/L</td><td>4&ndash;11</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">3</td><td>Platelets</td><td class="editable">245</td><td>&times;10&#8313;/L</td><td>150&ndash;400</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">4</td><td>Glucose</td><td class="editable">5.1</td><td>mmol/L</td><td>3.9&ndash;5.5</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">5</td><td>Total Cholesterol</td><td class="editable"><strong>5.8</strong></td><td>mmol/L</td><td>&lt;5.2</td><td><span class="range-badge range-borderline">Borderline</span></td></tr>
+              <tr><td class="row-num">6</td><td>HDL</td><td class="editable">1.4</td><td>mmol/L</td><td>&gt;1.0</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">7</td><td>LDL</td><td class="editable"><strong>4.2</strong></td><td>mmol/L</td><td>&lt;3.4</td><td><span class="range-badge range-high">High</span></td></tr>
+              <tr><td class="row-num">8</td><td>Triglycerides</td><td class="editable">1.6</td><td>mmol/L</td><td>&lt;1.7</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </aside>
-  </div>
-</div>
-
-<!-- ═══ STATE 2: Reorganisation ═══ -->
-<div class="state-view" data-view="s2" role="tabpanel">
-  <div class="workspace">
-    <aside class="sidebar" aria-label="Workspace navigation">
-      <div class="sidebar-label active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Today</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg> Inbox</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Work</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></svg> Routines</div>
-      <div class="sidebar-section">Settings</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</div>
-    </aside>
-
-    <section class="centre">
-      <div class="centre-header">
-        <h2>Sarah M. — Consultation</h2>
-        <p>Status Longevity &middot; Session Notes</p>
+      <div class="centre-footer">
+        <div class="footer-destination"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg> Status Health &middot; Patient Records</div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm">Approve</button>
       </div>
-      <div class="conversation">
-        <div class="msg msg-user">Move the cortisol observation up to Assessment — it's a clinical finding but the context belongs in the presenting picture.</div>
+    </div>
 
-        <div class="msg msg-ditto">
-          <div class="msg-ditto-label"><span class="msg-ditto-dot"></span> Ditto</div>
-          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
-            Moved. Cortisol note now in Assessment, cross-referenced in Findings. Blue highlight shows where it moved from, green shows where it landed.
-          </div>
-
-          <div class="artifact-block">
-            <div class="artifact-header">
-              <div class="artifact-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <div class="artifact-meta">
-                <div class="artifact-title">Session Notes — Sarah M.</div>
-                <div class="artifact-subtitle">Reorganised &middot; v2</div>
-              </div>
-              <span class="artifact-status artifact-status-updated">Updated</span>
-            </div>
-            <div class="artifact-body">Moved: cortisol observation from Findings &rarr; Assessment</div>
-          </div>
+    <!-- STATE 2: Inline Edit -->
+    <div class="state-content" data-state="2">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125" /></svg></div>
+          <div class="artifact-title">Sarah Chen &mdash; Blood Panel</div>
+          <span class="artifact-status status-draft">Draft</span>
+        </div>
+        <div class="artifact-meta">Spreadsheet &middot; Lab results &middot; Editing row 7</div>
+      </div>
+      <div class="version-bar"><button class="version-tab">v1</button><button class="version-tab active">v2</button></div>
+      <div class="centre-scroll">
+        <div class="spreadsheet-wrap">
+          <table class="spreadsheet">
+            <thead><tr><th class="row-num-th">#</th><th>Test</th><th>Result</th><th>Unit</th><th>Reference Range</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="row-num">1</td><td>Haemoglobin</td><td class="editable">135</td><td>g/L</td><td>120&ndash;160</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">2</td><td>White Blood Cells</td><td class="editable">7.2</td><td>&times;10&#8313;/L</td><td>4&ndash;11</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">3</td><td>Platelets</td><td class="editable">245</td><td>&times;10&#8313;/L</td><td>150&ndash;400</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">4</td><td>Glucose</td><td class="editable">5.1</td><td>mmol/L</td><td>3.9&ndash;5.5</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr><td class="row-num">5</td><td>Total Cholesterol</td><td class="editable"><strong>5.8</strong></td><td>mmol/L</td><td>&lt;5.2</td><td><span class="range-badge range-borderline">Borderline</span></td></tr>
+              <tr><td class="row-num">6</td><td>HDL</td><td class="editable">1.4</td><td>mmol/L</td><td>&gt;1.0</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+              <tr class="cell-editing"><td class="row-num">7</td><td>LDL</td><td><span class="cell-input-wrap"><input type="text" value="3.8" aria-label="LDL result"><span class="cell-old-value">4.2</span><span class="cell-actions"><button class="cell-action-btn save" title="Save" aria-label="Save edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button><button class="cell-action-btn" title="Cancel" aria-label="Cancel edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span></span></td><td>mmol/L</td><td>&lt;3.4</td><td><span class="range-badge range-borderline">Borderline</span></td></tr>
+              <tr><td class="row-num">8</td><td>Triglycerides</td><td class="editable">1.6</td><td>mmol/L</td><td>&lt;1.7</td><td><span class="range-badge range-normal">Normal</span></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </section>
-
-    <aside class="right-panel" aria-label="Clinical notes">
-      <div class="panel-header">
-        <span class="panel-title">Session Notes — Sarah M.</span>
-        <span class="badge badge-info">v2</span>
+      <div class="centre-footer">
+        <div class="footer-destination"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg> Status Health &middot; Patient Records</div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm">Approve</button>
       </div>
-      <div class="version-bar">
-        <span class="version-dot past"></span> <span style="text-decoration: line-through;">v1</span>
-        <span class="version-dot current"></span> <span style="font-weight: 500; color: var(--text-primary);">v2 (current)</span>
+    </div>
+
+    <!-- STATE 3: Patient Database -->
+    <div class="state-content" data-state="3">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625" /></svg></div>
+          <div class="artifact-title">Patient Database</div>
+          <span class="artifact-status status-living">Living</span>
+        </div>
+        <div class="artifact-meta">Spreadsheet &middot; 6 patients &middot; Status Health</div>
       </div>
-      <div class="panel-body">
-        <div class="note-section">
-          <div class="note-section-header">Assessment</div>
-          <div class="note-section-body">
-            <p>Client presents for 6-week follow-up after initiating longevity protocol. Reports improved energy levels and sleep quality. Subjective mood improvement noted.</p>
-            <p class="changed">Elevated morning cortisol (22 mcg/dL) — correlates with reported work stress. Client describes increased workload over past 3 weeks. Worth monitoring alongside subjective stress markers.</p>
-            <p>Current supplements: NMN 500mg, Omega-3 2g, Magnesium glycinate 400mg.</p>
-          </div>
-        </div>
-
-        <div class="note-section">
-          <div class="note-section-header">Findings</div>
-          <div class="note-section-body">
-            <p>Blood panel review (drawn 24 Mar):</p>
-            <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 4px 16px; font-size: 13px; margin: 8px 0;">
-              <span style="color: var(--text-muted);">HbA1c</span><span style="font-weight: 500;">5.2%</span><span class="badge badge-positive">Optimal</span>
-              <span style="color: var(--text-muted);">Fasting insulin</span><span style="font-weight: 500;">4.8 mU/L</span><span class="badge badge-positive">Optimal</span>
-              <span style="color: var(--text-muted);">Vitamin D</span><span style="font-weight: 500;">28 ng/mL</span><span class="badge badge-caution">Low</span>
-              <span style="color: var(--text-muted);">Cortisol (AM)</span><span style="font-weight: 500;">22 mcg/dL</span><span class="badge badge-caution">Elevated</span>
-              <span style="color: var(--text-muted);">hsCRP</span><span style="font-weight: 500;">0.8 mg/L</span><span class="badge badge-positive">Optimal</span>
-            </div>
-            <p class="moved"><em>Cortisol context moved to Assessment — see above.</em></p>
-          </div>
-        </div>
-
-        <div class="note-section">
-          <div class="note-section-header">Plan</div>
-          <div class="note-section-body">
-            <p>Continue current supplement protocol. Address Vitamin D and cortisol findings:</p>
-            <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px; color: var(--text-secondary);">
-              <li style="margin-bottom: 4px;">Continue NMN 500mg, Omega-3 2g, Magnesium glycinate 400mg</li>
-              <li style="margin-bottom: 4px;">Consider breathwork or meditation protocol for cortisol management</li>
-              <li style="margin-bottom: 4px;">Retest cortisol in 6 weeks</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="note-section">
-          <div class="note-section-header">Follow-ups</div>
-          <ul class="checklist">
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Blood panel retest — 8 May 2026</div></li>
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Follow-up consultation — 8 May 2026</div></li>
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Send breathwork resources to client</div></li>
-          </ul>
+      <div class="version-bar"><button class="version-tab active">v1</button></div>
+      <div class="crud-toolbar">
+        <button class="btn btn-primary btn-sm">+ Add Patient</button>
+        <input type="text" placeholder="Search patients...">
+        <div class="filter-chip">Status: Active <span class="x">&times;</span></div>
+      </div>
+      <div class="centre-scroll">
+        <div class="spreadsheet-wrap">
+          <table class="spreadsheet">
+            <thead><tr><th class="row-num-th">#</th><th>Name</th><th>DOB</th><th>Phone</th><th>Last Visit</th><th>Next Appt</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="row-num">1</td><td>Sarah Chen</td><td>12 Jul 1988</td><td>021 445 8821</td><td>27 Mar 2026</td><td>10 Apr 2026</td><td><span class="status-badge status-active">Active</span></td></tr>
+              <tr><td class="row-num">2</td><td>Tom Williams</td><td>15 Mar 1985</td><td>027 332 1190</td><td>&mdash;</td><td>Pending</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+              <tr><td class="row-num">3</td><td>Aroha Tane</td><td>3 Nov 1992</td><td>022 876 5543</td><td>25 Mar 2026</td><td>8 Apr 2026</td><td><span class="status-badge status-active">Active</span></td></tr>
+              <tr><td class="row-num">4</td><td>Marcus Reid</td><td>28 Jan 1970</td><td>021 998 7732</td><td>20 Mar 2026</td><td>3 Apr 2026</td><td><span class="status-badge status-active">Active</span></td></tr>
+              <tr><td class="row-num">5</td><td>Hana Patel</td><td>9 Sep 1995</td><td>027 665 4410</td><td>18 Mar 2026</td><td>&mdash;</td><td><span class="status-badge status-discharged">Discharged</span></td></tr>
+              <tr><td class="row-num">6</td><td>David Liu</td><td>22 May 1983</td><td>022 114 8876</td><td>22 Mar 2026</td><td>5 Apr 2026</td><td><span class="status-badge status-active">Active</span></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </aside>
-  </div>
-</div>
-
-<!-- ═══ STATE 3: Addition ═══ -->
-<div class="state-view" data-view="s3" role="tabpanel">
-  <div class="workspace">
-    <aside class="sidebar" aria-label="Workspace navigation">
-      <div class="sidebar-label active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Today</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg> Inbox</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Work</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></svg> Routines</div>
-      <div class="sidebar-section">Settings</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</div>
-    </aside>
-
-    <section class="centre">
-      <div class="centre-header">
-        <h2>Sarah M. — Consultation</h2>
-        <p>Status Longevity &middot; Session Notes</p>
+      <div class="centre-footer">
+        <div class="footer-destination"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5" /></svg> Status Health &middot; CRM</div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Export CSV</button>
       </div>
-      <div class="conversation">
-        <div class="msg msg-user">Add Vitamin D 5000IU daily to the plan. She's clearly deficient and we discussed this in the session.</div>
+    </div>
 
-        <div class="msg msg-ditto">
-          <div class="msg-ditto-label"><span class="msg-ditto-dot"></span> Ditto</div>
-          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
-            Added to Plan section. New supplement highlighted in green.
-          </div>
-
-          <div class="artifact-block">
-            <div class="artifact-header">
-              <div class="artifact-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <div class="artifact-meta">
-                <div class="artifact-title">Session Notes — Sarah M.</div>
-                <div class="artifact-subtitle">Added supplement &middot; v3</div>
-              </div>
-              <span class="artifact-status artifact-status-updated">Updated</span>
-            </div>
-            <div class="artifact-body">Added: Vitamin D3 5000IU daily to Plan section</div>
-            <div class="artifact-actions">
-              <button class="btn-primary">Save to patient record</button>
-              <button class="btn-secondary">More changes</button>
-            </div>
-          </div>
+    <!-- STATE 4: Schema via Chat -->
+    <div class="state-content" data-state="4">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625" /></svg></div>
+          <div class="artifact-title">Patient Database</div>
+          <span class="artifact-status status-living">Living</span>
+        </div>
+        <div class="artifact-meta">Spreadsheet &middot; Schema updated &middot; 7 columns</div>
+      </div>
+      <div class="version-bar"><button class="version-tab">v1</button><button class="version-tab active">v2</button></div>
+      <div class="crud-toolbar">
+        <button class="btn btn-primary btn-sm">+ Add Patient</button>
+        <input type="text" placeholder="Search patients...">
+        <div class="filter-chip">Status: Active <span class="x">&times;</span></div>
+      </div>
+      <div class="centre-scroll">
+        <div class="spreadsheet-wrap">
+          <table class="spreadsheet">
+            <thead><tr><th class="row-num-th">#</th><th>Name</th><th>DOB</th><th>Phone</th><th>Last Visit</th><th>Next Appt</th><th>Status</th><th class="schema-new">Allergies &#10024;</th></tr></thead>
+            <tbody>
+              <tr><td class="row-num">1</td><td>Sarah Chen</td><td>12 Jul 1988</td><td>021 445 8821</td><td>27 Mar 2026</td><td>10 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td>Penicillin, Latex</td></tr>
+              <tr><td class="row-num">2</td><td>Tom Williams</td><td>15 Mar 1985</td><td>027 332 1190</td><td>&mdash;</td><td>Pending</td><td><span class="status-badge status-pending">Pending</span></td><td class="empty-cell">&mdash;</td></tr>
+              <tr><td class="row-num">3</td><td>Aroha Tane</td><td>3 Nov 1992</td><td>022 876 5543</td><td>25 Mar 2026</td><td>8 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td></tr>
+              <tr><td class="row-num">4</td><td>Marcus Reid</td><td>28 Jan 1970</td><td>021 998 7732</td><td>20 Mar 2026</td><td>3 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td></tr>
+              <tr><td class="row-num">5</td><td>Hana Patel</td><td>9 Sep 1995</td><td>027 665 4410</td><td>18 Mar 2026</td><td>&mdash;</td><td><span class="status-badge status-discharged">Discharged</span></td><td class="empty-cell">&mdash;</td></tr>
+              <tr><td class="row-num">6</td><td>David Liu</td><td>22 May 1983</td><td>022 114 8876</td><td>22 Mar 2026</td><td>5 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </section>
+      <div class="centre-footer">
+        <div class="footer-destination"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5" /></svg> Status Health &middot; CRM</div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Export CSV</button>
+      </div>
+    </div>
 
-    <aside class="right-panel" aria-label="Clinical notes">
-      <div class="panel-header">
-        <span class="panel-title">Session Notes — Sarah M.</span>
-        <span class="badge badge-info">v3</span>
-      </div>
-      <div class="version-bar">
-        <span class="version-dot past"></span> <span style="text-decoration: line-through;">v1</span>
-        <span class="version-dot past"></span> <span style="text-decoration: line-through;">v2</span>
-        <span class="version-dot current"></span> <span style="font-weight: 500; color: var(--text-primary);">v3 (current)</span>
-      </div>
-      <div class="panel-body">
-        <div class="note-section">
-          <div class="note-section-header">Plan</div>
-          <div class="note-section-body">
-            <p>Continue and update supplement protocol:</p>
-            <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px; color: var(--text-secondary);">
-              <li style="margin-bottom: 4px;">Continue NMN 500mg, Omega-3 2g, Magnesium glycinate 400mg</li>
-              <li style="margin-bottom: 4px;" class="changed"><strong>Add Vitamin D3 5000IU daily</strong> — address deficiency (28 ng/mL, target &gt;50)</li>
-              <li style="margin-bottom: 4px;">Consider breathwork or meditation protocol for cortisol management</li>
-              <li style="margin-bottom: 4px;">Retest cortisol + Vitamin D in 6 weeks</li>
-            </ul>
-          </div>
+    <!-- STATE 5: Add Column (direct manipulation with field type picker) -->
+    <div class="state-content" data-state="5">
+      <div class="artifact-header-bar">
+        <div class="artifact-header-top">
+          <div class="artifact-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625" /></svg></div>
+          <div class="artifact-title">Patient Database</div>
+          <span class="artifact-status status-living">Living</span>
         </div>
-
-        <div class="note-section">
-          <div class="note-section-header">Follow-ups</div>
-          <ul class="checklist">
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Blood panel retest (incl. Vitamin D) — 8 May 2026</div></li>
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Follow-up consultation — 8 May 2026</div></li>
-            <li class="checklist-item"><span class="check-icon check-pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="4"/></svg></span><div>Send breathwork resources to client</div></li>
-          </ul>
-        </div>
+        <div class="artifact-meta">Spreadsheet &middot; Adding column... &middot; 8 columns</div>
       </div>
-    </aside>
-  </div>
-</div>
-
-<!-- ═══ STATE 4: Saved to patient record ═══ -->
-<div class="state-view" data-view="s4" role="tabpanel">
-  <div class="workspace">
-    <aside class="sidebar" aria-label="Workspace navigation">
-      <div class="sidebar-label active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Today</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg> Inbox</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Work</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3"/></svg> Routines</div>
-      <div class="sidebar-section">Settings</div>
-      <div class="sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</div>
-    </aside>
-
-    <section class="centre">
-      <div class="centre-header">
-        <h2>Sarah M. — Consultation</h2>
-        <p>Status Longevity &middot; Session Notes</p>
+      <div class="version-bar"><button class="version-tab">v1</button><button class="version-tab">v2</button><button class="version-tab active">v3</button></div>
+      <div class="crud-toolbar">
+        <button class="btn btn-primary btn-sm">+ Add Patient</button>
+        <input type="text" placeholder="Search patients...">
+        <div class="filter-chip">Status: Active <span class="x">&times;</span></div>
       </div>
-      <div class="conversation">
-        <div class="msg msg-user">Save it.</div>
-
-        <div class="msg msg-ditto">
-          <div class="msg-ditto-label"><span class="msg-ditto-dot"></span> Ditto</div>
-          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">
-            Saved to Sarah M.'s patient record. Follow-up reminders set.
-          </div>
-
-          <div class="artifact-block">
-            <div class="artifact-header">
-              <div class="artifact-icon" style="background: var(--positive-subtle); color: var(--positive);">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div class="artifact-meta">
-                <div class="artifact-title">Session Notes — Sarah M.</div>
-                <div class="artifact-subtitle">Saved to patient record</div>
-              </div>
-              <span class="artifact-status artifact-status-resolved">Saved</span>
-            </div>
-            <div class="artifact-body">
-              <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px;">
-                <span style="color: var(--text-muted);">Record</span><span style="font-weight: 500;">Sarah M. — Patient file updated</span>
-                <span style="color: var(--text-muted);">Sections</span><span style="font-weight: 500;">Assessment, Findings, Plan, Follow-ups</span>
-                <span style="color: var(--text-muted);">Iterations</span><span style="font-weight: 500;">3 (transcription, reorg, addition)</span>
-                <span style="color: var(--text-muted);">Reminders</span><span style="font-weight: 500;">Blood retest + consult: 8 May</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="provenance">
-            <svg class="provenance-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            Session Notes process &middot; Sarah M. patient record &middot; Voice transcription &middot; 3 iterations
-          </div>
-
-          <div style="background: var(--vivid-subtle); border-radius: var(--radius-lg); padding: 12px 16px; margin-top: 4px;">
-            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vivid-deep); margin-bottom: 4px;">Learn from this</div>
-            <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.5;">You prefer cortisol observations in Assessment rather than Findings. Want me to always include HPA axis markers in the presenting picture for longevity consults?</div>
-            <div class="artifact-actions" style="margin-top: 8px;">
-              <button class="btn-primary">Yes, remember this</button>
-              <button class="btn-secondary">Just for Sarah</button>
-            </div>
-          </div>
+      <div class="centre-scroll">
+        <div class="spreadsheet-wrap">
+          <table class="spreadsheet">
+            <thead>
+              <tr>
+                <th class="row-num-th">#</th>
+                <th>Name</th>
+                <th>DOB</th>
+                <th>Phone</th>
+                <th>Last Visit</th>
+                <th>Next Appt</th>
+                <th>Status</th>
+                <th class="schema-new">Allergies</th>
+                <th class="add-col-th" style="position:relative">
+                  <button class="add-col-btn" id="addColTrigger" aria-label="Add column" aria-haspopup="true" aria-expanded="true">+</button>
+                  <!-- ── Field type picker popover ── -->
+                  <div class="add-col-popover open" id="addColPopover" role="dialog" aria-label="Add column">
+                    <div class="popover-title">Add column</div>
+                    <div class="popover-label">Name</div>
+                    <input class="popover-input" type="text" placeholder="e.g. Blood Type" value="Blood Type">
+                    <div class="popover-label">Field type</div>
+                    <div class="field-type-grid">
+                      <button class="field-type-option" role="option">
+                        <span class="field-type-icon">Aa</span>
+                        <span><span class="field-type-label">Text</span><br><span class="field-type-desc">Free-form text</span></span>
+                      </button>
+                      <button class="field-type-option" role="option">
+                        <span class="field-type-icon">#</span>
+                        <span><span class="field-type-label">Number</span><br><span class="field-type-desc">Numeric values</span></span>
+                      </button>
+                      <button class="field-type-option" role="option">
+                        <span class="field-type-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                        <span><span class="field-type-label">Date</span><br><span class="field-type-desc">Calendar date</span></span>
+                      </button>
+                      <button class="field-type-option selected" role="option" aria-selected="true">
+                        <span class="field-type-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+                        <span><span class="field-type-label">Dropdown</span><br><span class="field-type-desc">Pick from a list</span></span>
+                      </button>
+                      <button class="field-type-option" role="option">
+                        <span class="field-type-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                        <span><span class="field-type-label">Checkbox</span><br><span class="field-type-desc">Yes / no toggle</span></span>
+                      </button>
+                      <button class="field-type-option" role="option">
+                        <span class="field-type-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+                        <span><span class="field-type-label">Link</span><br><span class="field-type-desc">URL or reference</span></span>
+                      </button>
+                    </div>
+                    <div class="popover-actions">
+                      <button class="btn btn-ghost btn-sm">Cancel</button>
+                      <button class="btn btn-primary btn-sm">Add Column</button>
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="row-num">1</td><td>Sarah Chen</td><td>12 Jul 1988</td><td>021 445 8821</td><td>27 Mar 2026</td><td>10 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td>Penicillin, Latex</td><td></td></tr>
+              <tr><td class="row-num">2</td><td>Tom Williams</td><td>15 Mar 1985</td><td>027 332 1190</td><td>&mdash;</td><td>Pending</td><td><span class="status-badge status-pending">Pending</span></td><td class="empty-cell">&mdash;</td><td></td></tr>
+              <tr><td class="row-num">3</td><td>Aroha Tane</td><td>3 Nov 1992</td><td>022 876 5543</td><td>25 Mar 2026</td><td>8 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td><td></td></tr>
+              <tr><td class="row-num">4</td><td>Marcus Reid</td><td>28 Jan 1970</td><td>021 998 7732</td><td>20 Mar 2026</td><td>3 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td><td></td></tr>
+              <tr><td class="row-num">5</td><td>Hana Patel</td><td>9 Sep 1995</td><td>027 665 4410</td><td>18 Mar 2026</td><td>&mdash;</td><td><span class="status-badge status-discharged">Discharged</span></td><td class="empty-cell">&mdash;</td><td></td></tr>
+              <tr><td class="row-num">6</td><td>David Liu</td><td>22 May 1983</td><td>022 114 8876</td><td>22 Mar 2026</td><td>5 Apr 2026</td><td><span class="status-badge status-active">Active</span></td><td class="empty-cell">&mdash;</td><td></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </section>
-
-    <aside class="right-panel" aria-label="Saved record">
-      <div class="panel-header">
-        <span class="panel-title">Patient Record</span>
-        <span class="badge badge-positive">Saved</span>
+      <div class="centre-footer">
+        <div class="footer-destination"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5" /></svg> Status Health &middot; CRM</div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Export CSV</button>
       </div>
-      <div class="panel-body" style="opacity: 0.85;">
-        <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-          <span style="color: var(--text-muted);">Client</span><span style="font-weight: 500;">Sarah M., 42F</span>
-          <span style="color: var(--text-muted);">Date</span><span style="font-weight: 500;">27 March 2026, 10:00 AM</span>
-          <span style="color: var(--text-muted);">Type</span><span style="font-weight: 500;">Follow-up consultation</span>
-          <span style="color: var(--text-muted);">Status</span><span style="font-weight: 500; color: var(--positive);">Saved to record</span>
-        </div>
+    </div>
 
-        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          Next actions scheduled:
-        </div>
+  </section>
 
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 13px;">
-            <div style="font-weight: 500;">Send breathwork resources</div>
-            <div style="color: var(--text-muted); font-size: 12px;">Today — email to Sarah</div>
+  <!-- ═══ CONTEXT PANEL ═══ -->
+  <aside class="context-panel" id="contextPanel" aria-label="Context">
+
+    <!-- State 1 -->
+    <div class="ctx-state active" data-state="1">
+      <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg></button></div>
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Knowledge used</div><div class="knowledge-list"><div class="knowledge-item"><span class="knowledge-dot"></span> Sarah Chen patient record</div><div class="knowledge-item"><span class="knowledge-dot"></span> Quest Diagnostics reference ranges</div><div class="knowledge-item"><span class="knowledge-dot"></span> Previous blood panels (6 mo history)</div></div></div>
+        <div class="context-section"><div class="context-section-label">Process</div><div class="process-context"><div class="process-context-row"><span class="process-context-label">Routine</span><span class="process-context-value">Clinical Review</span></div><div class="process-context-row"><span class="process-context-label">Review level</span><span class="trust-badge">Clinician Approval</span></div></div></div>
+        <div class="context-section"><div class="context-section-label">Version history</div><div class="version-history"><div class="version-entry"><span class="version-num version-active">v1</span><span class="version-desc">Generated from lab import</span></div></div></div>
+      </div>
+    </div>
+
+    <!-- State 2 -->
+    <div class="ctx-state" data-state="2">
+      <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg></button></div>
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Editing</div>
+          <div style="font-size:12px;line-height:1.6;color:var(--text-secondary)">
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--text-primary);font-weight:500">LDL &mdash; Result</span><span style="font-size:11px;color:var(--text-muted)">Row 7</span></div>
+            <div style="display:flex;gap:12px;padding:3px 0;font-size:12px"><span style="color:var(--text-muted);text-decoration:line-through">4.2</span><span style="color:var(--vivid);font-weight:500">&rarr; 3.8</span></div>
+            <div style="margin-top:6px;padding:6px 8px;background:var(--surface);border-radius:var(--radius-sm);font-size:11px;color:var(--text-muted)">Status auto-updates: <span style="color:var(--negative);font-weight:500">High</span> &rarr; <span style="color:var(--caution);font-weight:500">Borderline</span></div>
           </div>
-          <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 13px;">
-            <div style="font-weight: 500;">Blood panel retest reminder</div>
-            <div style="color: var(--text-muted); font-size: 12px;">1 May 2026 — 1 week before appointment</div>
-          </div>
-          <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 13px;">
-            <div style="font-weight: 500;">Follow-up consultation</div>
-            <div style="color: var(--text-muted); font-size: 12px;">8 May 2026 — calendar hold sent</div>
-          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Knowledge used</div><div class="knowledge-list"><div class="knowledge-item"><span class="knowledge-dot"></span> Sarah Chen patient record</div><div class="knowledge-item"><span class="knowledge-dot" style="background:var(--caution)"></span> <strong>LDL retest result</strong> (your correction)</div></div></div>
+        <div class="context-section"><div class="context-section-label">Version history</div><div class="version-history"><div class="version-entry"><span class="version-num">v1</span><span class="version-desc">Generated from lab import</span></div><div class="version-entry"><span class="version-num version-active">v2</span><span class="version-desc">LDL updated from 4.2 to 3.8</span></div></div></div>
+        <div class="context-section" style="margin-top:4px">
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.5"><strong style="color:var(--text-secondary)">Tip:</strong> Click any result cell to edit. Enter to save, Esc to cancel. Status badges update automatically based on reference ranges.</div>
         </div>
       </div>
-    </aside>
-  </div>
-</div>
+    </div>
 
+    <!-- State 3 -->
+    <div class="ctx-state" data-state="3">
+      <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg></button></div>
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Knowledge used</div><div class="knowledge-list"><div class="knowledge-item"><span class="knowledge-dot"></span> Status Health patient schema</div><div class="knowledge-item"><span class="knowledge-dot"></span> NZ health guidelines</div></div></div>
+        <div class="context-section"><div class="context-section-label">Process</div><div class="process-context"><div class="process-context-row"><span class="process-context-label">Routine</span><span class="process-context-value">Patient Management</span></div><div class="process-context-row"><span class="process-context-label">Type</span><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--info-subtle);color:var(--info)">Living database</span></div><div class="process-context-row"><span class="process-context-label">Access</span><span class="process-context-value">Full Access</span></div></div></div>
+        <div class="context-section"><div class="context-section-label">Schema</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Name</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>DOB</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Phone</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Last Visit</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Next Appt</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Status</span><span style="color:var(--text-muted);font-size:11px">dropdown</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- State 4 -->
+    <div class="ctx-state" data-state="4">
+      <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg></button></div>
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Schema</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Name</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>DOB</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Phone</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Last Visit</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Next Appt</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Status</span><span style="color:var(--text-muted);font-size:11px">dropdown</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;color:var(--vivid);font-weight:500"><span>Allergies &#10024;</span><span style="font-size:11px">text</span></div>
+        </div></div>
+        <div class="context-section"><div class="context-section-label">Version history</div><div class="version-history"><div class="version-entry"><span class="version-num">v1</span><span class="version-desc">Initial schema (6 columns)</span></div><div class="version-entry"><span class="version-num version-active">v2</span><span class="version-desc">Added Allergies column</span></div></div></div>
+        <div class="context-section"><div class="context-teach"><div class="context-teach-label">Schema suggestion</div>Common clinical fields you might want: Medicare number, Emergency contact, Blood type, Primary GP.</div></div>
+      </div>
+    </div>
+
+    <!-- State 5 -->
+    <div class="ctx-state" data-state="5">
+      <div class="context-panel-header"><div class="context-panel-title">Context</div><button class="collapse-btn" onclick="document.getElementById('contextPanel').classList.toggle('collapsed')" aria-label="Collapse panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg></button></div>
+      <div class="context-scroll">
+        <div class="context-section"><div class="context-section-label">Schema</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Name</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>DOB</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Phone</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Last Visit</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Next Appt</span><span style="color:var(--text-muted);font-size:11px">date</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Status</span><span style="color:var(--text-muted);font-size:11px">dropdown</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Allergies</span><span style="color:var(--text-muted);font-size:11px">text</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;color:var(--vivid);font-weight:500"><span>Blood Type &#10024;</span><span style="font-size:11px">dropdown</span></div>
+        </div></div>
+        <div class="context-section"><div class="context-section-label">Adding column</div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.5">
+            <div style="padding:4px 0"><strong style="color:var(--text-primary)">Blood Type</strong> &mdash; dropdown</div>
+            <div style="color:var(--text-muted);font-size:11px;margin-top:2px">Ditto will suggest values: A+, A&minus;, B+, B&minus;, AB+, AB&minus;, O+, O&minus; and try to populate from patient records.</div>
+          </div>
+        </div>
+        <div class="context-section"><div class="context-section-label">Version history</div><div class="version-history"><div class="version-entry"><span class="version-num">v1</span><span class="version-desc">Initial schema (6 columns)</span></div><div class="version-entry"><span class="version-num">v2</span><span class="version-desc">Added Allergies column</span></div><div class="version-entry"><span class="version-num version-active">v3</span><span class="version-desc">Adding Blood Type column...</span></div></div></div>
+      </div>
+    </div>
+
+  </aside>
+  <button class="expand-btn" onclick="document.getElementById('contextPanel').classList.remove('collapsed')" aria-label="Expand context panel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg></button>
 </main>
 
 <script>
-  const stateBtns = document.querySelectorAll('.state-bar .state-btn');
-  const stateViews = document.querySelectorAll('.state-view');
-  stateBtns.forEach(btn => btn.addEventListener('click', () => {
-    stateBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); b.setAttribute('tabindex','-1'); });
-    btn.classList.add('active'); btn.setAttribute('aria-selected','true'); btn.setAttribute('tabindex','0');
-    stateViews.forEach(v => v.classList.remove('active'));
-    const target = document.querySelector(`[data-view="${btn.dataset.state}"]`);
-    if (target) target.classList.add('active');
-  }));
-  document.querySelector('.state-bar').addEventListener('keydown', (e) => {
-    const tabs = [...stateBtns]; const current = tabs.findIndex(t => t.classList.contains('active')); let next = current;
-    if (e.key === 'ArrowRight') next = (current + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
-    else return;
-    e.preventDefault(); tabs[next].click(); tabs[next].focus();
+  // State switching
+  document.querySelectorAll('.state-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = btn.dataset.state;
+      document.querySelectorAll('.state-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+      btn.classList.add('active'); btn.setAttribute('aria-selected', 'true');
+      document.querySelectorAll('.state-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.conv-state').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.ctx-state').forEach(el => el.classList.remove('active'));
+      const c = document.querySelector(`.state-content[data-state="${s}"]`);
+      const v = document.querySelector(`.conv-state[data-state="${s}"]`);
+      const x = document.querySelector(`.ctx-state[data-state="${s}"]`);
+      if (c) c.classList.add('active');
+      if (v) v.classList.add('active');
+      if (x) x.classList.add('active');
+    });
   });
+
+  // Theme toggle
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      if (btn.dataset.theme === 'focus') document.body.classList.add('theme-focus');
-      else document.body.classList.remove('theme-focus');
+      document.body.classList.toggle('theme-focus', btn.dataset.theme === 'focus');
     });
   });
+
+  // Add column popover toggle (for interactive demo)
+  const trigger = document.getElementById('addColTrigger');
+  const popover = document.getElementById('addColPopover');
+  if (trigger && popover) {
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      popover.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', popover.classList.contains('open'));
+    });
+  }
+
+  // Field type selection
+  document.querySelectorAll('.field-type-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.field-type-option').forEach(o => { o.classList.remove('selected'); o.removeAttribute('aria-selected'); });
+      opt.classList.add('selected');
+      opt.setAttribute('aria-selected', 'true');
+    });
+  });
+</script>
+<script>
+function initDots(canvas){const W=28,H=28;canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');const dots=Array.from({length:5},()=>({x:Math.random()*W,y:Math.random()*H,r:1.5+Math.random(),vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,o:0.3+Math.random()*0.5}));function draw(){ctx.clearRect(0,0,W,H);const cs=getComputedStyle(document.documentElement);const vivid=cs.getPropertyValue('--vivid').trim()||'#059669';dots.forEach(d=>{d.x+=d.vx;d.y+=d.vy;if(d.x<0||d.x>W)d.vx*=-1;if(d.y<0||d.y>H)d.vy*=-1;ctx.globalAlpha=d.o;ctx.fillStyle=vivid;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,Math.PI*2);ctx.fill();});requestAnimationFrame(draw);}draw();}
+document.querySelectorAll('.dots-field').forEach(initDots);
 </script>
 </body>
 </html>

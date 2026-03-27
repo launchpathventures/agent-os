@@ -35,6 +35,31 @@
     --selection: #E7E7EB;
   }
 
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
   ::selection { background: var(--selection); }
 
@@ -176,7 +201,7 @@
     margin-top: 20px;
     padding: 12px 24px;
     background: var(--accent);
-    color: white;
+    color: var(--accent-text);
     font-family: inherit;
     font-size: 15px;
     font-weight: 600;
@@ -189,10 +214,16 @@
 
   .start-btn:hover { background: var(--vivid-deep); }
   .start-btn svg { width: 18px; height: 18px; stroke-width: 2; }
+
+    .skip-link { position: absolute; top: -100%; left: 16px; padding: 8px 16px; background: var(--accent); color: var(--accent-text); border-radius: 9999px; z-index: 1000; font-size: 14px; text-decoration: none; }
+    .skip-link:focus { top: 16px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
-<div class="page">
+  <a href="#main-content" class="skip-link">Skip to content</a>
+<div id="main-content" class="page">
   <h1>Ditto Prototypes</h1>
   <p class="subtitle">Walk the user journey from day zero through months of use. Open each in order — or jump to any screen.</p>
 
@@ -454,35 +485,35 @@
   </div>
 
   <div class="act">
-    <div class="act-title">Act 5 — Artifact Interaction (ADR-023)</div>
+    <div class="act-title">Act 5 — Artifact Viewers (ADR-023)</div>
     <a class="proto-link" href="36-document-artifact.html">
       <span class="proto-num">36</span>
       <div class="proto-info">
-        <div class="proto-name">Document Artifact</div>
-        <div class="proto-desc">Rawlinsons cost estimate. Generate, refine, refine, approve. Right panel preview.</div>
+        <div class="proto-name">Document Viewer</div>
+        <div class="proto-desc">Rawlinsons cost estimate. Rich text with sections. Generate, refine, approve.</div>
       </div>
       <span class="proto-persona">Rob</span>
     </a>
     <a class="proto-link" href="37-content-pack.html">
       <span class="proto-num">37</span>
       <div class="proto-info">
-        <div class="proto-name">Multi-Part Content</div>
-        <div class="proto-desc">Steven Leckie content pack. 6 pieces, tabbed preview, batch approve.</div>
+        <div class="proto-name">Image Viewer</div>
+        <div class="proto-desc">Instagram carousel. Gallery, compare before/after, approve and schedule.</div>
       </div>
       <span class="proto-persona">Lisa</span>
     </a>
     <a class="proto-link" href="38-code-artifact.html">
       <span class="proto-num">38</span>
       <div class="proto-info">
-        <div class="proto-name">Code Artifact</div>
-        <div class="proto-desc">Abodo ERP integration. Syntax highlighting, test results, deploy.</div>
+        <div class="proto-name">Live Preview Viewer</div>
+        <div class="proto-desc">Team dashboard. Vibe-coded iframe, viewport controls, publish.</div>
       </div>
       <span class="proto-persona">Nadia</span>
     </a>
     <a class="proto-link" href="39-email-artifact.html">
       <span class="proto-num">39</span>
       <div class="proto-info">
-        <div class="proto-name">Email Artifact</div>
+        <div class="proto-name">Email Viewer</div>
         <div class="proto-desc">Henderson follow-up. Email preview, tone adjustment, send.</div>
       </div>
       <span class="proto-persona">Rob</span>
@@ -490,10 +521,27 @@
     <a class="proto-link" href="40-clinical-notes.html">
       <span class="proto-num">40</span>
       <div class="proto-info">
-        <div class="proto-name">Clinical Notes</div>
-        <div class="proto-desc">Voice to structured notes. Section reorg, additions, save to record.</div>
+        <div class="proto-name">Spreadsheet Viewer</div>
+        <div class="proto-desc">Blood panel results + patient database. CRUD, inline edit, schema evolution.</div>
       </div>
       <span class="proto-persona">Jay</span>
+    </a>
+    <a class="proto-link" href="41-image-artifact.html">
+      <span class="proto-num">41</span>
+      <div class="proto-info">
+        <div class="proto-name">PDF Viewer</div>
+        <div class="proto-desc">Subcontractor agreement. Page-faithful rendering, annotations, approve.</div>
+      </div>
+      <span class="proto-persona">Rob</span>
+    </a>
+
+    <a class="proto-link" href="42-agent-relationships.html">
+      <span class="proto-num">42</span>
+      <div class="proto-info">
+        <div class="proto-name">Team Relationships</div>
+        <div class="proto-desc">Agent relationship map. Who reviews whom, who feeds whom, shared memory, trust flows.</div>
+      </div>
+      <span class="proto-persona">Nadia</span>
     </a>
   </div>
 

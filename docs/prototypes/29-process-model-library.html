@@ -1,4 +1,4 @@
-<!-- v1 — Process model library: Rob's second process, capability catalog, 2026-03-26 -->
+<!-- v2 — Process model library: Rob's second process, capability catalog with scale-ready browsing. 2026-03-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,6 +17,8 @@
     --vivid: #059669; --vivid-deep: #3D5A48; --vivid-subtle: #ECFDF5;
     --positive: #16a34a; --positive-subtle: #EEFAF0;
     --caution: #D4960A; --caution-subtle: #FDF8E8;
+    --negative: #C4352A; --negative-subtle: #FDF0EE;
+    --info: #2563eb; --info-subtle: #EEF4FF;
     --shadow-subtle: 0 1px 3px rgba(26,26,26,0.05);
     --shadow-medium: 0 4px 16px rgba(26,26,26,0.07);
     --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
@@ -24,7 +26,7 @@
   }
 
   body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; font-size: 16px; }
-  ::selection { background: var(--vivid-deep); color: #fff; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   .skip-link { position: absolute; top: -100px; left: 16px; background: var(--accent); color: var(--accent-text); padding: 8px 16px; border-radius: var(--radius-md); z-index: 200; font-size: 14px; text-decoration: none; }
@@ -68,39 +70,102 @@
   .model-meta-sep { color: var(--border-strong); }
   .model-apps { display: flex; gap: 4px; }
   .app-pill { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; background: var(--accent-subtle); color: var(--text-secondary); }
-  .model-action { font-family: var(--font); font-size: 14px; font-weight: 500; padding: 7px 18px; border-radius: 9999px; cursor: pointer; transition: all 0.15s; border: none; background: var(--vivid); color: #fff; }
+  .model-action { font-family: var(--font); font-size: 14px; font-weight: 500; padding: 7px 18px; border-radius: 9999px; cursor: pointer; transition: all 0.15s; border: none; background: var(--vivid); color: var(--accent-text); }
   .model-action:hover { background: var(--vivid-deep); }
   .model-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .model-active { font-size: 12px; font-weight: 600; color: var(--positive); display: flex; align-items: center; gap: 4px; }
 
-  /* Browse section */
-  .browse-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-strong); }
+  /* ── Browse section (scale-ready) ── */
+  .browse-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-strong); }
   .browse-title { font-size: 18px; font-weight: 600; }
+  .browse-count { font-size: 13px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
   .search-input { font-family: var(--font); font-size: 14px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface-raised); color: var(--text-primary); outline: none; width: 200px; transition: border-color 0.15s; }
   .search-input:focus { border-color: var(--vivid); }
   .search-input::placeholder { color: var(--text-muted); }
 
-  .category-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 20px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-  .category-note { font-size: 12px; color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  /* Filter bar */
+  .filter-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-pill { font-family: var(--font); font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; display: inline-flex; align-items: center; gap: 4px; }
+  .filter-pill:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-raised); }
+  .filter-pill.active { border-color: var(--vivid); background: var(--vivid-subtle); color: var(--vivid-deep); font-weight: 600; }
+  .filter-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .filter-pill .pill-count { font-size: 10px; font-weight: 600; color: var(--text-muted); }
+  .filter-pill.active .pill-count { color: var(--vivid); }
+  .filter-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
 
-  .browse-item { padding: 10px 0; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-  .browse-item:last-child { border-bottom: none; }
-  .browse-item-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
-  .browse-item-info { font-size: 12px; color: var(--text-muted); }
-  .browse-item-right { display: flex; align-items: center; gap: 8px; }
+  /* Collapsible category */
+  .category { margin-bottom: 4px; }
+  .category-header { display: flex; align-items: center; gap: 8px; padding: 8px 0; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  .category-header:hover { }
+  .category-chevron { width: 16px; height: 16px; color: var(--text-muted); transition: transform 0.15s ease-out; flex-shrink: 0; }
+  .category.collapsed .category-chevron { transform: rotate(-90deg); }
+  .category-name { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .category-count { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+  .category-using { font-size: 11px; color: var(--positive); font-weight: 600; margin-left: auto; }
+  .category-items { overflow: hidden; transition: max-height 0.2s ease-out; }
+  .category.collapsed .category-items { max-height: 0 !important; }
 
-  /* Expanded model detail */
-  .model-detail { background: var(--surface-raised); border-radius: var(--radius-lg); padding: 20px; margin: 12px 0; border: 1px solid var(--border); }
-  .detail-heading { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 14px; margin-bottom: 6px; }
-  .detail-steps { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+  /* Compact browse rows */
+  .browse-row { display: flex; align-items: center; gap: 12px; padding: 8px 0 8px 24px; border-bottom: 1px solid var(--border); transition: background 0.1s ease-out; cursor: pointer; }
+  .browse-row:last-child { border-bottom: none; }
+  .browse-row:hover { background: rgba(5,150,105,0.02); }
+  .browse-row-name { font-size: 14px; font-weight: 500; color: var(--text-primary); min-width: 0; flex-shrink: 0; }
+  .browse-row-desc { font-size: 13px; color: var(--text-muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .browse-row-apps { display: flex; gap: 3px; flex-shrink: 0; }
+  .browse-row-apps .app-pill { font-size: 10px; padding: 1px 6px; }
+  .browse-row-usage { font-size: 11px; color: var(--text-muted); flex-shrink: 0; min-width: 48px; text-align: right; }
+  .browse-row-status { flex-shrink: 0; min-width: 56px; text-align: right; }
+  .browse-row-status .model-active { font-size: 11px; justify-content: flex-end; }
+  .browse-row-arrow { color: var(--text-muted); opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
+  .browse-row:hover .browse-row-arrow { opacity: 1; }
+
+  /* Results summary */
+  .results-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+
+  /* ── Visual process flow ── */
+  .flow { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+  .flow-step { display: flex; gap: 16px; position: relative; }
+  .flow-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 36px; }
+  .flow-node { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; z-index: 1; }
+  .flow-node svg { width: 18px; height: 18px; }
+  .flow-node-auto { background: var(--vivid-subtle); color: var(--vivid); border: 2px solid var(--vivid); }
+  .flow-node-human { background: var(--caution-subtle); color: var(--caution); border: 2px solid var(--caution); }
+  .flow-node-trigger { background: var(--accent-subtle); color: var(--text-secondary); border: 2px solid var(--border-strong); }
+  .flow-node-end { background: var(--positive-subtle); color: var(--positive); border: 2px solid var(--positive); }
+  .flow-connector { width: 2px; flex: 1; min-height: 16px; background: var(--border); }
+  .flow-body { flex: 1; padding-bottom: 20px; min-width: 0; }
+  .flow-step:last-child .flow-body { padding-bottom: 0; }
+  .flow-step:last-child .flow-connector { display: none; }
+  .flow-title { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 36px; }
+  .flow-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
+  .flow-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .flow-tag { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
+  .flow-tag-app { background: var(--accent-subtle); color: var(--text-secondary); }
+  .flow-tag-timing { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .flow-tag-trust { background: var(--caution-subtle); color: var(--caution); font-weight: 600; }
+  .flow-tag-auto { background: var(--vivid-subtle); color: var(--vivid-deep); }
+  .flow-branch { margin: 4px 0 2px; padding: 6px 12px; background: var(--surface); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); border-left: 2px solid var(--caution); }
+  .flow-branch strong { color: var(--text-secondary); font-weight: 600; }
+
+  /* Detail sections (kept for quality/review) */
+  .detail-heading { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 20px; margin-bottom: 8px; }
+  .detail-quality { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .detail-quality-list { list-style: none; padding: 0; }
+  .detail-quality-list li { font-size: 13px; color: var(--text-secondary); line-height: 1.5; padding: 3px 0; display: flex; align-items: flex-start; gap: 8px; }
+  .detail-quality-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--vivid); flex-shrink: 0; margin-top: 7px; }
+  .detail-social { font-size: 13px; color: var(--text-muted); font-style: italic; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
   .detail-binding { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; }
   .binding-abstract { color: var(--text-muted); }
   .binding-arrow { color: var(--border-strong); }
   .binding-concrete { color: var(--positive); font-weight: 500; }
   .binding-status { font-size: 11px; color: var(--positive); }
-  .detail-quality { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
-  .detail-social { font-size: 13px; color: var(--text-muted); font-style: italic; margin-top: 12px; }
+
+  /* Detail summary strip */
+  .detail-summary { display: flex; gap: 24px; padding: 14px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .detail-stat { display: flex; flex-direction: column; }
+  .detail-stat-value { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+  .detail-stat-label { font-size: 11px; color: var(--text-muted); }
 
   /* Setup state */
   .setup-section { margin-top: 24px; }
@@ -115,7 +180,7 @@
   /* Input bar */
   .input-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 24px 24px; background: var(--bg); border-top: 1px solid var(--border); }
   .input-container { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 8px 16px; transition: all 0.15s; }
-  .input-container:focus-within { border-color: var(--vivid); background: #fff; box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+  .input-container:focus-within { border-color: var(--vivid); background: var(--surface-raised); box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
   .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
   .input-field { flex: 1; border: none; background: transparent; font-family: var(--font); font-size: 16px; color: var(--text-primary); resize: none; outline: none; line-height: 1.5; }
   .input-field::placeholder { color: var(--text-muted); }
@@ -125,6 +190,17 @@
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.theme-light) {
+      --bg: #111118; --surface: #1A1A22; --surface-raised: #222230;
+      --border: #2A2A35; --border-strong: #3A3A45;
+      --text-primary: #F9F9FB; --text-secondary: #A0A0AD; --text-muted: #8A8A96;
+      --accent: #F9F9FB; --accent-hover: #FFFFFF; --accent-subtle: #2A2A35; --accent-text: #111118;
+      --vivid: #10B981; --vivid-deep: #6B8F71; --vivid-subtle: #1A2E22;
+      --positive: #22c55e; --caution: #E5A820; --negative: #E8453A; --info: #3B82F6;
+    }
   }
 </style>
 </head>
@@ -137,9 +213,9 @@
   <div class="proto-nav-label">Ditto Prototypes</div>
   <div class="proto-nav-centre">Cross-cutting · <span>Process Library</span></div>
   <div class="proto-nav-right">
-    <a href="index.html" class="proto-arrow" title="Index" aria-label="Index">⊞</a>
-    <a href="27-process-flow-map.html" class="proto-arrow" aria-label="Previous: Process Map">←</a>
-    <a href="31-process-health.html" class="proto-arrow" aria-label="Next: Process Health">→</a>
+    <a href="index.html" class="proto-arrow" title="Index" aria-label="Index">&#8862;</a>
+    <a href="27-process-flow-map.html" class="proto-arrow" aria-label="Previous: Process Map">&#8592;</a>
+    <a href="31-process-health.html" class="proto-arrow" aria-label="Next: Process Health">&#8594;</a>
     <div class="theme-toggle">
       <button class="theme-btn active" data-theme="signature">Signature</button>
       <button class="theme-btn" data-theme="focus">Focus</button>
@@ -148,16 +224,17 @@
 </nav>
 
 <div class="state-bar" role="tablist" aria-label="Prototype state controls">
-  <button class="state-btn active" role="tab" aria-selected="true" data-state="recommended" tabindex="0">Recommended</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="browsing" tabindex="-1">Browsing</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="detail" tabindex="-1">Model detail</button>
-  <button class="state-btn" role="tab" aria-selected="false" data-state="setup" tabindex="-1">Setting up</button>
+  <button class="state-btn active" role="tab" aria-selected="true" data-state="recommended" tabindex="0">1. Recommended</button>
+  <button class="state-btn" role="tab" aria-selected="false" data-state="browsing" tabindex="-1">2. Browse at scale</button>
+  <button class="state-btn" role="tab" aria-selected="false" data-state="filtered" tabindex="-1">3. Filtered</button>
+  <button class="state-btn" role="tab" aria-selected="false" data-state="detail" tabindex="-1">4. Model detail</button>
+  <button class="state-btn" role="tab" aria-selected="false" data-state="setup" tabindex="-1">5. Setting up</button>
 </div>
 
 <main class="page" id="main-content">
 
-  <!-- ═══ State 1: Recommended ═══ -->
-  <div class="state-view active" data-view="recommended" role="tabpanel">
+  <!-- ═══ State 1: Recommended (curated, max 3-5) ═══ -->
+  <div aria-live="polite" class="state-view active" data-view="recommended" role="tabpanel">
     <div class="self-message">
       <div class="self-dot-container"><canvas class="dots-field" aria-hidden="true"></canvas></div>
       <div>Your quoting process is running well — 34 quotes, 92% approved first time. Based on what you told me about your business, here are three processes that would help most:</div>
@@ -171,12 +248,12 @@
       <div class="model-match">You mentioned spending evenings on invoice chasing</div>
       <div class="model-meta">
         <span class="model-apps"><span class="app-pill">Xero</span> <span class="app-pill">Gmail</span></span>
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         Starts supervised
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         412 businesses use this
       </div>
-      <button class="model-action">Set this up →</button>
+      <button class="model-action">Set this up &rarr;</button>
     </div>
 
     <div class="model-item">
@@ -185,12 +262,12 @@
       <div class="model-match">Your foreman texts you about schedule changes</div>
       <div class="model-meta">
         <span class="model-apps"><span class="app-pill">Google Calendar</span> <span class="app-pill">SMS</span></span>
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         Starts supervised
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         287 businesses use this
       </div>
-      <button class="model-action">Set this up →</button>
+      <button class="model-action">Set this up &rarr;</button>
     </div>
 
     <div class="model-item">
@@ -199,130 +276,405 @@
       <div class="model-match">You said "the guy who calls back first gets the job"</div>
       <div class="model-meta">
         <span class="model-apps"><span class="app-pill">Gmail</span> <span class="app-pill">SMS</span></span>
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         Starts supervised
-        <span class="model-meta-sep">·</span>
+        <span class="model-meta-sep">&middot;</span>
         523 businesses use this
       </div>
-      <button class="model-action">Set this up →</button>
+      <button class="model-action">Set this up &rarr;</button>
     </div>
 
-    <!-- Browse section -->
-    <div class="browse-header">
-      <div class="browse-title">All process models</div>
-      <input type="search" class="search-input" placeholder="Search..." aria-label="Search process models">
-    </div>
-
-    <div class="category-label">Sales &amp; quoting <span class="category-note">· using 1 of 4</span></div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Quote generation</div><div class="browse-item-info">Draft quotes from enquiries using your pricing rules</div></div>
-      <div class="browse-item-right"><span class="model-active">✓ Active</span></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Invoice follow-up</div><div class="browse-item-info">412 businesses · Xero, Gmail</div></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Customer follow-up</div><div class="browse-item-info">523 businesses · Gmail, SMS</div></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Lead qualification</div><div class="browse-item-info">198 businesses · Email, CRM</div></div>
-    </div>
-
-    <div class="category-label">Operations</div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Job scheduling</div><div class="browse-item-info">287 businesses · Calendar, SMS</div></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Material ordering</div><div class="browse-item-info">156 businesses · Supplier portal, Email</div></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Compliance checking</div><div class="browse-item-info">89 businesses · Documents, Email</div></div>
-    </div>
-
-    <div class="category-label">Finance</div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Invoice reconciliation</div><div class="browse-item-info">634 businesses · Xero, Email</div></div>
-    </div>
-    <div class="browse-item">
-      <div><div class="browse-item-name">Expense categorisation</div><div class="browse-item-info">245 businesses · Bank feed, Xero</div></div>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      Or <a href="#" style="color:var(--vivid-deep);font-weight:500;text-decoration:underline;text-underline-offset:2px" onclick="document.querySelector('[data-state=browsing]').click();return false">browse all 127 process models</a> &rarr;
     </div>
   </div>
 
-  <!-- ═══ State 2: Browsing ═══ -->
-  <div class="state-view" data-view="browsing" role="tabpanel">
+  <!-- ═══ State 2: Browse at scale ═══ -->
+  <div aria-live="polite" class="state-view" data-view="browsing" role="tabpanel">
     <div class="browse-header" style="margin-top: 0; padding-top: 0; border-top: none;">
-      <div class="browse-title">All process models</div>
+      <div><span class="browse-title">All process models</span><span class="browse-count">127 models</span></div>
+      <input type="search" class="search-input" placeholder="Search models..." aria-label="Search process models">
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <button class="filter-pill active">All <span class="pill-count">127</span></button>
+      <button class="filter-pill">Sales <span class="pill-count">18</span></button>
+      <button class="filter-pill">Operations <span class="pill-count">24</span></button>
+      <button class="filter-pill">Finance <span class="pill-count">16</span></button>
+      <button class="filter-pill">HR <span class="pill-count">12</span></button>
+      <button class="filter-pill">Customer service <span class="pill-count">21</span></button>
+      <button class="filter-pill">Marketing <span class="pill-count">15</span></button>
+      <button class="filter-pill">Admin <span class="pill-count">11</span></button>
+      <button class="filter-pill">IT <span class="pill-count">10</span></button>
+      <span class="filter-divider"></span>
+      <button class="filter-pill">Your apps only</button>
+    </div>
+
+    <div class="results-summary">
+      <span>Showing 127 models in 8 categories</span>
+      <span style="font-size:11px">Sorted by relevance</span>
+    </div>
+
+    <!-- Collapsible categories -->
+    <div class="category" data-cat="sales">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Sales &amp; quoting</span>
+        <span class="category-count">18 models</span>
+        <span class="category-using">Using 1</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row">
+          <span class="browse-row-name">Quote generation</span>
+          <span class="browse-row-desc">Draft quotes from enquiries using your pricing rules</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Gmail</span></span>
+          <span class="browse-row-usage">812</span>
+          <span class="browse-row-status"><span class="model-active">&#10003; Active</span></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Invoice follow-up</span>
+          <span class="browse-row-desc">Chase overdue invoices automatically at 7, 14, 30 days</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Gmail</span></span>
+          <span class="browse-row-usage">412</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Customer follow-up</span>
+          <span class="browse-row-desc">Track quote responses, send follow-ups, flag silence</span>
+          <span class="browse-row-apps"><span class="app-pill">Gmail</span><span class="app-pill">SMS</span></span>
+          <span class="browse-row-usage">523</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Lead qualification</span>
+          <span class="browse-row-desc">Score incoming enquiries by fit and urgency</span>
+          <span class="browse-row-apps"><span class="app-pill">Email</span><span class="app-pill">CRM</span></span>
+          <span class="browse-row-usage">198</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row" style="color:var(--text-muted);padding-left:24px;font-size:12px;cursor:default">
+          <span>+ 14 more in Sales &amp; quoting</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="category" data-cat="ops">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Operations</span>
+        <span class="category-count">24 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row">
+          <span class="browse-row-name">Job scheduling</span>
+          <span class="browse-row-desc">Coordinate crew, materials, and customer confirmations</span>
+          <span class="browse-row-apps"><span class="app-pill">Calendar</span><span class="app-pill">SMS</span></span>
+          <span class="browse-row-usage">287</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Material ordering</span>
+          <span class="browse-row-desc">Auto-order from suppliers when inventory hits threshold</span>
+          <span class="browse-row-apps"><span class="app-pill">Supplier</span><span class="app-pill">Email</span></span>
+          <span class="browse-row-usage">156</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Compliance checking</span>
+          <span class="browse-row-desc">Verify documents against regulatory requirements</span>
+          <span class="browse-row-apps"><span class="app-pill">Docs</span><span class="app-pill">Email</span></span>
+          <span class="browse-row-usage">89</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row" style="color:var(--text-muted);padding-left:24px;font-size:12px;cursor:default">
+          <span>+ 21 more in Operations</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="category" data-cat="finance">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Finance</span>
+        <span class="category-count">16 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row">
+          <span class="browse-row-name">Invoice reconciliation</span>
+          <span class="browse-row-desc">Match invoices against purchase orders, flag discrepancies</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Email</span></span>
+          <span class="browse-row-usage">634</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name">Expense categorisation</span>
+          <span class="browse-row-desc">Classify bank transactions into accounting categories</span>
+          <span class="browse-row-apps"><span class="app-pill">Bank</span><span class="app-pill">Xero</span></span>
+          <span class="browse-row-usage">245</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row" style="color:var(--text-muted);padding-left:24px;font-size:12px;cursor:default">
+          <span>+ 14 more in Finance</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="category collapsed" data-cat="hr">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">HR &amp; people</span>
+        <span class="category-count">12 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row"><span class="browse-row-name">Onboarding checklist</span><span class="browse-row-desc">Guide new hires through setup, access, introductions</span><span class="browse-row-usage">341</span><span class="browse-row-status"></span></div>
+      </div>
+    </div>
+
+    <div class="category collapsed" data-cat="cs">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Customer service</span>
+        <span class="category-count">21 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row"><span class="browse-row-name">Ticket triage</span><span class="browse-row-desc">Route incoming requests by type and urgency</span><span class="browse-row-usage">478</span><span class="browse-row-status"></span></div>
+      </div>
+    </div>
+
+    <div class="category collapsed" data-cat="marketing">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Marketing</span>
+        <span class="category-count">15 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row"><span class="browse-row-name">Social content pipeline</span><span class="browse-row-desc">Draft, review, and schedule posts across platforms</span><span class="browse-row-usage">267</span><span class="browse-row-status"></span></div>
+      </div>
+    </div>
+
+    <div class="category collapsed" data-cat="admin">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Admin &amp; documentation</span>
+        <span class="category-count">11 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row"><span class="browse-row-name">Meeting notes</span><span class="browse-row-desc">Capture, summarise, and distribute action items</span><span class="browse-row-usage">892</span><span class="browse-row-status"></span></div>
+      </div>
+    </div>
+
+    <div class="category collapsed" data-cat="it">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">IT &amp; systems</span>
+        <span class="category-count">10 models</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row"><span class="browse-row-name">Access provisioning</span><span class="browse-row-desc">Grant and revoke system access based on role changes</span><span class="browse-row-usage">134</span><span class="browse-row-status"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ State 3: Filtered (search or category filter applied) ═══ -->
+  <div aria-live="polite" class="state-view" data-view="filtered" role="tabpanel">
+    <div class="browse-header" style="margin-top: 0; padding-top: 0; border-top: none;">
+      <div><span class="browse-title">All process models</span><span class="browse-count">127 models</span></div>
       <input type="search" class="search-input" value="invoice" aria-label="Search process models">
     </div>
 
-    <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">3 results for "invoice"</div>
-
-    <div class="model-item">
-      <div class="model-name">Invoice follow-up</div>
-      <div class="model-desc">Chase overdue invoices automatically. Sends reminders at 7, 14, and 30 days.</div>
-      <div class="model-meta"><span class="model-apps"><span class="app-pill">Xero</span> <span class="app-pill">Gmail</span></span> <span class="model-meta-sep">·</span> 412 businesses</div>
+    <div class="filter-bar">
+      <button class="filter-pill active">All <span class="pill-count">127</span></button>
+      <button class="filter-pill">Sales <span class="pill-count">18</span></button>
+      <button class="filter-pill">Operations <span class="pill-count">24</span></button>
+      <button class="filter-pill">Finance <span class="pill-count">16</span></button>
+      <button class="filter-pill">HR <span class="pill-count">12</span></button>
+      <button class="filter-pill">Customer service <span class="pill-count">21</span></button>
+      <button class="filter-pill">Marketing <span class="pill-count">15</span></button>
+      <button class="filter-pill">Admin <span class="pill-count">11</span></button>
+      <button class="filter-pill">IT <span class="pill-count">10</span></button>
+      <span class="filter-divider"></span>
+      <button class="filter-pill">Your apps only</button>
     </div>
 
-    <div class="model-item">
-      <div class="model-name">Invoice reconciliation</div>
-      <div class="model-desc">Match invoices against purchase orders. Flag discrepancies. Produce exception reports.</div>
-      <div class="model-meta"><span class="model-apps"><span class="app-pill">Xero</span> <span class="app-pill">Email</span></span> <span class="model-meta-sep">·</span> 634 businesses</div>
+    <div class="results-summary">
+      <span>3 results for "invoice"</span>
+      <span style="font-size:11px">Across 2 categories</span>
     </div>
 
-    <div class="model-item">
-      <div class="model-name">Invoice generation</div>
-      <div class="model-desc">Generate invoices from completed jobs. Pull in materials, labour, and agreed pricing.</div>
-      <div class="model-meta"><span class="model-apps"><span class="app-pill">Xero</span> <span class="app-pill">Job system</span></span> <span class="model-meta-sep">·</span> 178 businesses</div>
+    <div class="category" data-cat="sales-f">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Sales &amp; quoting</span>
+        <span class="category-count">1 result</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row">
+          <span class="browse-row-name"><strong>Invoice</strong> follow-up</span>
+          <span class="browse-row-desc">Chase overdue invoices at 7, 14, 30 days</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Gmail</span></span>
+          <span class="browse-row-usage">412</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="category" data-cat="finance-f">
+      <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <svg class="category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="category-name">Finance</span>
+        <span class="category-count">2 results</span>
+      </div>
+      <div class="category-items">
+        <div class="browse-row">
+          <span class="browse-row-name"><strong>Invoice</strong> reconciliation</span>
+          <span class="browse-row-desc">Match invoices against purchase orders, flag discrepancies</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Email</span></span>
+          <span class="browse-row-usage">634</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        <div class="browse-row">
+          <span class="browse-row-name"><strong>Invoice</strong> generation</span>
+          <span class="browse-row-desc">Generate invoices from completed jobs with materials and labour</span>
+          <span class="browse-row-apps"><span class="app-pill">Xero</span><span class="app-pill">Jobs</span></span>
+          <span class="browse-row-usage">178</span>
+          <span class="browse-row-status"></span>
+          <svg class="browse-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- ═══ State 3: Model Detail ═══ -->
-  <div class="state-view" data-view="detail" role="tabpanel">
-    <div class="model-name" style="font-size: 22px; margin-bottom: 6px;">Invoice follow-up</div>
-    <div class="model-desc" style="margin-bottom: 16px;">Chase overdue invoices automatically. Sends reminders at 7, 14, and 30 days. You review escalations only.</div>
+  <!-- ═══ State 4: Model Detail ═══ -->
+  <div aria-live="polite" class="state-view" data-view="detail" role="tabpanel">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px"><a href="#" style="color:var(--text-muted);text-decoration:none" onclick="document.querySelector('[data-state=browsing]').click();return false">&larr; All models</a> &middot; Sales &amp; quoting</div>
 
-    <div class="model-detail">
-      <div class="detail-heading">How it works</div>
-      <div class="detail-steps">
-        1. Check for invoices overdue by 7, 14, or 30 days<br>
-        2. Draft a reminder email matching the overdue period<br>
-        3. Send reminder (7-day and 14-day: automatic after trust earned)<br>
-        4. Flag 30-day overdue for your review — these may need a phone call<br>
-        5. If payment received, close and update records
-      </div>
+    <div class="model-name" style="font-size: 22px; margin-bottom: 4px;">Invoice follow-up</div>
+    <div class="model-desc" style="margin-bottom: 0;">Chase overdue invoices automatically. Sends reminders at 7, 14, and 30 days. You review escalations only.</div>
 
-      <div class="detail-heading">Apps needed</div>
-      <div class="detail-binding">
-        <span class="binding-abstract">Sending reminders</span>
-        <span class="binding-arrow">→</span>
-        <span class="binding-concrete">Gmail</span>
-        <span class="binding-status">(detected)</span>
-      </div>
-      <div class="detail-binding">
-        <span class="binding-abstract">Checking invoices</span>
-        <span class="binding-arrow">→</span>
-        <span class="binding-concrete">Xero</span>
-        <span class="binding-status">(connected)</span>
-      </div>
-
-      <div class="detail-heading">Quality standards included</div>
-      <div class="detail-quality">
-        Follows up at 7, 14, 30 days · Escalates unpaid after 30 days · Never sends on weekends · Professional but firm tone · Includes invoice number and amount in every reminder
-      </div>
-
-      <div class="detail-heading">What you'll review</div>
-      <div class="detail-quality">
-        30-day escalation decisions · Template changes · Any invoice over $5,000
-      </div>
-
-      <div class="detail-social">412 businesses use this · Average: 3 corrections in first month, then runs at 95%+ clean</div>
+    <!-- Summary strip -->
+    <div class="detail-summary">
+      <div class="detail-stat"><span class="detail-stat-value">5</span><span class="detail-stat-label">Steps</span></div>
+      <div class="detail-stat"><span class="detail-stat-value">3 auto, 1 you</span><span class="detail-stat-label">Who does what</span></div>
+      <div class="detail-stat"><span class="detail-stat-value">Xero, Gmail</span><span class="detail-stat-label">Apps needed</span></div>
+      <div class="detail-stat"><span class="detail-stat-value">412</span><span class="detail-stat-label">Businesses</span></div>
     </div>
 
-    <button class="model-action" style="margin-top: 16px;">Set this up →</button>
+    <!-- Visual process flow -->
+    <div class="detail-heading">How it works</div>
+    <div class="flow">
+
+      <!-- Trigger -->
+      <div class="flow-step">
+        <div class="flow-rail">
+          <div class="flow-node flow-node-trigger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Invoice becomes overdue</div>
+          <div class="flow-desc">Checks Xero daily for invoices past their due date.</div>
+          <div class="flow-meta">
+            <span class="flow-tag flow-tag-app">Xero</span>
+            <span class="flow-tag flow-tag-timing">Runs daily</span>
+            <span class="flow-tag flow-tag-auto">Automatic</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Draft -->
+      <div class="flow-step">
+        <div class="flow-rail">
+          <div class="flow-node flow-node-auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Draft reminder email</div>
+          <div class="flow-desc">Writes a reminder matching the overdue period. Professional but firm tone. Includes invoice number and amount.</div>
+          <div class="flow-meta">
+            <span class="flow-tag flow-tag-auto">Automatic</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Decision — 7/14 day -->
+      <div class="flow-step">
+        <div class="flow-rail">
+          <div class="flow-node flow-node-auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Send 7-day &amp; 14-day reminders</div>
+          <div class="flow-desc">Sends automatically once you've built trust. Until then, you approve each one.</div>
+          <div class="flow-meta">
+            <span class="flow-tag flow-tag-app">Gmail</span>
+            <span class="flow-tag flow-tag-trust">Starts supervised</span>
+          </div>
+          <div class="flow-branch"><strong>If payment received</strong> at any point &rarr; close the chase and update Xero records</div>
+        </div>
+      </div>
+
+      <!-- Step 4: 30-day — human review -->
+      <div class="flow-step">
+        <div class="flow-rail">
+          <div class="flow-node flow-node-human"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div class="flow-connector"></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">You review 30-day escalations</div>
+          <div class="flow-desc">Overdue past 30 days likely needs a phone call or different approach. Ditto flags these for you with context.</div>
+          <div class="flow-meta">
+            <span class="flow-tag flow-tag-trust" style="background:var(--caution-subtle);color:var(--caution)">Always needs you</span>
+          </div>
+          <div class="flow-branch"><strong>Also flagged:</strong> any invoice over $5,000, regardless of age</div>
+        </div>
+      </div>
+
+      <!-- Step 5: Close -->
+      <div class="flow-step">
+        <div class="flow-rail">
+          <div class="flow-node flow-node-end"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-title">Payment received &mdash; close</div>
+          <div class="flow-desc">Updates Xero, stops the reminder sequence, logs the outcome.</div>
+          <div class="flow-meta">
+            <span class="flow-tag flow-tag-app">Xero</span>
+            <span class="flow-tag flow-tag-auto">Automatic</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Quality standards -->
+    <div class="detail-heading">Quality standards built in</div>
+    <ul class="detail-quality-list">
+      <li>Never sends reminders on weekends</li>
+      <li>Professional but firm tone — escalates language with overdue period</li>
+      <li>Every reminder includes invoice number, amount, and due date</li>
+      <li>Stops immediately when payment is detected</li>
+    </ul>
+
+    <div class="detail-social">412 businesses use this &middot; Average: 3 corrections in first month, then runs at 95%+ clean</div>
+
+    <button class="model-action" style="margin-top: 20px;">Set this up &rarr;</button>
   </div>
 
-  <!-- ═══ State 4: Setting Up ═══ -->
-  <div class="state-view" data-view="setup" role="tabpanel">
+  <!-- ═══ State 5: Setting Up ═══ -->
+  <div aria-live="polite" class="state-view" data-view="setup" role="tabpanel">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px"><a href="#" style="color:var(--text-muted);text-decoration:none" onclick="document.querySelector('[data-state=detail]').click();return false">&larr; Invoice follow-up</a></div>
+
     <div class="setup-section">
       <div class="setup-title">Setting up Invoice follow-up</div>
       <div class="setup-subtitle">Connect your apps so the process knows where to look and where to send.</div>
@@ -354,7 +706,7 @@
       </div>
 
       <div style="margin-top: 24px; display: flex; gap: 12px;">
-        <button class="model-action">Activate — starts supervised →</button>
+        <button class="model-action">Activate &mdash; starts supervised &rarr;</button>
         <button style="font-family: var(--font); font-size: 14px; font-weight: 500; padding: 7px 18px; border-radius: 9999px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); transition: all 0.15s;">Customise first</button>
       </div>
 
@@ -374,7 +726,7 @@
 </div>
 
 <script>
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function initDots(canvas) {
     const parent = canvas.parentElement;
@@ -401,6 +753,7 @@
   }
   document.querySelectorAll('.dots-field').forEach(initDots);
 
+  // State switching
   const stateBtns = document.querySelectorAll('.state-btn');
   const stateViews = document.querySelectorAll('.state-view');
   stateBtns.forEach(btn => {
@@ -419,12 +772,22 @@
     else return;
     e.preventDefault(); tabs[next].click(); tabs[next].focus();
   });
+
+  // Theme
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       if (btn.dataset.theme === 'focus') document.body.classList.add('theme-focus');
       else document.body.classList.remove('theme-focus');
+    });
+  });
+
+  // Filter pill toggle (demo only)
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      pill.closest('.filter-bar').querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
     });
   });
 </script>

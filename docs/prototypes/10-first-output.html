@@ -51,7 +51,7 @@
     overflow: hidden; font-size: 16px;
     padding-top: 48px;
   }
-  ::selection { background: var(--vivid-deep); color: #fff; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
 
   /* ===== Proto Nav ===== */
   .proto-nav {
@@ -98,6 +98,31 @@
   body.theme-focus {
     --vivid: #111118; --vivid-deep: #4A4A55; --vivid-subtle: #E7E7EB;
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
   body.theme-focus ::selection { background: var(--accent); color: var(--accent-text); }
 
   /* ===== Reduced Motion ===== */
@@ -240,27 +265,27 @@
   .progress-dot.active { background: var(--vivid); box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15); }
   .progress-dot.upcoming { background: var(--border-strong); }
 
-  /* ═══ POST CARD — hero moments keep subtle surface ═══ */
+  /* ═══ POST — typographic flow with border-left accent ═══ */
   .post-card {
-    background: var(--surface-raised);
-    border-radius: var(--radius-xl);
-    margin-bottom: 20px;
-    overflow: hidden;
-    transition: box-shadow 0.15s;
+    border-left: 2px solid var(--border);
+    padding-left: 20px;
+    margin-bottom: 24px;
+    transition: border-color 0.15s;
   }
   .post-card:hover {
-    box-shadow: var(--shadow-subtle);
+    border-color: var(--vivid);
   }
   .post-card.editing {
-    box-shadow: var(--shadow-medium);
+    border-color: var(--vivid);
   }
 
   .post-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 20px;
+    padding: 0 0 10px 0;
     border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
   }
 
   .post-card-number {
@@ -293,7 +318,7 @@
   }
 
   .post-card-body {
-    padding: 20px;
+    padding: 0;
   }
 
   .post-content {
@@ -333,7 +358,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 12px 20px;
+    padding: 12px 0 0 0;
+    margin-top: 12px;
     border-top: 1px solid var(--border);
   }
   .post-card-actions .spacer { flex: 1; }
@@ -362,7 +388,7 @@
   }
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .btn-primary { background: var(--vivid); color: white; }
+  .btn-primary { background: var(--vivid); color: var(--accent-text); }
   .btn-primary:hover { background: var(--vivid-deep); }
   .btn-secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong); }
   .btn-secondary:hover { background: var(--surface); }
@@ -529,9 +555,15 @@
     .post-card-actions { flex-wrap: wrap; }
     .based-on { flex-direction: column; align-items: flex-start; gap: 6px; }
   }
+
+    .skip-link { position: absolute; top: -100%; left: 16px; padding: 8px 16px; background: var(--accent); color: var(--accent-text); border-radius: 9999px; z-index: 1000; font-size: 14px; text-decoration: none; }
+    .skip-link:focus { top: 16px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
 
 <nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
   <div class="proto-nav-label">Ditto Prototypes</div>
@@ -547,7 +579,7 @@
   </div>
 </nav>
 
-<main class="layout">
+<main id="main-content" class="layout">
 
   <!-- ═══════════════════════════════════════
        LEFT: THE OUTPUT
@@ -770,7 +802,7 @@ That's what good preparation gives you. Not a script. Just confidence that you c
 
 <script>
   // Ditto dots
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function initDots(canvas) {
     const parent = canvas.parentElement;

@@ -124,7 +124,7 @@
   .nav-label { flex: 1; }
   .nav-badge {
     font-size: 11px; font-weight: 600; background: var(--vivid);
-    color: #fff; border-radius: 99px; padding: 1px 7px; line-height: 1.4;
+    color: var(--accent-text); border-radius: 99px; padding: 1px 7px; line-height: 1.4;
   }
   .nav-separator { height: 1px; background: var(--border); margin: 8px 12px; }
   .sidebar-footer { padding: 8px; border-top: 1px solid var(--border); flex-shrink: 0; }
@@ -295,7 +295,7 @@
     content: ''; position: absolute;
     top: 2px; left: 2px;
     width: 16px; height: 16px; border-radius: 50%;
-    background: #fff; transition: transform 0.2s;
+    background: var(--surface-raised); transition: transform 0.2s;
     box-shadow: var(--shadow-subtle);
   }
   .toggle.on::after { transform: translateX(16px); }
@@ -399,6 +399,31 @@
   @media (max-width: 1100px) {
     .right-panel { display: none; }
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
   @media (max-width: 800px) {
     .sidebar { display: none; }
   }
@@ -407,9 +432,15 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+
+    .skip-link { position: absolute; top: -100%; left: 16px; padding: 8px 16px; background: var(--accent); color: var(--accent-text); border-radius: 9999px; z-index: 1000; font-size: 14px; text-decoration: none; }
+    .skip-link:focus { top: 16px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
 
 <!-- Proto Nav -->
 <nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
@@ -471,7 +502,7 @@
   </aside>
 
   <!-- Centre -->
-  <main class="centre">
+  <main id="main-content" class="centre">
     <div class="centre-scroll">
       <div class="centre-content">
 
@@ -762,7 +793,7 @@
 
 <script>
   // ===== Ditto Dots — particle canvas =====
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function initDots(canvas) {

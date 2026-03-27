@@ -1,7 +1,7 @@
 # Ditto — Current State
 
-**Last updated:** 2026-03-26
-**Current phase:** Phase 10 **complete**. All 7 sub-briefs (039-046) shipped. 330 tests (23 test files). **Prototype-as-specification work in progress** — Phase A prototypes structurally complete (P00, P23, P08, P08a, P09-P20). Full 16-screen navigation flow established. **Brand identity established (2026-03-26):** forest green (#3D5A48) + emerald (#059669) two-green palette, DM Sans, cardless typographic flow, living dot particle system. All 17 prototypes aligned to Signature theme. `.impeccable.md` updated as design system source of truth.
+**Last updated:** 2026-03-28
+**Current phase:** Phase 10 **complete**. All 7 sub-briefs (039-046) shipped. 330 tests (23 test files). **Prototype-as-specification complete:** 28 prototypes (P00-P41) with 6 artifact viewers, full design system alignment. `.impeccable.md` is authoritative design spec. **ADR-024 (proposed):** Composable Workspace Architecture — three-tier model. **Brief 047 (draft):** Composition Engine. Next: accept ADR-024, approve + build Brief 047.
 **History:** See `docs/changelog.md` for completed phases, retrospectives, and resolved decisions.
 
 ---
@@ -120,7 +120,19 @@
     - **Sprint 3 — Polish:**
       - **Index.html updated:** Act 5 — Artifact Interaction section added (P36-P40). P21 description updated.
       - **Consistency audit PASS:** All build-ready prototypes use emerald buttons, block vocabulary, three-column layout. Only 2 archived files (P01, P07) have old accent buttons — acceptable.
-  - **Next:** Pending Dev Reviewer report. Then build phase can begin (ArtifactBlock as type #22 in content-blocks.ts, block-registry.tsx, right panel artifact mode renderer).
+  - **Artifact Layout Refinement complete (2026-03-27):** All 6 artifact prototypes rebuilt with artifact-centre layout (brief: `docs/briefs/artifact-layout-refinement.md`). Layout inverted from conversation-centre to artifact-centre: Conversation (300px left) | Artifact (centre, flex) | Context Panel (320px right). Sidebar collapses in artifact mode.
+  - **Viewer Taxonomy Rewrite (2026-03-27):** Prototypes P36-P41 rewritten from domain-specific artifact types to six universal viewer types (Insight-104, ADR-023 Addendum Sections 8-15). Two-tier architecture: 5 structured viewers (~80% of outputs) + 1 programmable viewer (Live Preview, ~20%).
+    - **P36 Document Viewer v3 (reference):** Marcus/Rawlinsons cost estimate. 4 states. Establishes CSS shell for all Act 5 prototypes.
+    - **P37 Image Viewer v3:** Libby/Instagram campaign images. 4 states. Canvas with zoom/pan, before/after comparison, grid gallery, approved with download.
+    - **P38 Live Preview Viewer v3:** Nadia/Abodo reconciliation dashboard. 4 states. Sandboxed iframe with Desktop/Tablet/Mobile viewport toggle. Vibe-coded HTML/CSS/JS.
+    - **P39 Email Viewer v3:** Nadia/Henderson follow-up. 3 states. macOS mail styling at 640px max-width.
+    - **P40 Spreadsheet Viewer v3:** Jay/Status Health blood panel + patient database. 4 states. Schema evolution through conversation, inline editing, CRUD toolbar, "Living" status for databases.
+    - **P41 PDF Viewer v3:** Rob/R.M. Building subcontractor agreement. 4 states. Page-faithful rendering (Merriweather serif), page navigation, yellow highlight annotations with bubbles, APPROVED stamp overlay.
+    - **Spec updates:** ADR-023 Addendum (Sections 8-15: viewer taxonomy, two-tier architecture, templates, spreadsheet databases, knowledge unification, engine types, prototype coverage, security model). Insight-104 captured. `.impeccable.md` updated. PLAN.md Act 5 rewritten. index.html updated with viewer taxonomy names.
+    - **Consistency pass:** All 6 use identical layout shell CSS. Proto-nav chain verified (P36→P37→P38→P39→P40→P41).
+  - **Composable Workspace Architecture (2026-03-27):** Architect session established the three-tier model (Insight-105, ADR-024 proposed). Prototypes are composition references, not screen specs. Three tiers: **Scaffold** (fixed — layout, navigation, viewers, design system), **Canvas** (Self-composed from block library per context), **Evolvable** (Build meta-process extends vocabulary). MVP uses deterministic composition functions per navigation intent; Self-driven composition in Phase 11+. Must-show blocks (critical alerts, trust gate reviews) are composition-immune. Revises ADR-009 Principle D: centre canvas is a composition surface. Live Preview is the extension seam for novel output types.
+  - **Brief 047 — Composition Engine (2026-03-28):** Implementation brief written at `docs/briefs/047-composition-engine.md` (draft). 17 AC. Replaces page-based centre panel routing with composition intent routing: sidebar nav → composition function → `ContentBlock[]` → block registry. Sidebar updated to Today/Inbox/Work/Projects/Routines/Settings. Must-show blocks (critical alerts, trust gate reviews) prepended to any composition. Fallback composition on error. `ProcessDetailContainer` classified as scaffold layout mode (same tier as artifact mode). Reviewed: CONDITIONAL PASS — 5 flags, all fixed in-place.
+  - **Next:** Accept ADR-024 (prerequisite for Brief 047 build), then approve Brief 047, then invoke `/dev-builder`. Also pending: Brief 048 (Live Preview viewer), Brief 049 (artifact mode layout). Or invoke `/dev-documenter` for full retrospective.
 
 ## Recently Completed
 

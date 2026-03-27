@@ -1,7 +1,7 @@
 # Ditto — Roadmap
 
-**Last updated:** 2026-03-26
-**Current phase:** Phase 10 **complete**. All 7 sub-briefs (039-046) shipped. 330 tests (23 test files). Proactive engine, onboarding experience, component protocol, full workspace layout, and workspace transitions all live. Brief 046 delivered conversation in workspace, adaptive right panel (Process Builder / Artifact Viewer / Briefing), mobile bottom sheet, and auto-switch on first process creation. **Prototype-as-specification in progress:** 17 prototypes (P00-P20, P23) serve as pixel-level build targets. Design system fully aligned across all prototypes (cardless flow, two-green palette, dot particles, theme toggle). `.impeccable.md` is the authoritative design spec. Next: semantic HTML pass, then Phase B-D new prototypes (P21, P22, P14a, P27, P29).
+**Last updated:** 2026-03-28
+**Current phase:** Phase 10 **complete**. All 7 sub-briefs (039-046) shipped. 330 tests (23 test files). **Prototype-as-specification complete:** 28 prototypes (P00-P41) — full user journey + 6 artifact viewers + cross-cutting views. Design system fully aligned. `.impeccable.md` authoritative. **ADR-024 (proposed):** Composable Workspace Architecture — three-tier model (Scaffold/Canvas/Evolvable). Navigation destinations are composition intents, not pages. **Brief 047 (draft):** Composition Engine — deterministic composition functions per nav intent, must-show blocks, sidebar nav alignment. Next: accept ADR-024, approve Brief 047, build.
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
@@ -513,7 +513,13 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Catalog-constrained view rendering (catalog → registry → renderer) | ADR-009 v2 | json-render (adopt, not depend — Insight-068) |
 | Trust-aware UI density (supervised=full, autonomous=exceptions) | ADR-009 v2 | Original |
 | Trust-governed output delivery + catalog richness | ADR-009 v2 | Original |
-| No ViewSpec protocol for app's own UI — standard React | ADR-009 v2 | Standard React |
+| ~~No ViewSpec protocol for app's own UI — standard React~~ | ADR-009 v2 | Revised by ADR-024: centre canvas is composition surface |
+| **Composable Workspace Architecture (ADR-024, Brief 047)** | | |
+| Centre canvas as composition surface (deterministic composition functions per nav intent) | ADR-024, Brief 047 | Original — navigation-as-composition-intent |
+| Must-show blocks (critical alerts + trust gate reviews composition-immune) | ADR-024, Brief 047 | Harness pattern — never suppress critical items |
+| Sidebar navigation aligned to prototypes (Today/Inbox/Work/Projects/Routines/Settings) | ADR-024, .impeccable.md | P00 v2 prototype |
+| Live Preview viewer as extension seam | ADR-024, Insight-104 | Claude Artifacts / Cursor / Lovable (pattern) |
+| Self-driven composition (replaces deterministic functions) | ADR-024 Phase 11+ | Original — deferred |
 | Output-as-interface between processes (typed contracts, sync-time validation) | ADR-009 v2 | Original |
 | Skills packages as agent toolkit extensions (design quality, etc.) | Insight-069 | Impeccable pattern |
 | **Deferred evaluations** | | |

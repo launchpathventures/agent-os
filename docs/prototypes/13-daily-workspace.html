@@ -48,7 +48,7 @@
   /* ===== Skip Link ===== */
   .skip-link {
     position: absolute; top: -100%; left: 16px;
-    background: var(--accent); color: white;
+    background: var(--accent); color: var(--accent-text);
     padding: 8px 16px; border-radius: var(--radius-md);
     z-index: 1000; font-size: 14px; text-decoration: none;
   }
@@ -95,6 +95,31 @@
     position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
     display: flex; overflow: hidden; transition: all 0.22s ease-in-out;
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
 
   /* ===== Sidebar ===== */
   .sidebar {
@@ -152,7 +177,7 @@
 
   .nav-badge {
     font-size: 11px; font-weight: 600; line-height: 1;
-    background: var(--negative); color: white;
+    background: var(--negative); color: var(--accent-text);
     padding: 2px 6px; border-radius: 99px; margin-left: auto;
   }
   .sidebar.collapsed .nav-badge {
@@ -351,7 +376,7 @@
   .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .btn-primary {
     font-family: var(--font); font-size: 13px; font-weight: 600;
-    background: var(--vivid); color: white;
+    background: var(--vivid); color: var(--accent-text);
     border: none; border-radius: 99px; padding: 6px 16px;
     cursor: pointer; transition: all 0.15s;
   }
@@ -365,7 +390,7 @@
   .btn-secondary:hover { border-color: var(--border-strong); color: var(--text-primary); }
   .btn-vivid {
     font-family: var(--font); font-size: 13px; font-weight: 600;
-    background: var(--vivid); color: white;
+    background: var(--vivid); color: var(--accent-text);
     border: none; border-radius: 99px; padding: 6px 16px;
     cursor: pointer; transition: all 0.15s;
   }
@@ -408,6 +433,10 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 1100px) { .right-panel, .ditto-panel, .self-panel, .ditto { display: none; } }
+    @media (max-width: 768px) { .sidebar { display: none; } }
 </style>
 </head>
 <body>
@@ -708,7 +737,7 @@
   });
 
   // Ditto Dots
-  const COLORS = ['#059669','#059669','#047857','#3D5A48','#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function initDots(canvas) {

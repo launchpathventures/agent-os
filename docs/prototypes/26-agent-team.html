@@ -49,7 +49,7 @@
     -webkit-font-smoothing: antialiased; min-height: 100vh;
     overflow: hidden; font-size: 16px;
   }
-  ::selection { background: var(--vivid-deep); color: #fff; }
+  ::selection { background: var(--vivid-deep); color: var(--accent-text); }
 
   /* ===== Proto Nav ===== */
   .proto-nav {
@@ -127,7 +127,7 @@
 
   .ws-avatar {
     width: 28px; height: 28px; border-radius: var(--radius-sm);
-    background: var(--accent); color: white;
+    background: var(--accent); color: var(--accent-text);
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 13px; flex-shrink: 0;
   }
@@ -157,7 +157,7 @@
 
   .nav-count {
     font-size: 11px; font-weight: 600;
-    background: var(--vivid); color: white;
+    background: var(--vivid); color: var(--accent-text);
     min-width: 18px; height: 18px; border-radius: 9px;
     display: flex; align-items: center; justify-content: center; padding: 0 5px;
   }
@@ -242,13 +242,25 @@
     white-space: nowrap;
   }
   .badge-process { background: var(--accent-subtle); color: var(--accent); }
-  .badge-supervised { background: var(--caution-subtle); color: hsl(38 60% 35%); }
+  .badge-supervised { background: var(--caution-subtle); color: var(--caution); }
   .badge-spot { background: var(--info-subtle); color: var(--info); }
   .badge-autonomous { background: var(--positive-subtle); color: var(--positive); }
   .badge-positive { background: var(--positive-subtle); color: var(--positive); }
-  .badge-caution { background: var(--caution-subtle); color: hsl(38 60% 35%); }
+  .badge-caution { background: var(--caution-subtle); color: var(--caution); }
   .badge-negative { background: var(--negative-subtle); color: var(--negative); }
   .badge-info { background: var(--info-subtle); color: var(--info); }
+
+  /* Live status — what the agent is doing now */
+  .record-now {
+    font-size: 13px; color: var(--vivid-deep); font-style: italic;
+    margin-top: 6px; padding-left: 1px;
+  }
+
+  /* Trust trajectory */
+  .trust-trajectory { display: flex; align-items: center; gap: 6px; }
+  .trust-arrow { font-size: 10px; line-height: 1; }
+  .trust-arrow.positive { color: var(--positive); }
+  .trust-arrow.caution { color: var(--caution); }
 
   /* Sparkline â inline SVG */
   .sparkline { display: inline-block; vertical-align: middle; }
@@ -296,7 +308,7 @@
   }
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .btn-p { background: var(--vivid); color: white; }
+  .btn-p { background: var(--vivid); color: var(--accent-text); }
   .btn-p:hover { background: var(--vivid-deep); }
 
   .btn-s {
@@ -402,7 +414,7 @@
     box-shadow: var(--shadow-medium);
     pointer-events: all;
   }
-  .input-container:focus-within { border-color: var(--vivid); background: #fff; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
+  .input-container:focus-within { border-color: var(--vivid); background: var(--surface-raised); box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
   .input-dot { width: 28px; height: 28px; flex-shrink: 0; position: relative; overflow: hidden; }
   .input-field {
     flex: 1; border: none; background: transparent;
@@ -433,6 +445,31 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg: #111118;
+        --surface: #1A1A22;
+        --surface-raised: #222230;
+        --border: #2A2A35;
+        --border-strong: #3A3A45;
+        --text-primary: #F9F9FB;
+        --text-secondary: #A0A0AD;
+        --text-muted: #8A8A96;
+        --accent: #F9F9FB;
+        --accent-hover: #FFFFFF;
+        --accent-subtle: #2A2A35;
+        --accent-text: #111118;
+        --vivid: #10B981;
+        --vivid-deep: #6B8F71;
+        --vivid-subtle: #1A2E22;
+        --positive: #22c55e;
+        --caution: #E5A820;
+        --negative: #E8453A;
+        --info: #3B82F6;
+      }
+    }
 
   /* ===== State visibility ===== */
   .state-activity { display: none; }
@@ -472,9 +509,15 @@
   .itable th.right { text-align:right; }
   .itable td { padding:6px 12px; color:var(--text-primary); border-top:1px solid var(--border); }
   .itable td.right { text-align:right; font-variant-numeric:tabular-nums; }
+
+    .skip-link { position: absolute; top: -100%; left: 16px; padding: 8px 16px; background: var(--accent); color: var(--accent-text); border-radius: 9999px; z-index: 1000; font-size: 14px; text-decoration: none; }
+    .skip-link:focus { top: 16px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
 
 <nav class="proto-nav" role="navigation" aria-label="Prototype navigation">
   <div class="proto-nav-label">Ditto Prototypes</div>
@@ -539,7 +582,7 @@
   </nav>
 
   <!-- âââ CENTRE: YOUR WORK âââ -->
-  <main class="main">
+  <main id="main-content" class="main">
     <div class="scroll">
       <div class="content">
 
@@ -566,7 +609,7 @@
         <!-- STATE 1: Overview -->
         <div class="state-overview">
 
-          <!-- Role rows -->
+          <!-- Role rows — showing relationships, not just stats -->
           <div class="section">
             <div class="sh">Roles</div>
             <div class="role-list">
@@ -574,19 +617,25 @@
               <div class="block-record">
                 <div class="record-header">
                   <span class="record-title">Content Reviewer</span>
-                  <span class="record-subtitle badge badge-process">Content</span>
                   <span class="record-status info">Spot-checked</span>
                 </div>
+                <div class="record-now">Approved 3 social posts 18 min ago</div>
                 <div class="record-fields">
                   <div class="record-field">
-                    <span class="record-field-label">Trend</span>
-                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,12 10,10 18,8 26,11 34,6 42,4 50,5" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 7 days</span>
+                    <span class="record-field-label">Serves</span>
+                    <span class="record-field-value"><span class="badge badge-process">Content review</span> <span class="badge badge-process">Brand voice</span> <span class="badge badge-process">Social approval</span></span>
                   </div>
                   <div class="record-field">
-                    <span class="record-field-label">Tasks</span>
-                    <span class="record-field-value">48</span>
-                    <span class="record-field-provenance">95% accuracy</span>
-                    <span class="record-field-provenance" style="margin-left:auto">$3.20</span>
+                    <span class="record-field-label">Reviews</span>
+                    <span class="record-field-value">Quote Generator's customer-facing language</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trend</span>
+                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,12 10,10 18,8 26,11 34,6 42,4 50,5" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 48 tasks · 95% · $3.20</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trust</span>
+                    <span class="record-field-value trust-trajectory"><span class="trust-arrow positive">&#9650;</span> Earning autonomous — 95% over 48 tasks</span>
                   </div>
                 </div>
               </div>
@@ -594,19 +643,25 @@
               <div class="block-record">
                 <div class="record-header">
                   <span class="record-title">Quote Generator</span>
-                  <span class="record-subtitle badge badge-process">Quoting</span>
                   <span class="record-status caution">You review</span>
                 </div>
+                <div class="record-now">Drafting Henderson kitchen quote — $8,900</div>
                 <div class="record-fields">
                   <div class="record-field">
-                    <span class="record-field-label">Trend</span>
-                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,14 10,12 18,10 26,8 34,9 42,6 50,4" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 7 days</span>
+                    <span class="record-field-label">Serves</span>
+                    <span class="record-field-value"><span class="badge badge-process">Quoting</span> <span class="badge badge-process">Customer follow-up</span></span>
                   </div>
                   <div class="record-field">
-                    <span class="record-field-label">Tasks</span>
-                    <span class="record-field-value">52</span>
-                    <span class="record-field-provenance">88% accuracy</span>
-                    <span class="record-field-provenance" style="margin-left:auto">$4.80</span>
+                    <span class="record-field-label">Checked by</span>
+                    <span class="record-field-value">Content Reviewer (language) · Compliance Checker (pricing rules)</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trend</span>
+                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,14 10,12 18,10 26,8 34,9 42,6 50,4" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 52 tasks · 88% · $4.80</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trust</span>
+                    <span class="record-field-value trust-trajectory"><span class="trust-arrow caution">&#9644;</span> Holding — 6 corrections this month, needs 90% for spot-check</span>
                   </div>
                 </div>
               </div>
@@ -614,19 +669,25 @@
               <div class="block-record">
                 <div class="record-header">
                   <span class="record-title">Service Responder</span>
-                  <span class="record-subtitle badge badge-process">Service</span>
                   <span class="record-status positive">Runs itself</span>
                 </div>
+                <div class="record-now">Replied to delivery ETA inquiry 2 min ago</div>
                 <div class="record-fields">
                   <div class="record-field">
-                    <span class="record-field-label">Trend</span>
-                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,8 10,6 18,9 26,7 34,5 42,6 50,4" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 7 days</span>
+                    <span class="record-field-label">Serves</span>
+                    <span class="record-field-value"><span class="badge badge-process">Customer service</span> <span class="badge badge-process">Warranty claims</span></span>
                   </div>
                   <div class="record-field">
-                    <span class="record-field-label">Tasks</span>
-                    <span class="record-field-value">28</span>
-                    <span class="record-field-provenance">97% accuracy</span>
-                    <span class="record-field-provenance" style="margin-left:auto">$2.60</span>
+                    <span class="record-field-label">Escalates to</span>
+                    <span class="record-field-value">You (outside policy) · Compliance Checker (warranty terms)</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trend</span>
+                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,8 10,6 18,9 26,7 34,5 42,6 50,4" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 28 tasks · 97% · $2.60</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trust</span>
+                    <span class="record-field-value trust-trajectory"><span class="trust-arrow positive">&#9632;</span> Stable autonomous — 3 months running</span>
                   </div>
                 </div>
               </div>
@@ -634,19 +695,25 @@
               <div class="block-record">
                 <div class="record-header">
                   <span class="record-title">Compliance Checker</span>
-                  <span class="record-subtitle badge badge-process">Compliance</span>
                   <span class="record-status info">Spot-checked</span>
                 </div>
+                <div class="record-now">Verified 2 invoices against regulatory requirements 1 hr ago</div>
                 <div class="record-fields">
                   <div class="record-field">
-                    <span class="record-field-label">Trend</span>
-                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,10 10,8 18,10 26,6 34,4 42,5 50,3" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 7 days</span>
+                    <span class="record-field-label">Serves</span>
+                    <span class="record-field-value"><span class="badge badge-process">Compliance</span> <span class="badge badge-process">Invoice audit</span></span>
                   </div>
                   <div class="record-field">
-                    <span class="record-field-label">Tasks</span>
-                    <span class="record-field-value">14</span>
-                    <span class="record-field-provenance">100% accuracy</span>
-                    <span class="record-field-provenance" style="margin-left:auto">$1.80</span>
+                    <span class="record-field-label">Reviews</span>
+                    <span class="record-field-value">Quote Generator (pricing rules) · Service Responder (warranty terms)</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trend</span>
+                    <span class="record-field-value"><span class="sparkline"><svg width="56" height="16" viewBox="0 0 56 16"><polyline points="2,10 10,8 18,10 26,6 34,4 42,5 50,3" fill="none" stroke="var(--vivid)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 14 tasks · 100% · $1.80</span>
+                  </div>
+                  <div class="record-field">
+                    <span class="record-field-label">Trust</span>
+                    <span class="record-field-value trust-trajectory"><span class="trust-arrow positive">&#9650;</span> Earning autonomous — 100% over 14 tasks</span>
                   </div>
                 </div>
               </div>
@@ -852,31 +919,31 @@
         </div>
       </div>
 
-      <!-- Suggestion -->
+      <!-- Suggestion — team-aware, not just individual stats -->
       <div class="suggestion">
-        <div class="suggestion-label">Suggestion</div>
-        Content Reviewer has 95% accuracy over 48 tasks. That's strong enough to upgrade from spot-checked to autonomous for routine reviews.
+        <div class="suggestion-label">Team insight</div>
+        Content Reviewer checks Quote Generator's customer language — and it's catching issues Quote Generator keeps repeating. If you upgrade Content Reviewer to autonomous, it'll catch these faster without waiting for your spot-checks.
         <div class="suggestion-actions">
-          <button class="btn btn-s">Upgrade trust</button>
+          <button class="btn btn-s">Upgrade Content Reviewer</button>
           <button class="btn btn-g">Not yet</button>
         </div>
       </div>
 
-      <!-- Checklist -->
+      <!-- Checklist — relationship-aware recommendations -->
       <div>
         <div class="ditto-sh">Things I'd recommend</div>
         <div class="check-list">
           <div class="check">
             <span class="check-icon ck-todo">1</span>
-            <span class="check-label">Upgrade Content Reviewer to autonomous</span>
+            <span class="check-label">Upgrade Content Reviewer &mdash; it'll tighten the review loop with Quote Generator</span>
           </div>
           <div class="check">
             <span class="check-icon ck-todo">2</span>
-            <span class="check-label">Review Quote Generator's 88% accuracy &mdash; 6 corrections this month</span>
+            <span class="check-label">Quote Generator's 6 corrections cluster around pricing &mdash; Compliance Checker could catch these earlier</span>
           </div>
           <div class="check">
             <span class="check-icon ck-todo">3</span>
-            <span class="check-label">Add seasonal pricing data to Quoting knowledge</span>
+            <span class="check-label">Service Responder escalated a warranty claim &mdash; feed the resolution back so it learns the boundary</span>
           </div>
         </div>
       </div>
@@ -890,7 +957,7 @@
   // âââââââââââââââââââââââââââââââââââââââââââââââââââ
   // DITTO DOTS
   // âââââââââââââââââââââââââââââââââââââââââââââââââââ
-  const COLORS = ['#059669', '#059669', '#047857', '#3D5A48', '#10B981'];
+  const style = getComputedStyle(document.documentElement); const vivid = style.getPropertyValue('--vivid').trim() || '#059669'; const vividDeep = style.getPropertyValue('--vivid-deep').trim() || '#3D5A48'; const COLORS = [vivid, vivid, '#047857', vividDeep, '#10B981'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function initDots(canvas) {
