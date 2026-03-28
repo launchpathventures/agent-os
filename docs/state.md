@@ -57,6 +57,8 @@
 
 ## In Progress
 
+- **Automaintainer Repos Research (2026-03-28)** — Research report at `docs/research/automaintainer-repos.md`. Surveyed 6 options for AI-loop-driven autonomous repo maintenance (gh-aw, SWE-agent, OpenGitClaw, OpenClaw, Copilot Agent, Sweep). Finding: no single solution exists; Ditto's trust tiers + process memory + maker-checker are original gaps. Reviewed: PASS WITH FLAGS (P1: provenance verification needed). Next: Architect to evaluate integration-vs-become question.
+
 - **Prototype-as-Specification Strategy (2026-03-25 → 2026-03-27)** — Phase A structurally complete. **Prototype system overhaul executed (2026-03-27):** 28-screen navigation flow with visual vocabulary. Strategy doc at `docs/research/prototype-as-specification-strategy-ux.md`.
   - **Full 28-screen navigation flow:** P00 → P30 → P23 → P08 → P08a → P09 → P10 → P11 → P12 → P13 → P14 → P14a → P15 → P22 → P24 → P25 → P16 → P17 → P18 → P19 → P20 → P21 → P26 → P27 → P29 → P31 → P35 → P32 → index. All prev/next proto-nav links verified.
   - **All old prototypes (P09-P20) converted** from dark footer nav to warm top nav bar (consistent with new design system).

@@ -60,4 +60,6 @@ Reports in `docs/research/`. Detailed pattern analysis feeding architectural dec
 | `process-visualization-approach-ux.md` | Process visualization: linear narrative (intra-process) vs node graph (inter-process). Persona tests, anti-persona test, primitive distinction (P2/P9/P14), indented sub-path branching proposal. Reviewed: PASS WITH FLAGS (3). | 2026-03-26 | Active | Dev Architect (Primitive 14 design), Dev Builder (Process Detail view), Insight-103 |
 | `persistent-critical-evaluation-patterns.md` | Persistent critical evaluation patterns research. | 2026-03-25 | Active | ADR-022 |
 
+| `automaintainer-repos.md` | Automaintainer repos: AI-loop-driven autonomous repo maintenance. 6 options surveyed (gh-aw, SWE-agent, OpenGitClaw, OpenClaw, Copilot Agent, Sweep). No single solution exists. 5 Ditto-original gaps (trust tiers, process memory, maker-checker, feedback-to-learning, process-as-primitive). Reviewed: PASS WITH FLAGS (P1: provenance verification). | 2026-03-28 | Active | Dev Architect (integration-vs-become decision), landscape.md |
+
 **Statuses:** Active = still informing decisions. Consumed = primary consumer complete, retained for reference. Stale = partially outdated, check notes.
