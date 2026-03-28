@@ -314,6 +314,157 @@ Phased approach: immediate lightweight integration via OpenOats webhooks/transcr
 
 ---
 
+## Part 6: OpenOats as Ditto macOS App — Fork Feasibility & Flow to Value
+
+**Addendum (2026-03-28):** Follow-up research question — can OpenOats be the basis of a native macOS app for Ditto? What is the strongest flow to value?
+
+### Why This Changes the Composition Level
+
+The original research assessed OpenOats at **pattern** level because Ditto is TypeScript and OpenOats is Swift. But if Ditto wants a native macOS surface, the Swift code IS the right language. This shifts the assessment to **adopt** — fork the source, understand it, adapt it, own it. OpenOats' MIT license permits this fully.
+
+### What OpenOats Has Already Solved (Hard macOS Problems)
+
+These are capabilities that are non-trivial to build from scratch and that OpenOats has production-tested:
+
+| Capability | Source files | Why it's hard |
+|-----------|-------------|---------------|
+| **System audio capture** | `SystemAudioCapture.swift` | Requires ScreenCaptureKit (macOS 13+), permission grants, sample rate conversion |
+| **Mic + system dual-stream** | `TranscriptionEngine.swift` | Two independent async audio streams with separate transcription instances |
+| **On-device transcription** | `WhisperKitBackend.swift`, `ParakeetBackend.swift`, `Qwen3Backend.swift` | CoreML model loading, streaming partial results, 6 model backends |
+| **Meeting auto-detection** | `MeetingDetector.swift` | Detect when conferencing apps (Zoom, Meet, Teams) start calls |
+| **Invisible to screen share** | SwiftUI window configuration | macOS window level that hides from screen capture |
+| **Voice activity detection** | `StreamingTranscriber.swift` | Silero VAD integration, pre-roll buffering, min-speech thresholds |
+| **Speaker diarization** | `DiarizationManager.swift` | LS-EEND model for multi-speaker identification |
+| **Menu bar app lifecycle** | `MenuBarPopoverView.swift`, `MiniBarPanel.swift` | Always-present, low-profile macOS citizen |
+
+Building these from scratch in Swift would take weeks-to-months. OpenOats delivers them working.
+
+### What Ditto's Web Backend Already Exposes
+
+The API surface is sufficient for a native macOS companion today:
+
+| Ditto API | macOS app usage |
+|-----------|----------------|
+| `POST /api/chat` → SSE stream | Converse with the Self — ask questions, create work items, capture meeting insights |
+| `GET /api/feed` | Show pending reviews/work items in menu bar |
+| `POST /api/feed` | Approve/edit/reject from native notifications |
+| `GET /api/events` → SSE stream | Real-time process status in menu bar (step-start, gate-pause, run-complete) |
+| `POST /api/credential` | Secure credential input via native macOS dialog |
+| `GET /api/processes` | Show process status, active work |
+
+### The Fork: What to Keep, Replace, and Add
+
+| Layer | Keep from OpenOats | Replace / Adapt | Add for Ditto |
+|-------|-------------------|-----------------|---------------|
+| **Audio** | `MicCapture`, `SystemAudioCapture`, `AudioRecorder` — unchanged | — | — |
+| **Transcription** | All 6 backends, VAD, diarization — unchanged | — | — |
+| **Intelligence** | `RealtimeGate`, `BurstDecayThrottle`, `PreFetchCache` | `KnowledgeBase.swift` → query Ditto Self API instead of local file KB | `SuggestionEngine` rewired: Layer 1 prefetches from Ditto memory, Layer 3 synthesizes via Ditto Self |
+| **Meeting lifecycle** | `MeetingState` state machine, `MeetingDetector`, `AppCoordinator` slim coordinator pattern | — | Webhook/API call to Ditto on meeting end |
+| **Notes** | `NotesEngine` template system, `TemplateStore` | Output destination → Ditto work item creation via API | Meeting-to-work-item pipeline |
+| **Storage** | `SessionRepository` for local transcript storage | — | Sync transcripts to Ditto for process discovery |
+| **Views** | `MenuBarPopoverView`, `MiniBarPanel`, `TranscriptView`, `ControlBar`, `OverlayPanel` | Rebrand UI to Ditto design system (forest green / emerald palette) | Ditto feed panel, review actions, process status, Self conversation |
+| **Settings** | `SettingsView` for audio/model config | Add Ditto connection settings (server URL, auth) | — |
+
+**Estimated keep ratio:** ~70% of OpenOats code stays, ~15% is replaced, ~15% is new Ditto-specific code.
+
+### Strongest Flow to Value: Three Phases
+
+#### Phase 1: "Ditto Listens" (smallest viable fork)
+
+**What ships:** A rebranded OpenOats that sends meeting transcripts to Ditto after each meeting.
+
+**Changes from OpenOats:**
+1. Fork repo, rebrand (name, icon, colours — use Ditto's forest/emerald palette)
+2. Add Settings field: Ditto server URL
+3. On meeting end, `POST /api/chat` with message: "Meeting transcript with [app] — [duration]. Here's what was discussed: [transcript]. Create work items for any action items, decisions, or follow-ups."
+4. The Self receives this, creates work items, feeds process discovery
+5. Keep everything else — local transcription, local KB, local suggestions all work as-is
+
+**What the user gets:**
+- Every meeting automatically creates follow-up work items in Ditto
+- No manual capture — meetings flow into Ditto's process pipeline
+- Local transcription privacy preserved
+- OpenOats' existing features (KB suggestions, notes) still work standalone
+
+**Engineering effort:** Days, not weeks. The webhook payload format is already defined in `WebhookService.swift` — adapt it to POST to Ditto's API instead.
+
+**Why this is the strongest first step:** It solves the #1 problem identified in the process discovery research — getting organisational data into Ditto. Meetings are where work originates. Today that data is lost. This captures it.
+
+#### Phase 2: "Ditto Speaks" (bidirectional intelligence)
+
+**What ships:** During meetings, the app surfaces Ditto's organisational knowledge — not just the user's local notes.
+
+**Changes from Phase 1:**
+1. Replace `KnowledgeBase.swift` search → `POST /api/chat` to Self with context query
+2. `SuggestionEngine` Layer 1 prefetches from Ditto: "What do I know about [topic from partial speech]?"
+3. Layer 2 gate evaluates Ditto response relevance (same threshold logic)
+4. Layer 3 streams Self's response as suggestion card
+5. SSE connection to `/api/events` shows active process status in overlay
+
+**What the user gets:**
+- "Last time you talked to Henderson, you agreed to revise the quote by 15%" surfaces mid-meeting
+- Active work item status visible during calls ("The invoice reconciliation process is waiting for your review")
+- Cross-meeting memory — Ditto remembers what happened in previous meetings with this person/topic
+
+**Engineering effort:** 1-2 weeks. Main complexity is wiring SuggestionEngine to async HTTP calls and handling latency gracefully (local KB returns in ms; API calls take 1-3s).
+
+**Why this is high-value:** This is the "bidirectional meeting intelligence" gap identified as Original to Ditto. No existing tool does this. OpenOats surfaces your notes; Ditto surfaces your organisation's knowledge.
+
+#### Phase 3: "Ditto Lives Here" (full macOS surface)
+
+**What ships:** The meeting intelligence becomes one feature of a full Ditto macOS companion.
+
+**Changes from Phase 2:**
+1. Add Self conversation panel — talk to Ditto from the menu bar (uses `POST /api/chat`)
+2. Add feed/review panel — pending reviews show as native macOS notifications, approve/reject from notification actions (uses `GET/POST /api/feed`)
+3. Add quick capture — ⌘+Shift+D global hotkey to capture a thought to Ditto (uses `create_work_item` via Self)
+4. Add process status — menu bar icon badge shows process activity (uses `GET /api/events` SSE)
+5. Meeting intelligence is one mode; Ditto companion is the always-on state
+
+**What the user gets:**
+- Ditto is a persistent macOS citizen — always available, not just during meetings
+- Review and approve from desktop without opening browser
+- Quick capture work items from anywhere
+- Meeting intelligence activates automatically when calls detected
+
+**Engineering effort:** 2-4 weeks beyond Phase 2. Most complexity is in the new SwiftUI views, not in the API integration (which is already working from Phase 2).
+
+### Critical Dependency: What's NOT Needed
+
+This fork does NOT require:
+- Building a transcription engine (OpenOats has 6 backends)
+- Building audio capture (OpenOats handles mic + system)
+- Building a knowledge base (Phase 1 uses OpenOats' local KB; Phase 2 uses Ditto's Self)
+- Changing Ditto's web backend (all APIs already exist)
+- Building a RAG pipeline (deferred — Self handles knowledge retrieval)
+- Cross-platform support (macOS-only is fine for a companion; web app handles other platforms)
+
+### Risk Factors
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| OpenOats is 28 days old — undiscovered bugs | Medium | Fork gives full ownership; fix issues as found |
+| Solo developer upstream — maintenance risk | Low | Fork means Ditto owns the code; upstream is a bonus, not a dependency |
+| Swift 6.2 / Xcode 26 requirement | Low | Standard macOS dev toolchain |
+| 6 transcription backends = maintenance surface | Medium | Could trim to 2-3 backends (WhisperKit + Parakeet) initially |
+| API latency for Phase 2 suggestions | Medium | PreFetchCache (30s TTL) + fallback to local KB when API slow |
+| Ditto web app must be running for API | Medium | Phase 1 could queue transcripts locally and sync when available |
+
+### Comparison: Fork OpenOats vs Build from Scratch
+
+| Dimension | Fork OpenOats | Build from scratch |
+|-----------|--------------|-------------------|
+| Time to Phase 1 | Days | Weeks (audio capture alone is days) |
+| Audio capture quality | Proven (71 releases of testing) | Unknown until built |
+| Transcription | 6 backends, partial results, VAD | Must integrate WhisperKit or similar |
+| Meeting detection | Working | Must reverse-engineer app detection |
+| Screen share invisibility | Working | Must discover correct window level |
+| Code ownership | Full (MIT fork) | Full |
+| Code understanding | Must study ~15K lines of Swift | Built from knowledge |
+| Maintenance burden | ~15K lines of someone else's patterns | Only what you write |
+
+---
+
 ## Reference Docs Status
 
 - **`docs/landscape.md`:** Updated — added OpenOats under new "Meeting Intelligence" section with "pattern" composition level, Swift-native limitation, maturity note, and multi-party gap.
