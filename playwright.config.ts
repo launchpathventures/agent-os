@@ -39,7 +39,7 @@ export default defineConfig({
 
   webServer: {
     command: isCI
-      ? `pnpm build && pnpm --filter @ditto/web start -p ${port}`
+      ? `pnpm --filter @ditto/web build && pnpm --filter @ditto/web start -p ${port}`
       : `pnpm --filter @ditto/web dev -p ${port}`,
     url: baseURL,
     reuseExistingServer: !isCI,
