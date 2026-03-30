@@ -10,7 +10,7 @@
  */
 
 import type { ContentBlock } from "@/lib/engine";
-import type { CompositionContext } from "./types";
+import type { CompositionContext, Phase, BriefSummary } from "./types";
 
 /**
  * Compose the Roadmap view — project phases, briefs, and scope selection.
@@ -27,7 +27,9 @@ export function composeRoadmap(context: CompositionContext): ContentBlock[] {
     return blocks;
   }
 
-  const { phases, briefs, stats } = roadmap;
+  const phases: Phase[] = roadmap.phases;
+  const briefs: BriefSummary[] = roadmap.briefs;
+  const { stats } = roadmap;
 
   // 1. MetricBlock — brief counts by status
   blocks.push({

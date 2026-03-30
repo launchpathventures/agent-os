@@ -388,7 +388,7 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
                   Settings page — AI connection, integrations, preferences.
                 </p>
               </div>
-            ) : (
+            ) : centerView.type === "canvas" ? (
               /* Canvas — composed blocks */
               <div className="p-6 max-w-2xl mx-auto">
                 {/* Composed ContentBlock[] from composition engine */}
@@ -421,7 +421,7 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
                   </div>
                 )}
               </div>
-            )}
+            ) : null /* artifact mode handled by early return above */}
           </div>
 
           {/* Chat input — persistent at bottom of center column (scaffold) */}

@@ -72,10 +72,39 @@ export interface CompositionContext {
 }
 
 // ============================================================
-// Roadmap data (Brief 055) — re-exported from engine
+// Roadmap data (Brief 055) — mirrored from src/engine/brief-index.ts
+// (re-export via relative path outside the web package breaks Next.js build)
 // ============================================================
 
-export type { BriefSummary, Phase, RoadmapData } from "../../../../src/engine/brief-index";
+export interface BriefSummary {
+  number: number;
+  name: string;
+  status: "draft" | "ready" | "in-progress" | "complete";
+  dependsOn: string;
+  unlocks: string;
+  date: string;
+  filePath: string;
+}
+
+export interface Phase {
+  number: number;
+  name: string;
+  status: "done" | "in-progress" | "not-started";
+  briefCount: number;
+  completedBriefCount: number;
+}
+
+export interface RoadmapData {
+  phases: Phase[];
+  briefs: BriefSummary[];
+  stats: {
+    total: number;
+    ready: number;
+    inProgress: number;
+    complete: number;
+    draft: number;
+  };
+}
 
 // ============================================================
 // Composition result
