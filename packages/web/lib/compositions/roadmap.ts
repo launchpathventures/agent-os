@@ -11,6 +11,7 @@
 
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext, Phase, BriefSummary } from "./types";
+import { emptyRoadmap } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Roadmap view — project phases, briefs, and scope selection.
@@ -20,11 +21,7 @@ export function composeRoadmap(context: CompositionContext): ContentBlock[] {
   const { roadmap } = context;
 
   if (!roadmap || (roadmap.briefs.length === 0 && roadmap.phases.length === 0)) {
-    blocks.push({
-      type: "text",
-      text: "No briefs found. Start a planning conversation to create your first brief.",
-    });
-    return blocks;
+    return emptyRoadmap();
   }
 
   const phases: Phase[] = roadmap.phases;

@@ -24,6 +24,14 @@ import { composeRoadmap } from "./roadmap";
 
 export type { CompositionIntent, CompositionContext } from "./types";
 
+// Brief 073: Export individual composition functions for composition-engine.ts
+export { composeToday } from "./today";
+export { composeInbox } from "./inbox";
+export { composeWork } from "./work";
+export { composeProjects } from "./projects";
+export { composeRoutines } from "./routines";
+export { composeRoadmap } from "./roadmap";
+
 /**
  * Registry of composition functions per intent.
  */
