@@ -286,7 +286,8 @@ This is a brand new user with no work history. You MUST speak first — greet th
     const withoutMemories = sections.filter((s) => !s.startsWith("<memories>"));
     systemPrompt = withoutMemories.join("\n\n");
     if (systemPrompt.length > charBudget) {
-      systemPrompt = systemPrompt.slice(0, charBudget - 20) + "\n... (context truncated)";
+      const truncSuffix = "\n... (context truncated)";
+      systemPrompt = systemPrompt.slice(0, charBudget - truncSuffix.length) + truncSuffix;
     }
   }
 

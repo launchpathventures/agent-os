@@ -72,9 +72,28 @@ const MAX_TOOL_TURNS = 10;
 export async function* selfConverseStream(
   userId: string,
   message: string,
+  intentContext?: string,
 ): AsyncGenerator<SelfStreamEvent> {
   // 1. Assemble context
   const context = await assembleSelfContext(userId, "web");
+
+  // Brief 073: Inject intent context into system prompt so Self knows
+  // which composition intent the user is navigating from.
+  // Guidance: Today→briefing, Inbox→triage, Work→execution,
+  // Projects→goals, Routines→recurring processes, Roadmap→planning.
+  // Follow user's lead if their message indicates different framing.
+  if (intentContext) {
+    const intentGuidance: Record<string, string> = {
+      today: "Today — briefing style, what needs attention",
+      inbox: "Inbox — triage focus, pending reviews and decisions",
+      work: "Work — execution focus, active tasks and next steps",
+      projects: "Projects — grouped work framing, goals and decomposition",
+      routines: "Routines — recurring process framing, schedule and automation",
+      roadmap: "Roadmap — planning focus, milestones and dependencies",
+    };
+    const guidance = intentGuidance[intentContext] ?? intentContext;
+    context.systemPrompt += `\n\n<intent_context>\nUser is viewing: ${guidance}. Adapt framing accordingly. Follow user's lead if their message indicates different framing.\n</intent_context>`;
+  }
 
   // 2. Load session turns
   const priorTurns = await loadSessionTurns(context.sessionId, 2000);

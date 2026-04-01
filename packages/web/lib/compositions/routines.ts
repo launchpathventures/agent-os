@@ -10,6 +10,7 @@
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext } from "./types";
 import { formatTrustTier, formatRelativeTime } from "./utils";
+import { emptyRoutines } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Routines view — process list with health metrics.
@@ -20,17 +21,7 @@ export function composeRoutines(context: CompositionContext): ContentBlock[] {
   const { processes } = context;
 
   if (processes.length === 0) {
-    blocks.push({
-      type: "text",
-      text: "No routines yet. When you define a recurring process, it will appear here with health metrics and trust levels.",
-    });
-    blocks.push({
-      type: "suggestion",
-      content: "Try describing a task you do regularly — Ditto can help turn it into a routine.",
-      reasoning: "Routines are recurring processes that Ditto runs for you with appropriate oversight.",
-      actions: [],
-    });
-    return blocks;
+    return emptyRoutines();
   }
 
   // Health summary metrics
