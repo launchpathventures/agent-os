@@ -29,8 +29,10 @@ import {
   ChainOfThoughtHeader,
   ChainOfThoughtContent,
 } from "./chain-of-thought";
+import type { DisclosureLevel } from "./chain-of-thought";
 import { getToolDisplayLabel } from "./tool-display-names";
 import { Shimmer } from "./shimmer";
+import { useEngineView } from "@/components/detail/engine-view";
 
 interface MessageProps {
   message: UIMessage;
@@ -317,6 +319,23 @@ function extractToolResultHint(output: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Extract a brief input hint from tool input for Level 3 raw detail display.
+ * Returns file path, pattern, or command — the developer-oriented context.
+ */
+function extractToolInputHint(input: unknown): string {
+  if (!input) return "";
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.file_path === "string") return ` ${obj.file_path}`;
+  if (typeof obj.filePath === "string") return ` ${obj.filePath}`;
+  if (typeof obj.pattern === "string") return ` "${obj.pattern}"`;
+  if (typeof obj.command === "string") {
+    const cmd = obj.command;
+    return cmd.length > 50 ? ` ${cmd.slice(0, 47)}...` : ` ${cmd}`;
+  }
+  return "";
+}
+
 /** Map AI SDK tool state to display status. */
 function toolIsActive(state: string): boolean {
   return state === "input-streaming" || state === "input-available";
@@ -327,13 +346,21 @@ const ACTIVITY_AUTO_CLOSE_DELAY = 1500;
 /**
  * Activity group wrapper — auto-closes when streaming completes.
  * Respects user manual toggles (Insight-124).
+ *
+ * Disclosure levels (Brief 070):
+ *   Level 1 (collapsed): Human-language summary header only.
+ *   Level 2 (expanded): Outcome-oriented steps — no raw tool names/paths.
+ *   Level 3 (engine view): Raw tool names, file paths, monospace reasoning.
  */
 function ActivityGroup({
   active,
+  engineView,
   children,
 }: {
   active: boolean;
-  children: (props: { open: boolean; onOpenChange: (open: boolean) => void }) => ReactNode;
+  /** Whether developer engine view is enabled (Ctrl+Shift+E). */
+  engineView: boolean;
+  children: (props: { open: boolean; onOpenChange: (open: boolean) => void; disclosureLevel: DisclosureLevel }) => ReactNode;
 }) {
   const [open, setOpen] = useState(active);
   const userToggledRef = useRef(false);
@@ -355,7 +382,13 @@ function ActivityGroup({
     }
   }, [active, open]);
 
-  return <>{children({ open, onOpenChange: handleOpenChange })}</>;
+  // Determine disclosure level:
+  // Engine view (Ctrl+Shift+E) → Level 3 (raw detail)
+  // User expanded → Level 2 (outcome steps)
+  // Collapsed → Level 1 (summary header only)
+  const disclosureLevel: DisclosureLevel = engineView ? 3 : open ? 2 : 1;
+
+  return <>{children({ open, onOpenChange: handleOpenChange, disclosureLevel })};</>
 }
 
 /**
@@ -424,6 +457,7 @@ function AssistantParts({
   onToolApprove?: (toolCallId: string) => void;
   onToolReject?: (toolCallId: string) => void;
 }) {
+  const { enabled: engineView } = useEngineView();
   const elements: ReactNode[] = [];
   let i = 0;
   let confidenceCardInserted = false;
@@ -491,9 +525,9 @@ function AssistantParts({
       const groupKey = `activity-${elements.length}`;
 
       elements.push(
-        <ActivityGroup key={groupKey} active={active}>
-          {({ open, onOpenChange }) => (
-            <ChainOfThought open={open} onOpenChange={onOpenChange}>
+        <ActivityGroup key={groupKey} active={active} engineView={engineView}>
+          {({ open, onOpenChange, disclosureLevel }) => (
+            <ChainOfThought open={open} onOpenChange={onOpenChange} disclosureLevel={disclosureLevel}>
               <ChainOfThoughtHeader variant="activity">
                 {header.shimmer ? (
                   <Shimmer><span>{header.text}</span></Shimmer>
@@ -503,34 +537,86 @@ function AssistantParts({
               </ChainOfThoughtHeader>
           <ChainOfThoughtContent>
             {group.map((part, gi) => {
-              // Reasoning within tool groups: flat inline text (AC8)
+              // Reasoning within tool groups
               if (isReasoningUIPart(part)) {
                 const rp = part as { text: string };
+                // Level 3 (engine view): monospace reasoning (existing behavior)
+                if (disclosureLevel === 3) {
+                  return (
+                    <div
+                      key={gi}
+                      className="text-sm font-mono text-text-muted whitespace-pre-wrap max-h-[200px] overflow-y-auto pl-[var(--spacing-5)] my-0.5"
+                    >
+                      {rp.text}
+                    </div>
+                  );
+                }
+                // Level 2: inline text, muted, not monospace (AC4 Brief 070)
                 return (
                   <div
                     key={gi}
-                    className="text-sm font-mono text-text-muted whitespace-pre-wrap max-h-[200px] overflow-y-auto pl-[var(--spacing-5)] my-0.5"
+                    className="text-sm text-text-muted whitespace-pre-wrap max-h-[200px] overflow-y-auto pl-[var(--spacing-5)] my-0.5"
                   >
                     {rp.text}
                   </div>
                 );
               }
 
-              // Tool calls: compact single-line items (AC7, AC9)
+              // Tool calls
               if (isToolUIPart(part)) {
                 const tp = part as {
                   toolName?: string;
                   state: string;
+                  input?: unknown;
                   output?: unknown;
                 };
                 const label = getToolDisplayLabel(tp.toolName ?? "tool");
-                const active = toolIsActive(tp.state);
+                const isActive = toolIsActive(tp.state);
                 const isError = tp.state === "output-error";
-                const hint = !active ? extractToolResultHint(tp.output) : undefined;
+                const hint = !isActive ? extractToolResultHint(tp.output) : undefined;
+
+                // Level 3 (engine view): raw tool names, file paths, patterns
+                if (disclosureLevel === 3) {
+                  const rawName = tp.toolName ?? "tool";
+                  const inputHint = extractToolInputHint(tp.input);
+                  const outputHint = hint ? ` → ${hint}` : "";
+
+                  if (isActive) {
+                    return (
+                      <div key={gi} className="flex items-center gap-2 text-sm font-mono py-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted flex-shrink-0 animate-spin" style={{ animationDuration: "1000ms" }}>
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        <span className="text-text-secondary">{rawName}{inputHint}</span>
+                      </div>
+                    );
+                  }
+
+                  if (isError) {
+                    return (
+                      <div key={gi} className="flex items-center gap-2 text-sm font-mono text-text-muted py-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-negative flex-shrink-0">
+                          <path d="m18 6-12 12" /><path d="m6 6 12 12" />
+                        </svg>
+                        <span>{rawName}{inputHint}{outputHint}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={gi} className="flex items-center gap-2 text-sm font-mono text-text-muted py-0.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-positive flex-shrink-0">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                      <span>{rawName}{inputHint}{outputHint}</span>
+                    </div>
+                  );
+                }
+
+                // Level 2: outcome-oriented steps (no raw tool names/paths)
                 const hintText = hint ? ` · ${hint}` : "";
 
-                // Active: spinner + shimmer label
-                if (active) {
+                if (isActive) {
                   return (
                     <div key={gi} className="flex items-center gap-2 text-sm py-0.5">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted flex-shrink-0 animate-spin" style={{ animationDuration: "1000ms" }}>
@@ -541,7 +627,6 @@ function AssistantParts({
                   );
                 }
 
-                // Error: ✕ icon + outcome
                 if (isError) {
                   return (
                     <div key={gi} className="flex items-center gap-2 text-sm text-text-muted py-0.5">
@@ -553,7 +638,6 @@ function AssistantParts({
                   );
                 }
 
-                // Complete: ✓ icon + outcome · hint
                 return (
                   <div key={gi} className="flex items-center gap-2 text-sm text-text-muted py-0.5">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-positive flex-shrink-0">
