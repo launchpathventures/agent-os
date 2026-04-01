@@ -10,6 +10,7 @@
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext } from "./types";
 import { formatRelativeTime } from "./utils";
+import { emptyInbox } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Inbox view — items needing triage, grouped by urgency.
@@ -23,11 +24,7 @@ export function composeInbox(context: CompositionContext): ContentBlock[] {
   const infoItems = feedItems.filter((f) => f.priority === "informational");
 
   if (actionItems.length === 0 && infoItems.length === 0 && pendingReviews.length === 0) {
-    blocks.push({
-      type: "text",
-      text: "Nothing needs your attention. Your inbox is clear.",
-    });
-    return blocks;
+    return emptyInbox();
   }
 
   // Triage metrics

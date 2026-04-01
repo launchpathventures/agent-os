@@ -74,11 +74,13 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Chat state — Self conversation via center column input
+  // Brief 073: Pass intentContext so Self knows which composition intent is active
+  const currentIntentContext = centerView.type === "canvas" ? centerView.intent : undefined;
   const [input, setInput] = useState("");
   const { messages, status: chatStatus, sendMessage } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { userId },
+      body: { userId, intentContext: currentIntentContext },
     }),
   });
   const chatLoading = chatStatus === "submitted" || chatStatus === "streaming";
@@ -245,6 +247,35 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
         });
 
         setInput(text);
+        return;
+      }
+
+      // Brief 073: Empty state action buttons — start conversation with Self using intent context
+      if (actionId.startsWith("empty-")) {
+        const intentActionMessages: Record<string, string> = {
+          "empty-today-start": "What would you like to work on?",
+          "empty-today-start-project": "I'd like to start a new project.",
+          "empty-today-start-routine": "I'd like to set up a routine.",
+          "empty-today-ask": "I have a question.",
+          "empty-inbox-create-routine": "I'd like to create a routine.",
+          "empty-work-start": "What do I need to get done?",
+          "empty-work-create-task": "I need to create a task.",
+          "empty-work-set-goal": "I'd like to set a goal.",
+          "empty-projects-start": "I'd like to start a project.",
+          "empty-projects-describe": "I'd like to start a project.",
+          "empty-routines-create": "I'd like to create a routine.",
+          "empty-routines-describe": "I'd like to create a routine.",
+          "empty-roadmap-start": "I'd like to start a project.",
+          "empty-roadmap-start-project": "I'd like to start a project.",
+        };
+        const text = intentActionMessages[actionId] ?? "I'd like to get started.";
+        sendMessage({ role: "user", parts: [{ type: "text", text }] });
+        return;
+      }
+
+      // Brief 073: Navigate between intents via action blocks
+      if (actionId === "navigate-inbox") {
+        handleNavigate("inbox");
         return;
       }
 

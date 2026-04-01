@@ -72,9 +72,28 @@ const MAX_TOOL_TURNS = 10;
 export async function* selfConverseStream(
   userId: string,
   message: string,
+  intentContext?: string,
 ): AsyncGenerator<SelfStreamEvent> {
   // 1. Assemble context
   const context = await assembleSelfContext(userId, "web");
+
+  // Brief 073: Inject intent context into system prompt so Self knows
+  // which composition intent the user is navigating from.
+  // Guidance: Today→briefing, Inbox→triage, Work→execution,
+  // Projects→goals, Routines→recurring processes, Roadmap→planning.
+  // Follow user's lead if their message indicates different framing.
+  if (intentContext) {
+    const intentGuidance: Record<string, string> = {
+      today: "Today — briefing style, what needs attention",
+      inbox: "Inbox — triage focus, pending reviews and decisions",
+      work: "Work — execution focus, active tasks and next steps",
+      projects: "Projects — grouped work framing, goals and decomposition",
+      routines: "Routines — recurring process framing, schedule and automation",
+      roadmap: "Roadmap — planning focus, milestones and dependencies",
+    };
+    const guidance = intentGuidance[intentContext] ?? intentContext;
+    context.systemPrompt += `\n\n<intent_context>\nUser is viewing: ${guidance}. Adapt framing accordingly. Follow user's lead if their message indicates different framing.\n</intent_context>`;
+  }
 
   // 2. Load session turns
   const priorTurns = await loadSessionTurns(context.sessionId, 2000);
@@ -426,6 +445,9 @@ import type {
   MetricBlock,
   SuggestionBlock,
   KnowledgeCitationBlock,
+  WorkItemFormBlock,
+  ConnectionSetupBlock,
+  InteractiveField,
 } from "./content-blocks";
 import { getUserModel } from "./user-model";
 import type { DelegationResult } from "./self-delegation";
@@ -630,7 +652,10 @@ export async function toolResultToContentBlocks(
     case "create_work_item": {
       try {
         const parsed = JSON.parse(result.output) as Record<string, unknown>;
-        const block: StatusCardBlock = {
+        const blocks: ContentBlock[] = [];
+
+        // StatusCard for the created item
+        const statusBlock: StatusCardBlock = {
           type: "status_card",
           entityType: "work_item",
           entityId: (parsed.id as string) ?? "",
@@ -638,8 +663,22 @@ export async function toolResultToContentBlocks(
           status: (parsed.classification as string) ?? "created",
           details: {},
         };
-        if (parsed.classification) block.details["Type"] = String(parsed.classification);
-        return [block];
+        if (parsed.classification) statusBlock.details["Type"] = String(parsed.classification);
+        blocks.push(statusBlock);
+
+        // Brief 072: Also emit an interactive WorkItemFormBlock for quick follow-up creation
+        const formFields: InteractiveField[] = [
+          { name: "type", label: "Type", type: "select", options: ["task", "goal", "exception"], required: true, value: "task" },
+          { name: "content", label: "Content", type: "text", required: true, placeholder: "Describe the work item" },
+          { name: "goalContext", label: "Goal context", type: "text", placeholder: "Optional: related goal" },
+        ];
+        const formBlock: WorkItemFormBlock = {
+          type: "work_item_form",
+          fields: formFields,
+        };
+        blocks.push(formBlock);
+
+        return blocks;
       } catch {
         return [];
       }
@@ -777,7 +816,7 @@ export async function toolResultToContentBlocks(
     }
 
     case "generate_process": {
-      // When previewing a process (save=false), emit a process proposal card
+      // When previewing a process (save=false), emit an interactive process proposal card (Brief 072)
       if (result.success && input.save === false) {
         try {
           const parsed = JSON.parse(result.output) as Record<string, unknown>;
@@ -791,6 +830,13 @@ export async function toolResultToContentBlocks(
               description: s.description as string | undefined,
               status: "pending" as const,
             })),
+            interactive: true,
+            trigger: (input.trigger as string) ?? undefined,
+            fields: [
+              { name: "name", label: "Name", type: "text", required: true, value: (input.name as string) ?? "" },
+              { name: "trigger", label: "Trigger", type: "text", placeholder: "When does this process start?" },
+              { name: "description", label: "Description", type: "text", placeholder: "What does this process do?" },
+            ],
           };
           return [block];
         } catch {
@@ -1120,11 +1166,14 @@ export async function toolResultToContentBlocks(
     }
 
     case "connect_service": {
-      // Brief 069 AC7: StatusCard showing connection status
+      // Brief 069 AC7: StatusCard + Brief 072: ConnectionSetupBlock
       try {
         const parsed = JSON.parse(result.output) as Record<string, unknown>;
         const action = parsed.action as string;
-        const block: StatusCardBlock = {
+        const blocks: ContentBlock[] = [];
+
+        // StatusCard (backward compat)
+        const statusBlock: StatusCardBlock = {
           type: "status_card",
           entityType: "work_item",
           entityId: (parsed.service as string) ?? (input.service as string) ?? "",
@@ -1138,9 +1187,39 @@ export async function toolResultToContentBlocks(
               : "available",
           details: {},
         };
-        if (parsed.message) block.details["Info"] = String(parsed.message);
-        if (parsed.authType) block.details["Auth"] = String(parsed.authType);
-        return [block];
+        if (parsed.message) statusBlock.details["Info"] = String(parsed.message);
+        if (parsed.authType) statusBlock.details["Auth"] = String(parsed.authType);
+        blocks.push(statusBlock);
+
+        // Brief 072: ConnectionSetupBlock for interactive setup
+        const serviceName = (parsed.service as string) ?? (input.service as string) ?? "unknown";
+        const serviceDisplayName = (parsed.displayName as string) ?? serviceName;
+        const isConnected = parsed.connected === true || parsed.isConnected === true;
+        const authType = parsed.authType as string | undefined;
+
+        // Build credential fields for API-key-based connections
+        const credFields: InteractiveField[] = [];
+        if (authType === "api_key" || authType === "credential") {
+          credFields.push({
+            name: "apiKey",
+            label: "API Key",
+            type: "text",
+            required: true,
+            placeholder: `Enter your ${serviceDisplayName} API key`,
+          });
+        }
+
+        const connectionBlock: ConnectionSetupBlock = {
+          type: "connection_setup",
+          serviceName,
+          serviceDisplayName,
+          connectionStatus: isConnected ? "connected" : "disconnected",
+          errorMessage: (parsed.error as string) ?? undefined,
+          fields: credFields.length > 0 ? credFields : undefined,
+        };
+        blocks.push(connectionBlock);
+
+        return blocks;
       } catch {
         return [];
       }

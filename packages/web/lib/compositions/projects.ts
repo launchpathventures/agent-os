@@ -10,6 +10,7 @@
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext } from "./types";
 import { formatTrustTier } from "./utils";
+import { emptyProjects } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Projects view — goal-level items with decomposition.
@@ -26,11 +27,7 @@ export function composeProjects(context: CompositionContext): ContentBlock[] {
   );
 
   if (goals.length === 0 && processes.length === 0) {
-    blocks.push({
-      type: "text",
-      text: "No projects yet. When you share a larger goal, Ditto will break it down and track progress here.",
-    });
-    return blocks;
+    return emptyProjects();
   }
 
   // Goals overview

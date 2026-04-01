@@ -10,6 +10,7 @@
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext } from "./types";
 import { formatRelativeTime } from "./utils";
+import { emptyWork } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Work view — active work items with progress.
@@ -38,12 +39,8 @@ export function composeWork(context: CompositionContext): ContentBlock[] {
   );
   const completed = workItems.filter((w) => w.status === "completed");
 
-  if (active.length === 0 && completed.length === 0) {
-    blocks.push({
-      type: "text",
-      text: "No work items yet. Capture something to get started — just type in the chat below.",
-    });
-    return blocks;
+  if (active.length === 0 && completed.length === 0 && (!activeRuns || activeRuns.length === 0)) {
+    return emptyWork();
   }
 
   // Summary metrics

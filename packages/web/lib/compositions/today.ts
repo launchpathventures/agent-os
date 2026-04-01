@@ -11,6 +11,7 @@
 import type { ContentBlock } from "@/lib/engine";
 import type { CompositionContext } from "./types";
 import { formatTrustTier } from "./utils";
+import { emptyToday } from "@/lib/composition-empty-states";
 
 /**
  * Compose the Today view — the user's daily dashboard.
@@ -61,10 +62,12 @@ export function composeToday(context: CompositionContext): ContentBlock[] {
     );
   }
 
-  const summaryText =
-    summaryParts.length > 0
-      ? `${greeting}. ${summaryParts.join(", ")}.`
-      : `${greeting}. Everything is quiet — nothing needs your attention right now.`;
+  // Empty state: no active work, no reviews, no processes — show actionable empty state
+  if (summaryParts.length === 0 && activeRuns.length === 0) {
+    return emptyToday(greeting);
+  }
+
+  const summaryText = `${greeting}. ${summaryParts.join(", ")}.`;
 
   blocks.push({ type: "text", text: summaryText });
 
@@ -178,6 +181,17 @@ export function composeToday(context: CompositionContext): ContentBlock[] {
         ],
       });
     }
+  }
+
+  // 7. Active state recommendation (Brief 073 AC1)
+  if (reviewCount > 0) {
+    blocks.push({
+      type: "suggestion",
+      content: `You have ${reviewCount} ${reviewCount === 1 ? "item" : "items"} waiting for review.`,
+      actions: [
+        { id: "navigate-inbox", label: "Go to Inbox", style: "primary" },
+      ],
+    });
   }
 
   return blocks;

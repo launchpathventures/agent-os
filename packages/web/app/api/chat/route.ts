@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const messages: Array<{ role: string; parts?: unknown[] }> = body.messages || [];
   const userId: string = body.userId || "default";
+  const intentContext: string | undefined = body.intentContext;
 
   // Extract last user message text from v6 parts format
   const lastUserMsg = messages.filter((m) => m.role === "user").pop();
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
       let reasoningStarted = false;
 
       try {
-        for await (const event of selfConverseStream(userId, userText)) {
+        for await (const event of selfConverseStream(userId, userText, intentContext)) {
           switch (event.type) {
             case "thinking-delta": {
               // Close any open text part before reasoning
