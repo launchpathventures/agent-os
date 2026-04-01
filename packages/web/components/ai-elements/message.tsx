@@ -299,19 +299,21 @@ function getActivityHeader(parts: UIMessage["parts"], active: boolean): { text: 
 }
 
 /**
- * Extract a brief result hint from tool output for ChainOfThoughtStep description.
- * Returns a short string (file path, result count, first 60 chars) or undefined.
+ * Extract a brief result hint from tool output.
+ * Level 3 (raw): includes file paths. Level 2 (outcome): counts/summaries only.
  */
-function extractToolResultHint(output: unknown): string | undefined {
+function extractToolResultHint(output: unknown, includeFilePaths = true): string | undefined {
   if (!output) return undefined;
   if (typeof output === "string") {
     if (output.length === 0) return undefined;
     return output.length > 60 ? output.slice(0, 57) + "..." : output;
   }
   const obj = output as Record<string, unknown>;
-  // File path from Read/Edit/Write
-  if (typeof obj.filePath === "string") return obj.filePath;
-  if (typeof obj.file_path === "string") return obj.file_path;
+  // File path from Read/Edit/Write — only at Level 3
+  if (includeFilePaths) {
+    if (typeof obj.filePath === "string") return obj.filePath;
+    if (typeof obj.file_path === "string") return obj.file_path;
+  }
   // Result summary
   if (typeof obj.result === "string" && obj.result.length > 0) {
     return obj.result.length > 60 ? obj.result.slice(0, 57) + "..." : obj.result;
@@ -564,7 +566,8 @@ function AssistantParts({
                 const label = getToolDisplayLabel(tp.toolName ?? "tool");
                 const isActive = toolIsActive(tp.state);
                 const isError = tp.state === "output-error";
-                const hint = !isActive ? extractToolResultHint(tp.output) : undefined;
+                // Level 3 includes file paths; Level 2 shows only counts/summaries (AC3 Brief 070)
+                const hint = !isActive ? extractToolResultHint(tp.output, disclosureLevel === 3) : undefined;
 
                 // Level 3: raw tool names, file paths, patterns
                 if (disclosureLevel === 3) {
