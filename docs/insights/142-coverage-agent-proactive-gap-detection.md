@@ -177,6 +177,57 @@ The Self already has `suggest_next` as a tool. Coverage suggestions flow through
 - **Capacity awareness:** If the user has 3 processes in supervised tier (heavy review load), don't suggest a 4th. Wait until at least one reaches spot-checked.
 - **Tone:** Always offered, never demanded. "I noticed..." not "You should..." Curious, not prescriptive.
 
+## The Living Library: Three Hunting Mechanisms
+
+The Process Model Library is NOT a static catalogue. It actively hunts for new processes through three mechanisms, all of which are meta-processes running through the same harness:
+
+### 1. Inward Hunting — From the User's Own Data
+
+The `process-discoverer` system agent (ADR-008) connects to the user's systems — Gmail, Calendar, Sheets, CRM — and finds patterns:
+
+- "You have a recurring email thread with 6 suppliers every month that follows a negotiation pattern. This could be a sourcing process."
+- "Your calendar shows a weekly team standup but no process captures the action items. Want me to track those?"
+- "You've sent 14 follow-up emails manually this month. That's a process waiting to be born."
+
+This is Analyze mode (architecture.md) applied continuously. The org's data already encodes its processes — the discoverer surfaces them.
+
+### 2. Outward Hunting — From the World
+
+When the coverage agent identifies a gap or the learning loop proposes an improvement, it should research what's current. Not "what do we already know about follow-up processes" but "what are the best practices for follow-up in trades businesses RIGHT NOW."
+
+This is the Dev Researcher pattern applied at runtime — Insight-078's core point: **scout the gold standard before proposing.** The outward hunt keeps the library current with evolving best practices, new tools, and emerging patterns. A library that stopped learning in 2026 is stale by 2027.
+
+### 3. Cross-Instance Hunting — From Community Intelligence
+
+When 500 users are running quoting processes and 80% of them add a "check competitor pricing" step that didn't exist in the original model, the model absorbs it. When users in a new industry (say, veterinary clinics) collectively define processes that don't exist in the library yet, those become new industry patterns.
+
+The library evolves not because someone edited a YAML file but because the evidence is overwhelming:
+- **Correction convergence:** Same correction across many users → the standard absorbs it
+- **Structural emergence:** Many users adding the same step → the model adds it
+- **Industry expansion:** Users from unrecognised industries → new industry profiles emerge from their data
+- **Template evolution:** Community-proven refinements flow back to canonical models
+
+### The Compound Effect
+
+The three hunting mechanisms feed each other:
+
+```
+Inward hunting → discovers a user's actual process
+  → if it matches a model, suggest adoption with bindings
+  → if it's novel, propose as a new model candidate
+
+Outward hunting → finds a new best practice
+  → updates existing models with the latest approach
+  → surfaces to coverage agent: "there's a new approach to X"
+
+Cross-instance → aggregates corrections across users
+  → refines model quality baselines (ADR-019)
+  → expands industry pattern coverage
+  → all users benefit from each user's corrections
+```
+
+**The shelf restocks itself.** The coverage agent doesn't suggest from a static list — it suggests from a living body of knowledge that is continuously updated by all three hunting processes. This is what makes Ditto's guidance compound over time rather than decay.
+
 ## Implications
 
 1. **Coverage agent is the 12th system agent** (ADR-008 currently defines 11). It needs to be added to the system agent registry.

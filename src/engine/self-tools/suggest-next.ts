@@ -1,9 +1,10 @@
 /**
  * Ditto — Self Tool: Suggest Next
  *
+ * The unified suggestion surface for the Self's proactive guidance.
  * Generates suggestions drawing from all 9 user model dimensions,
- * industry patterns, and process maturity. Returns max 1-2 suggestions,
- * zero during exceptions.
+ * industry patterns, process maturity, and coverage-agent findings.
+ * Returns max 1-2 suggestions, zero during exceptions.
  *
  * Dimensions consulted (Insight-093):
  * - problems + tasks (immediate)
@@ -14,7 +15,18 @@
  * - Industry patterns (coverage gaps)
  * - Process maturity (trust upgrades)
  *
- * Provenance: APQC patterns, Insight-076, Insight-093, Brief 043.
+ * This tool is the primary channel for Proactive Guidance (ADR-015,
+ * Insight-142). The coverage-agent system agent produces structured
+ * CoverageSuggestion objects that flow through this tool. The Self
+ * weaves them into conversation or briefing — never as raw lists,
+ * always as natural observations with timing and tone control.
+ *
+ * Three hunting sources feed coverage suggestions (Insight-142):
+ * 1. Inward: process-discoverer finds patterns in user's connected data
+ * 2. Outward: standards library + world knowledge for current best practices
+ * 3. Cross-instance: community corrections refine the Process Model Library
+ *
+ * Provenance: APQC patterns, Insight-076, Insight-093, Insight-142, Brief 043.
  */
 
 import { db, schema } from "../../db";
@@ -49,7 +61,24 @@ export async function handleSuggestNext(
     const suggestions: string[] = [];
     const structuredSuggestions: Array<{ type: string; content: string }> = [];
 
-    // 1. Industry coverage gaps (AC9: industry patterns)
+    // 1. Coverage gaps — from industry patterns + coverage-agent findings
+    // The coverage-agent (Insight-142, Proactive Guidance meta-process)
+    // produces rich, context-aware suggestions by reasoning from:
+    //   - User model (business type, stage, goals, pain points)
+    //   - Process Model Library (what businesses like this typically have)
+    //   - Standards Library (quality baselines, risk thresholds)
+    //   - Connected data (email patterns, calendar gaps, manual work indicators)
+    //   - Community corrections (cross-instance learning)
+    //
+    // TODO: When coverage-agent is built (Phase 11), consume its
+    // CoverageSuggestion[] output here instead of basic pattern matching.
+    // The agent produces richer, more contextual suggestions than
+    // the static industry patterns below — e.g., dependency gaps
+    // ("your quotes reference supplier prices but you have no process
+    // for keeping supplier prices current"), bottleneck gaps, and
+    // timing-aware suggestions based on trust maturity.
+    //
+    // For now, fall back to industry-patterns-based coverage gaps.
     const signals = userModel.entries.map((e) => e.content);
     const industry = matchIndustry(signals);
 
