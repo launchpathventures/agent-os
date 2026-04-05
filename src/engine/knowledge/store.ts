@@ -86,6 +86,11 @@ async function resolveEmbeddingProvider(): Promise<{
     return null;
   }
 
+  // Check Voyage AI first — works with any LLM provider when deployed with the key
+  const cred = await getCredential("__system__", "voyage");
+  const voyageKey = cred?.value ?? process.env.VOYAGE_API_KEY;
+  if (voyageKey) return { provider: "voyage", apiKey: voyageKey };
+
   // Infer from LLM_PROVIDER
   const llmProvider = process.env.LLM_PROVIDER ?? "ollama";
 
@@ -95,12 +100,7 @@ async function resolveEmbeddingProvider(): Promise<{
   }
 
   if (llmProvider === "anthropic") {
-    // Anthropic has no embedding API — try Voyage AI first, then Ollama
-    const cred = await getCredential("__system__", "voyage");
-    const voyageKey = cred?.value ?? process.env.VOYAGE_API_KEY;
-    if (voyageKey) return { provider: "voyage", apiKey: voyageKey };
-
-    // Try Ollama as local fallback
+    // No Voyage key and no embedding API — try Ollama as local fallback
     try {
       const res = await fetch(`${process.env.OLLAMA_BASE_URL ?? "http://localhost:11434"}/api/tags`, {
         signal: AbortSignal.timeout(2000),

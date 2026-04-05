@@ -343,19 +343,23 @@ export async function ingestFile(
     markdown = await parseLocal(absPath);
     source = "local";
   } else {
-    // Get LlamaParse API key from credential vault or env
+    // Use LlamaParse when key is available, fall back to local parsing silently
     const credential = await getCredential("__system__", "llamaparse");
     const apiKey = credential?.value ?? process.env.LLAMAPARSE_API_KEY;
 
-    if (!apiKey) {
+    if (apiKey) {
+      markdown = await parseLlamaParse(absPath, apiKey);
+      source = "llamaparse";
+    } else if (LOCAL_SUPPORTED.has(ext)) {
+      // No LlamaParse key — fall back to local parsing automatically
+      markdown = await parseLocal(absPath);
+      source = "local";
+    } else {
       throw new Error(
-        "LlamaParse API key not configured. Run: ditto credential add llamaparse --process __system__\n" +
-        "Or use --local flag for local parsing.",
+        `Format '${ext}' requires LlamaParse. Set LLAMAPARSE_API_KEY in your environment.\n` +
+        `Supported local formats: ${[...LOCAL_SUPPORTED].join(", ")}`,
       );
     }
-
-    markdown = await parseLlamaParse(absPath, apiKey);
-    source = "llamaparse";
   }
 
   // Store full parsed markdown for document viewer (Layer 3)
