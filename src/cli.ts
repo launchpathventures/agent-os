@@ -22,7 +22,10 @@
  *   pnpm cli debt              # List all deferred debt
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
+// Load .env then .env.local (local overrides, matches Next.js convention)
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 import { initLlm } from "./engine/llm";
 import { defineCommand, runMain } from "citty";
 
