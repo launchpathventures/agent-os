@@ -30,6 +30,15 @@ const nextConfig: NextConfig = {
       (config.resolve.alias as Record<string, string | false>)["@x402/fetch"] = false;
     }
 
+    // LanceDB has native .node binaries that webpack cannot parse.
+    // Mark it as external so Node.js loads it at runtime instead.
+    config.externals = config.externals || [];
+    if (isServer) {
+      if (Array.isArray(config.externals)) {
+        config.externals.push("@lancedb/lancedb");
+      }
+    }
+
     return config;
   },
 };
