@@ -50,6 +50,7 @@ import { credentialCommand } from "./cli/commands/credential";
 import { triggerCommand } from "./cli/commands/trigger";
 import { generateIntegrationCommand } from "./cli/commands/generate-integration";
 import { scheduleCommand } from "./cli/commands/schedule";
+import { networkCommand } from "./cli/commands/network";
 import { knowledgeCommand } from "./cli/commands/knowledge";
 
 const main = defineCommand({
@@ -75,6 +76,7 @@ const main = defineCommand({
     trigger: triggerCommand,
     "generate-integration": generateIntegrationCommand,
     schedule: scheduleCommand,
+    network: networkCommand,
     knowledge: knowledgeCommand,
   },
 });
