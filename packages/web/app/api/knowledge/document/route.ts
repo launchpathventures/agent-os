@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     }
 
     // Lazy-import to avoid build-time SQLite initialization
-    const { db, schema } = await import("../../../../src/db");
+    const { db, schema } = await import("../../../../../../src/db");
     const { eq } = await import("drizzle-orm");
 
     // Get parsed markdown

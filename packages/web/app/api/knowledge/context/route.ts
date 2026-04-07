@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
     // Lazy-import engine to avoid build-time SQLite initialization
     const { getNeighboringContext } = await import(
-      "../../../../src/engine/knowledge/search"
+      "../../../../../../src/engine/knowledge/search"
     );
 
     const result = await getNeighboringContext(chunkId, windowSize);
