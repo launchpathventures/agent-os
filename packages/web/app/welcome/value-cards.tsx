@@ -12,16 +12,16 @@ export function ValueCards() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <ValueCard
-        icon={<Users size={24} className="text-vivid" />}
-        title="Find the Right People"
-        description="Alex researches who you should meet, drafts introductions you review, and reaches out on your behalf."
-        href="/network"
-      />
-      <ValueCard
         icon={<Shield size={24} className="text-vivid" />}
         title="Your Priorities, Organized"
-        description="Weekly briefings, decision tracking, and someone managing the details. Works entirely through email."
+        description="Weekly briefings, decision tracking, and someone managing the details so you can focus on the work that matters."
         href="/chief-of-staff"
+      />
+      <ValueCard
+        icon={<Users size={24} className="text-vivid" />}
+        title="The Right People, Found"
+        description="Alex researches who you should meet, drafts introductions you review, and reaches out on your behalf."
+        href="/network"
       />
     </div>
   );

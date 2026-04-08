@@ -16,9 +16,6 @@
 
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { db, schema } from "../../../../../../src/db";
-import { eq } from "drizzle-orm";
-import { recordLoad } from "../../../../../../src/engine/budget";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,6 +75,11 @@ export async function POST(request: Request) {
     console.error("[budget/webhook] Missing metadata on checkout session:", session.id);
     return NextResponse.json({ received: true });
   }
+
+  // Dynamic imports to avoid build-time SQLite initialization
+  const { db, schema } = await import("../../../../../../src/db");
+  const { eq } = await import("drizzle-orm");
+  const { recordLoad } = await import("../../../../../../src/engine/budget");
 
   // Verify budget exists
   const [budget] = await db

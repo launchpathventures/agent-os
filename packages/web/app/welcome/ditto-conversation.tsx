@@ -34,12 +34,12 @@ interface Message {
 
 const INTRO_MESSAGES: Message[] = [
   { role: "alex", text: "Hey, I\u2019m Alex." },
-  { role: "alex", text: "I\u2019m an AI advisor at Ditto. Tell me what you\u2019re working on and I\u2019ll figure out how I can help." },
+  { role: "alex", text: "I\u2019m an AI advisor \u2014 I help people get unstuck, stay on top of things, and find the right opportunities. What are you working on?" },
 ];
 
 const FRONT_DOOR_PILLS = [
-  "I need more clients",
-  "I need help organizing my work",
+  "I\u2019m drowning in priorities",
+  "I need to find the right people",
   "I\u2019m stuck on a problem",
 ];
 
