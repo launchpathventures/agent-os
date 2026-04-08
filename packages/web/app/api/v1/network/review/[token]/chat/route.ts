@@ -125,7 +125,7 @@ export async function POST(
       purpose: "conversation",
     });
 
-    const reply = extractText(response);
+    const reply = extractText(response.content);
 
     // Persist Alex's response
     await appendChatMessage(token, "alex", reply);
