@@ -122,7 +122,7 @@ export async function POST(
         { role: "user" as const, content: message },
       ],
       maxTokens: 500,
-      purpose: "chat",
+      purpose: "conversation",
     });
 
     const reply = extractText(response);
