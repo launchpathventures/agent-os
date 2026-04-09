@@ -277,46 +277,26 @@ Tracked in `docs/debts/`. Run `pnpm cli debt` to list. Test-utils `createTables`
 
 | Brief | Phase | Status |
 |-------|-------|--------|
-| 037 — Phase 10 MVP Dashboard (old draft) | 10 | Superseded by Brief 038 |
-| 038 — Phase 10 MVP Architecture (parent) | 10 | **Approved 2026-03-25.** Parent brief + 6 sub-briefs (039-044). 89 ACs total. Build order: 039 → (040 ∥ 041) → (044 ∥ 042 ∥ 043). |
-| 039 — Web Foundation | 10a | **Complete 2026-03-25.** 14/14 AC pass (AC14 visual QA needs human). Reviewed: PASS WITH FLAGS (4 flags, all fixed). |
-| 040 — Self Extensions | 10b | **Complete 2026-03-25.** 15/15 AC pass. Reviewed: PASS WITH FLAGS (5 flags, all fixed). |
-| 041 — Feed & Review | 10c | **Complete 2026-03-25 + upgraded 2026-03-25.** 17 AC (was 15; +2 from Hark patterns: decision output variant, Markdown/text export). Reviewed: PASS WITH FLAGS (2 flags, all fixed). |
-| 042 — Navigation & Detail | 10d | **Complete 2026-03-25.** 17/17 AC pass. Reviewed: PASS WITH FLAGS (4 flags: 1 medium fixed, 3 low accepted for MVP). |
-| 043 — Proactive Engine | 10e | **Complete 2026-03-25.** 11/11 AC pass. Reviewed: PASS WITH FLAGS (2 fixed: reorder guard, suggest_next dimensions). |
-| 044 — Onboarding Experience | 10f | **Complete 2026-03-25.** 16/16 AC pass. Reviewed: PASS WITH FLAGS (2 critical fixed: reorder guard, UI component wiring). ADR-020 accepted pre-build. |
-| 045 — Component Protocol | 10g | **Complete 2026-03-25.** 17/17 AC pass. |
-| 047 — Composition Engine | ADR-024 | **Complete 2026-03-28.** 17/17 AC pass. Reviewed: PASS WITH FLAGS (5 flags, all fixed). |
-| 048 — Artifact Mode Layout | ADR-024 | **Complete 2026-03-29.** 11/11 AC pass. Reviewed: PASS WITH FLAGS (4 P1s all fixed). Approved. |
-| 062 — Conversation Experience Activation | 11 | **Approved 2026-03-31.** 15 AC. Conversation chrome + message queueing. Reviewed: APPROVE WITH FLAGS (4 flags, all fixed). **On hold** — reassess after 069/070 (Insight-131). |
-| 063 — Block Renderer Polish | 11 | **Approved 2026-03-31.** 11 AC. Tier 2 → Tier 1 visual quality for 7 block renderers. Reviewed: APPROVE WITH FLAGS (10 flags, all fixed). Ready to build. Can run in parallel with 070. |
-| 066 — Conversation Polish Layer | 11 | **Draft 2026-04-01.** 14 AC. Message animations, hover actions, empty state. Lower priority — polish after blocks appear. |
-| 067 — Reasoning Verification Evidence | 11 | **Superseded by Brief 070.** Activity header reframe absorbed into three-level progressive disclosure. |
-| 069 — Rich Block Emission | 11 | **Approved 2026-04-01.** 15 AC. Expand toolResultToContentBlocks for all 19 Self tools. Reviewed: PASS WITH FLAGS (4 flags, all fixed). Ready to build. |
-| 070 — Activity Progressive Disclosure | 11 | **Approved 2026-04-01.** 12 AC. Three-level activity display. Depends on 069. Reviewed: PASS WITH FLAGS (4 flags, all fixed). Ready to build after 069. |
+| 049 — Automaintainer Meta-Process | 11+ | **Draft, parked.** 2 P1s pending resolution. |
+| 071 — Universal Work Loop Activation | 12-13 | **Draft.** Parent brief. Sub-briefs 072-074 complete. Remaining activation work TBD. |
+| 113 — Zapier SDK Tool Integration | 11+ | **Draft 2026-04-09.** Agents use `@zapier/zapier-sdk` for 9K+ external services. Not yet implemented. |
+
+**Completed briefs moved to `docs/briefs/complete/` (2026-04-09 housekeeping):** 037 (superseded), 038 (parent complete), 059, 062, 063, 066, 067 (superseded), 069, 070, 075, 079 (both), 086, 087, 088, 089, 098, 101, 105, 106, 111, 112. Legacy prototype briefs also archived.
 
 ## Next Steps
 
-1. **Phase 11 Chat UX — Block emission pivot (Insight-131).** Build order:
-   - **Brief 069 (Rich Block Emission)** — first priority. Makes all 19 Self tools produce appropriate ContentBlocks. Engine-side only.
-   - **Brief 070 (Activity Progressive Disclosure)** — second. Three-level activity display. Depends on 069.
-   - **Brief 063 (Block Renderer Polish)** — can run in parallel with 070. More impactful now that blocks appear.
-   - **Brief 062 (Conversation Experience Activation)** — on hold. Reassess message queueing and chrome after 069/070.
-   - **Brief 066 (Conversation Polish Layer)** — lower priority polish. After blocks and activity are right.
-2. **Next viewer work:** Live Preview viewer as extension seam (ADR-024, Insight-104) → remaining viewers → Self-driven composition (Phase 11+).
-3. **Brief 049 (Automaintainer Process) in draft.** Phase 11+ work. 2 P1s pending resolution.
-   - AI coaching embedded in workflow, never blocking
-4. **Standards Library — ADR-019 accepted.** Build brief needed for Phase 10 MVP integration (deferred — quality profiles render but don't execute in Phase 10).
-5. **Integration generation follow-ups:** LLM-assisted curation, PATCH method, generate 2-3 real integrations (Stripe, Xero, HubSpot).
-6. **Insight-064 active:** Benchmark Before Keep — metacognitive check handler must prove its value after 50 supervised runs.
-7. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite.
-8. **Planned:** PM triages whether process-analyst system agent should move from Phase 11 to Phase 7-8 (Insight-047).
-8b. **In progress:** Process Model Library (Insight-099) — curation pipeline shipped (Brief 104). Remaining: abstract action taxonomy + binding resolution needs ADR. Seed existing templates into `processModels` table. Extends ADR-005, ADR-008, ADR-019.
-9. **Deferred:** Brief 016 AC17 (Telegram event subscription) — follow-up after live engine validation.
-10. **Deferred:** Cognitive model fields (ADR-013) — deferred to Phase 8.
-11. **Deferred:** Attention model extensions (ADR-011) — digest mode, silence-as-feature. Needs 3+ autonomous processes.
-12. **Planned:** Knowledge lifecycle meta-process design (Insight-042)
-13. **Insight-058/059:** Repos are process targets. Processes need context bindings.
+1. **Brief 113 (Zapier SDK Tool Integration)** — only unbuilt brief. Needs Architect approval before build. Replaces custom OpenAPI generation as primary integration path (Insight-164).
+2. **Brief 049 (Automaintainer Process)** — parked. 2 P1s pending resolution. AI coaching embedded in workflow, never blocking.
+3. **Brief 071 (Universal Work Loop Activation)** — parent brief partially delivered via sub-briefs 072-074. Assess remaining gaps.
+4. **Process Model Library (Insight-099)** — curation pipeline shipped (Brief 104). Remaining: abstract action taxonomy + binding resolution needs ADR. Seed existing templates into `processModels` table.
+5. **Standards Library — ADR-019 accepted.** Build brief needed (deferred — quality profiles render but don't execute).
+6. **Integration generation follow-ups:** LLM-assisted curation, PATCH method, generate 2-3 real integrations (Stripe, Xero, HubSpot).
+7. **Reference doc drift backlog:** 5 accumulated entries (Insight-153, Brief 099, Briefs 072-074, Brief 102-103, Brief 108). Architect session needed to batch-update architecture.md + dictionary.md.
+8. **STILL NEEDED:** Architecture.md babushka diagram + Layer 2 execution model rewrite.
+9. **Insight-064 active:** Benchmark Before Keep — metacognitive check handler must prove its value after 50 supervised runs.
+10. **Deferred:** Brief 016 AC17 (Telegram event subscription), Cognitive model fields (ADR-013), Attention model extensions (ADR-011).
+11. **Planned:** Knowledge lifecycle meta-process design (Insight-042). Process-analyst system agent triage (Insight-047).
+12. **Insight-058/059:** Repos are process targets. Processes need context bindings.
 
 ## Documenter Retrospective (2026-04-08 — Brief 104 Build / Library Curation Pipeline)
 
