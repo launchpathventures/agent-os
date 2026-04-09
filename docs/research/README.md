@@ -71,4 +71,6 @@ Reports in `docs/research/`. Detailed pattern analysis feeding architectural dec
 
 | `centralized-network-service-deployment.md` | Hub-and-spoke deployment patterns (Temporal, Inngest, LiveKit, Composio, Nango). State sync (Turso replicas, API webhook/SSE, polling). Workspace seed patterns. Deployment platforms (Fly.io, Railway, Hetzner, Turso+Fly). Auth patterns. 10 adoptable patterns, 4 Ditto-original items, 7 gaps. Reviewed: PASS WITH FLAGS (R-03 neutrality fixed, R-04 conflict resolution added, R-07/R-08 originality tightened). | 2026-04-06 | Active | ADR-018 amendment, deployment brief, Dev Architect |
 
+| `claude-managed-agents-architectural-review.md` | Claude Managed Agents (Anthropic, beta April 2026) architectural & strategic review for Ditto engine. Layer-by-layer alignment analysis, concept mapping, strategic opportunities (adapter, multi-agent threads, outcomes grader, memory versioning), risk assessment (lock-in, upward feature creep, good-enough), tactical recommendations. 35+ sources (full API docs). | 2026-04-09 | Active | Insight-165, landscape.md (Managed Agent Infrastructure section), Dev Architect (Track B deployment, ADR-025) |
+
 **Statuses:** Active = still informing decisions. Consumed = primary consumer complete, retained for reference. Stale = partially outdated, check notes.
