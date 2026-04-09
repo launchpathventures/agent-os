@@ -506,6 +506,20 @@ New category for Insight-152 (Network Service is centralized). Full report: `doc
 
 ---
 
+## Managed Agent Infrastructure (2026-04-09)
+
+### Claude Managed Agents (Anthropic, beta)
+
+- Managed container-based agent execution service. Four concepts: Agent (versioned config: model + system prompt + tools + MCP), Environment (container template with packages/networking), Session (running agent instance), Events (SSE-based message exchange). Built-in tools: bash, file read/write/edit, glob, grep, web search/fetch. Custom tools (client-executed, JSON schema). MCP server integration. Multi-agent orchestration (coordinator → callable agents, shared filesystem, isolated context threads — research preview). Memory stores (path-based, versioned, auditable, optimistic concurrency via content_sha256 — research preview). Outcomes (rubric-based grading with separate evaluator context, iterative refinement up to 20 cycles — research preview). SSE streaming with typed events, mid-stream interrupts, tool confirmation flow. Agent versioning with optimistic concurrency. `ant` CLI for management. SDKs: Python, TypeScript, Go, Java, C#, Ruby, PHP.
+- **Classification:** PATTERN (study the approach, implement your way) for now. Upgradable to DEPEND when Track B deployment needs a cloud runtime.
+- **Ditto relevance:** MEDIUM-HIGH as future runtime substrate for Layer 2 adapter pattern. Maps to the runtime inside `claudeAdapter.execute()` — everything above (harness pipeline, trust, memory assembly, review patterns, learning) stays Ditto. Multi-agent threads provide genuine context isolation for maker-checker review patterns. Outcomes grader validates Ditto's spec-testing review pattern. Memory store versioning/redaction patterns worth adopting for Ditto's `memories` table. Natural first consumer: Ditto Network (ADR-025) for Alex/Mira cloud execution.
+- **Limitation:** Claude-only (no multi-provider). Beta API — will change. Open bash access inside containers (loses Ditto's fine-grained tool control: allowlisted commands, path traversal prevention, secret deny-list). Opaque agent loop — Ditto can't control turn-by-turn execution, memory injection, or confidence parsing inline. No process governance, trust tiers, or learning-from-feedback. Cost model unclear. User workspace agents that need Ollama/OpenAI stay on existing adapters.
+- **Patterns to adopt:** (1) Memory versioning with `content_sha256` optimistic concurrency — solves concurrent write conflicts during parallel process runs. (2) Immutable version history with redaction — compliance/PII handling gap in Ditto's memory system. (3) Multi-agent thread isolation model — better maker-checker runtime than same-API-call or CLI subprocess.
+- **Watchpoint:** Monitor quarterly for upward feature creep into process orchestration, trust systems, or human-facing interfaces. Current trajectory is infrastructure, not product. If they ship workflow orchestration or earned trust, re-evaluate from complementary to competitive.
+- See `docs/research/claude-managed-agents-architectural-review.md` and Insight-165.
+
+---
+
 ## Pragmatic Path for Dogfood
 
 For the coding agent team (first implementation):
