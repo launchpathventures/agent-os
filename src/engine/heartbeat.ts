@@ -1056,16 +1056,8 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
               process.slug,
               updatedInputs,
               "cycle:auto-restart",
+              { cycleType: run.cycleType!, cycleConfig },
             );
-
-            // Copy cycle metadata to the new run
-            await db
-              .update(schema.processRuns)
-              .set({
-                cycleType: run.cycleType,
-                cycleConfig: cycleConfig,
-              })
-              .where(eq(schema.processRuns.id, newRunId));
 
             await logActivity("cycle.auto-restart", newRunId, "process_run", {
               previousRunId: processRunId,
@@ -1438,7 +1430,7 @@ export async function startProcessRun(
   processSlug: string,
   inputs: Record<string, unknown> = {},
   triggeredBy: string = "manual",
-  options?: { parentTrustTier?: TrustTier },
+  options?: { parentTrustTier?: TrustTier; cycleType?: string; cycleConfig?: Record<string, unknown> },
 ): Promise<string> {
   const [process] = await db
     .select()
@@ -1471,6 +1463,8 @@ export async function startProcessRun(
       triggeredBy,
       inputs,
       trustTierOverride: trustTierOverride ?? null,
+      cycleType: options?.cycleType ?? null,
+      cycleConfig: options?.cycleConfig ?? null,
     })
     .returning();
 

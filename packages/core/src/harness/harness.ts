@@ -54,6 +54,64 @@ export interface StepDefinition {
     retry_condition?: string;
     feedback_inject?: boolean;
   };
+  /** Step-category trust override — relaxes trust within process tier bounds (Brief 116) */
+  trustOverride?: string;
+  /** Sending identity for outbound steps: 'principal', 'agent-of-user', 'ghost' (Brief 116) */
+  sendingIdentity?: string;
+
+  // ============================================================
+  // Conversation-aware step primitives
+  // ============================================================
+
+  /**
+   * Pause after execution until an external event (e.g. email reply).
+   * The step executes (sends the email), then the process suspends
+   * until the event arrives or timeout expires. If timeout expires
+   * without the event, the step completes with { timedOut: true }
+   * in outputs so downstream steps can route on it.
+   *
+   * - "reply": wait for an interaction of type reply_received for
+   *   the person_id in step config
+   * - "approval": wait for human approval (same as trust gate pause)
+   */
+  wait_for?: {
+    event: "reply" | "approval";
+    timeout?: string; // e.g. "24h", "3d" — defaults to "48h"
+  };
+
+  /**
+   * Gate: only execute this step if an engagement condition is met.
+   * Checked by the heartbeat before step execution. If the condition
+   * is NOT met, the step is skipped (status: skipped).
+   *
+   * - "replied": person has replied to any email since since_step
+   * - "silent": person has NOT replied since since_step
+   * - "any": person has any interaction (open, click, reply) since since_step
+   */
+  gate?: {
+    engagement: "replied" | "silent" | "any";
+    since_step?: string; // step ID to measure engagement from
+    fallback?: "skip" | "defer"; // skip = mark skipped, defer = retry next cycle
+  };
+
+  /**
+   * Email thread grouping. Steps with the same email_thread value
+   * share a thread (via In-Reply-To / References headers). The first
+   * email in the thread creates it; subsequent emails reply to it.
+   * This prevents the email firehose problem — related emails appear
+   * as a single conversation in the user's inbox.
+   */
+  email_thread?: string;
+
+  /**
+   * Schedule: when to execute relative to a trigger or previous step.
+   * Used for cadence-based sequences (nurture, follow-ups).
+   * The heartbeat checks executeAt before running the step.
+   */
+  schedule?: {
+    delay: string;  // e.g. "4h", "24h", "3d", "7d"
+    after: "trigger" | string; // "trigger" = process start, or a step ID
+  };
 }
 
 export interface ProcessSourceConfig {
@@ -104,12 +162,14 @@ export interface ProcessDefinition {
   status: string;
   description: string;
   system?: boolean;
+  /** Process operator — who runs this process (e.g. "alex-or-mira", "user-agent", "ditto") */
+  operator?: string;
   trigger: {
     type: string;
     cron?: string;
     event?: string;
     description?: string;
-    also?: { type: string; event?: string; description?: string };
+    also?: { type: string; cron?: string; event?: string; description?: string };
   };
   inputs: Array<{
     name: string;
@@ -146,6 +206,8 @@ export interface ProcessDefinition {
   output_delivery?: ProcessOutputDeliveryConfig;
   /** Chain definitions — what processes to trigger after completion (Brief 098a) */
   chain?: ChainDefinition[];
+  /** Default sending identity for outbound steps: 'principal', 'agent-of-user', 'ghost' (Brief 116) */
+  defaultIdentity?: string;
 }
 
 export interface ParallelGroupDefinition {
@@ -155,6 +217,30 @@ export interface ParallelGroupDefinition {
 }
 
 export type StepEntry = StepDefinition | ParallelGroupDefinition;
+
+// ============================================================
+// Outbound types (Brief 116 — Operating Cycle infrastructure)
+// ============================================================
+
+export interface OutboundQualityRule {
+  /** Unique rule identifier */
+  id: string;
+  /** Human-readable description */
+  description: string;
+  /** Function that checks content against the rule. Returns violation message or null. */
+  check: (content: string, context: { channel?: string; recipientId?: string }) => string | null;
+}
+
+export interface OutboundActionRecord {
+  processRunId: string;
+  stepRunId: string;
+  channel: string;
+  sendingIdentity: string;
+  recipientId?: string;
+  contentSummary?: string;
+  blocked: boolean;
+  blockReason?: string;
+}
 
 // ============================================================
 // Routing Decision
@@ -211,6 +297,24 @@ export interface HarnessContext {
   canAutoAdvance: boolean;
   resolvedTools: ResolvedTools | null;
   routingDecision: RoutingDecision | null;
+
+  // Operating Cycle infrastructure (Brief 116)
+  /** Resolved sending identity: 'principal', 'agent-of-user', 'ghost', or null */
+  sendingIdentity: string | null;
+  /** Audience classification: 'broadcast' (many recipients) or 'direct' (one recipient) */
+  audienceClassification: "broadcast" | "direct" | null;
+  /** Loaded voice model content for ghost-mode prompt injection */
+  voiceModel: string | null;
+  /** Outbound action metadata — set by step execution for outbound steps */
+  outboundAction: { channel: string; actionType: string; recipientId?: string; content?: string } | null;
+  /** Configurable house value rules — injected by product layer */
+  outboundQualityRules: OutboundQualityRule[] | null;
+  /** Audience classification lookup — injected by product layer */
+  audienceClassificationRules: Record<string, "broadcast" | "direct"> | null;
+  /** Voice model loader callback — injected by product layer */
+  voiceModelLoader: ((processId: string, userId: string) => Promise<string | null>) | null;
+  /** Outbound action recorder callback — injected by product layer */
+  recordOutboundAction: ((action: OutboundActionRecord) => Promise<void>) | null;
 
   // Control flow
   shortCircuit: boolean;
@@ -280,6 +384,17 @@ export function createHarnessContext(params: {
     canAutoAdvance: true,
     resolvedTools: null,
     routingDecision: null,
+
+    // Operating Cycle fields (Brief 116) — null by default for backward compatibility
+    sendingIdentity: null,
+    audienceClassification: null,
+    voiceModel: null,
+    outboundAction: null,
+    outboundQualityRules: null,
+    audienceClassificationRules: null,
+    voiceModelLoader: null,
+    recordOutboundAction: null,
+
     shortCircuit: false,
   };
 }

@@ -107,9 +107,7 @@ export async function start(): Promise<void> {
  * Stop all active cron tasks and event listeners cleanly.
  */
 export async function stop(): Promise<void> {
-  for (const [id, task] of activeTasks) {
-    task.destroy();
-  }
+  await Promise.all([...activeTasks.values()].map((task) => task.destroy()));
   activeTasks.clear();
   eventListeners.clear();
 }
@@ -218,6 +216,9 @@ function registerCronTask(
   processSlug: string,
   processId: string,
 ): void {
+  // For dual triggers ("also:<realId>"), extract the real schedule ID for DB updates
+  const dbScheduleId = scheduleId.startsWith("also:") ? scheduleId.slice(5) : scheduleId;
+
   const task = cron.schedule(cronExpression, async () => {
     try {
       // Overlap prevention
@@ -227,11 +228,11 @@ function registerCronTask(
         return;
       }
 
-      // Update lastRunAt
+      // Update lastRunAt (uses real schedule ID for dual triggers)
       await db
         .update(schema.schedules)
         .set({ lastRunAt: new Date() })
-        .where(eq(schema.schedules.id, scheduleId));
+        .where(eq(schema.schedules.id, dbScheduleId));
 
       console.log(`Schedule ${scheduleId}: triggering ${processSlug}`);
       const runId = await startProcessRun(processSlug, {}, "schedule");
@@ -242,12 +243,12 @@ function registerCronTask(
     }
   });
 
-  // Update nextRunAt
+  // Update nextRunAt (uses real schedule ID for dual triggers)
   const nextRun = task.getNextRun();
   if (nextRun) {
     db.update(schema.schedules)
       .set({ nextRunAt: nextRun })
-      .where(eq(schema.schedules.id, scheduleId))
+      .where(eq(schema.schedules.id, dbScheduleId))
       .then(() => {})
       .catch(() => {});
   }

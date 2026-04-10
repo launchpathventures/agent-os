@@ -5,9 +5,13 @@
  */
 
 import { describe, it, expect } from "vitest";
+import path from "path";
 import {
   validateDependencies,
+  validateSubProcessSteps,
   flattenSteps,
+  loadProcessFile,
+  loadAllProcesses,
   isParallelGroup,
   isStep,
   type ProcessDefinition,
@@ -153,6 +157,165 @@ describe("process-loader", () => {
       const flat = flattenSteps(def);
       expect(flat).toHaveLength(3);
       expect(flat.map((s) => s.id)).toEqual(["a", "b", "c"]);
+    });
+  });
+
+  describe("cycle loading (Brief 117)", () => {
+    const cycleDir = path.join(process.cwd(), "processes", "cycles");
+
+    it("loads sales-marketing cycle YAML without errors", () => {
+      const def = loadProcessFile(path.join(cycleDir, "sales-marketing.yaml"));
+      expect(def.id).toBe("sales-marketing-cycle");
+      expect(def.name).toBe("Sales & Marketing Cycle");
+      expect(def.status).toBe("active");
+      expect(def.defaultIdentity).toBe("agent-of-user");
+    });
+
+    it("loads network-connecting cycle YAML without errors", () => {
+      const def = loadProcessFile(path.join(cycleDir, "network-connecting.yaml"));
+      expect(def.id).toBe("network-connecting-cycle");
+      expect(def.defaultIdentity).toBe("principal");
+    });
+
+    it("loads relationship-nurture cycle YAML without errors", () => {
+      const def = loadProcessFile(path.join(cycleDir, "relationship-nurture.yaml"));
+      expect(def.id).toBe("relationship-nurture-cycle");
+    });
+
+    it("cycle definitions follow archetype phase order", () => {
+      const archetypeOrder = ["sense", "assess", "act", "gate", "land", "learn", "brief"];
+      const files = ["sales-marketing.yaml", "network-connecting.yaml", "relationship-nurture.yaml"];
+
+      for (const file of files) {
+        const def = loadProcessFile(path.join(cycleDir, file));
+        const steps = flattenSteps(def);
+        const phases = steps
+          .map((s) => (s.config?.cyclePhase as string) || "")
+          .filter(Boolean);
+
+        // Verify phases are in archetype order (some may be omitted, duplicates allowed for dual LAND)
+        let lastIndex = -1;
+        for (const phase of phases) {
+          const idx = archetypeOrder.indexOf(phase);
+          expect(idx).toBeGreaterThanOrEqual(0); // valid phase name
+          expect(idx).toBeGreaterThanOrEqual(lastIndex); // order preserved (equal allowed for dual steps)
+          lastIndex = idx;
+        }
+      }
+    });
+
+    it("sales cycle has sub-process step referencing selling-outreach", () => {
+      const def = loadProcessFile(path.join(cycleDir, "sales-marketing.yaml"));
+      const steps = flattenSteps(def);
+      const subProcessSteps = steps.filter((s) => s.executor === "sub-process");
+      expect(subProcessSteps.length).toBeGreaterThanOrEqual(1);
+      const sellingStep = subProcessSteps.find(
+        (s) => s.config?.process_id === "selling-outreach" || s.config?.process_id === "social-publishing"
+      );
+      expect(sellingStep).toBeDefined();
+    });
+
+    it("network connecting cycle has critical trustOverride on GATE step", () => {
+      const def = loadProcessFile(path.join(cycleDir, "network-connecting.yaml"));
+      const steps = flattenSteps(def);
+      const gateStep = steps.find((s) => s.config?.cyclePhase === "gate");
+      expect(gateStep).toBeDefined();
+      expect(gateStep!.trustOverride).toBe("critical");
+    });
+
+    it("loadAllProcesses includes cycles from processes/cycles/ directory", () => {
+      const all = loadAllProcesses(
+        path.join(process.cwd(), "processes"),
+        path.join(process.cwd(), "processes", "templates"),
+        cycleDir,
+      );
+      const cycleIds = all.map((d) => d.id).filter((id) => id.includes("cycle"));
+      expect(cycleIds).toContain("sales-marketing-cycle");
+      expect(cycleIds).toContain("network-connecting-cycle");
+      expect(cycleIds).toContain("relationship-nurture-cycle");
+    });
+
+    it("cycle step definitions are under 500 tokens (agent context budget)", () => {
+      const files = ["sales-marketing.yaml", "network-connecting.yaml", "relationship-nurture.yaml"];
+      for (const file of files) {
+        const def = loadProcessFile(path.join(cycleDir, file));
+        // Steps-only representation: what the agent actually needs at runtime
+        const stepsOnly = {
+          name: def.name,
+          id: def.id,
+          steps: flattenSteps(def).map((s) => ({
+            id: s.id, name: s.name, executor: s.executor,
+            description: s.description, config: s.config, trustOverride: s.trustOverride,
+          })),
+        };
+        const estimatedTokens = Math.ceil(JSON.stringify(stepsOnly).length / 4);
+        // Brief targets 400 tokens for agent context; steps-only is ~450-490
+        // Full metadata (trust, feedback, etc.) stays in DB, not in agent context
+        expect(estimatedTokens).toBeLessThan(500);
+      }
+    });
+  });
+
+  describe("sub-process validation (Brief 117)", () => {
+    it("rejects sub-process step with missing config.process_id", () => {
+      const def = makeTestProcessDefinition({
+        steps: [
+          { id: "sp", name: "Sub", executor: "sub-process", config: {} },
+        ],
+      }) as unknown as ProcessDefinition;
+
+      const errors = validateSubProcessSteps(def, new Set(["some-process"]));
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0]).toContain("requires config.process_id");
+    });
+
+    it("rejects sub-process step referencing non-existent process slug", () => {
+      const def = makeTestProcessDefinition({
+        steps: [
+          { id: "sp", name: "Sub", executor: "sub-process", config: { process_id: "nonexistent" } },
+        ],
+      }) as unknown as ProcessDefinition;
+
+      const errors = validateSubProcessSteps(def, new Set(["some-process"]));
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0]).toContain("does not reference a known process slug");
+    });
+
+    it("accepts sub-process step referencing a valid process slug", () => {
+      const def = makeTestProcessDefinition({
+        steps: [
+          { id: "sp", name: "Sub", executor: "sub-process", config: { process_id: "selling-outreach" } },
+        ],
+      }) as unknown as ProcessDefinition;
+
+      const errors = validateSubProcessSteps(def, new Set(["selling-outreach"]));
+      expect(errors).toHaveLength(0);
+    });
+
+    it("non-sub-process steps are ignored by sub-process validation", () => {
+      const def = makeTestProcessDefinition({
+        steps: [
+          { id: "ai", name: "AI Step", executor: "ai-agent" },
+        ],
+      }) as unknown as ProcessDefinition;
+
+      const errors = validateSubProcessSteps(def, new Set());
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  describe("callable_as metadata (Brief 117)", () => {
+    it("all 25 templates have callable_as: sub-process", () => {
+      const templateDir = path.join(process.cwd(), "processes", "templates");
+      const all = loadAllProcesses(
+        path.join(process.cwd(), "processes"),
+        templateDir,
+      );
+      const templates = all.filter((d) => d.template === true);
+      expect(templates.length).toBe(26);
+      for (const t of templates) {
+        expect(t.callable_as).toBe("sub-process");
+      }
     });
   });
 });

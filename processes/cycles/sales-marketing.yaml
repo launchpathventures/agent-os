@@ -1,0 +1,152 @@
+# Ditto — Operating Cycle: Sales & Marketing
+#
+# Archetype: SENSE -> ASSESS -> ACT -> GATE -> LAND -> LEARN -> BRIEF
+# Broadcast content always supervised (Insight-167). Direct DMs earn autonomy.
+#
+# Provenance: Insight-168 (archetype), Insight-167 (broadcast/direct split)
+
+name: Sales & Marketing Cycle
+id: sales-marketing-cycle
+version: 1
+status: active
+
+operator: alex-or-mira
+defaultIdentity: agent-of-user
+
+description: >
+  Sales and marketing operating cycle. Broadcast always supervised;
+  direct DMs earn autonomy via step-category trust graduation.
+
+trigger:
+  type: schedule
+  cron: "0 8 * * 1-5"
+  description: Weekday mornings.
+
+inputs:
+  - name: userId
+    type: text
+    source: system
+    required: true
+    description: The user whose sales pipeline to operate
+
+steps:
+  - id: sense
+    name: "SENSE: Pipeline Review"
+    executor: ai-agent
+    description: >
+      Review inbound signals, new leads, pipeline changes since last cycle.
+    config:
+      model_hint: fast
+      cyclePhase: sense
+    inputs: [userId]
+    outputs: [pipeline-signals]
+
+  - id: assess
+    name: "ASSESS: Qualify & Prioritise"
+    executor: ai-agent
+    description: >
+      Qualify leads against ICP. Prioritise outreach targets.
+    config:
+      model_hint: capable
+      cyclePhase: assess
+    inputs: [pipeline-signals]
+    outputs: [prioritised-targets]
+
+  - id: act
+    name: "ACT: Draft Outreach"
+    executor: ai-agent
+    description: >
+      Draft personalised outreach for prioritised targets. Selling mode.
+    config:
+      model_hint: capable
+      cyclePhase: act
+      mode: selling
+    inputs: [prioritised-targets]
+    outputs: [outreach-drafts]
+
+  - id: gate
+    name: "GATE: Outbound Quality Check"
+    executor: ai-agent
+    description: >
+      Quality gate on all outbound. Broadcast = critical. Direct = trust tier.
+    config:
+      cyclePhase: gate
+    trustOverride: critical
+    inputs: [outreach-drafts]
+    outputs: [approved-outreach]
+
+  - id: land-outreach
+    name: "LAND: Execute Outreach"
+    executor: sub-process
+    description: Send approved direct outreach.
+    config:
+      cyclePhase: land
+      process_id: selling-outreach
+    inputs: [approved-outreach]
+    outputs: [outreach-results]
+
+  - id: land-publishing
+    name: "LAND: Publish Content"
+    executor: sub-process
+    description: Publish approved broadcast content.
+    config:
+      cyclePhase: land
+      process_id: social-publishing
+    trustOverride: critical
+    inputs: [approved-outreach]
+    outputs: [publishing-results]
+
+  - id: learn
+    name: "LEARN: Retrospective"
+    executor: ai-agent
+    description: >
+      Review outcomes. Update prospect scores, adjust approach.
+    config:
+      model_hint: fast
+      cyclePhase: learn
+    trustOverride: autonomous
+    inputs: [outreach-results, publishing-results]
+    outputs: [cycle-learnings]
+
+  - id: brief
+    name: "BRIEF: User Digest"
+    executor: ai-agent
+    description: >
+      Compile digest: pipeline status, outreach metrics, next actions.
+    config:
+      model_hint: fast
+      cyclePhase: brief
+    trustOverride: autonomous
+    inputs: [cycle-learnings, outreach-results, publishing-results]
+    outputs: [sales-digest]
+
+outputs:
+  - name: sales-digest
+    type: json
+    destination: user
+    description: Sales cycle digest.
+
+quality_criteria:
+  - "Every outreach is personalised"
+  - "Broadcast content always goes through user approval"
+  - "No outreach to opted-out recipients"
+
+feedback:
+  metrics:
+    - name: outreach_reply_rate
+      description: Reply rate on outreach
+      target: ">15%"
+    - name: meetings_booked
+      description: Meetings booked
+      target: ">0 per cycle"
+  capture:
+    - user_edits_to_outreach_drafts
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "5 cycles with >80% approval rate on direct outreach"
+      upgrade_to: spot_checked
+  downgrade_triggers:
+    - "User rejects 3+ drafts in a single cycle"
+    - "Opt-out rate exceeds 5%"

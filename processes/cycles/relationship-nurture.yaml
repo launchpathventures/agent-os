@@ -1,0 +1,155 @@
+# Ditto — Operating Cycle: Relationship Nurture
+#
+# Archetype: SENSE -> ASSESS -> ACT -> GATE -> LAND -> LEARN -> BRIEF
+# Silence > noise: would this add value or just noise?
+# Principal for intros, ghost for check-ins.
+#
+# Provenance: Insight-168 (archetype), Insight-167 (trust model)
+
+name: Relationship Nurture Cycle
+id: relationship-nurture-cycle
+version: 1
+status: active
+
+operator: alex-or-mira
+defaultIdentity: principal
+
+description: >
+  Relationship nurture cycle. Silence > noise principle — every touch
+  must add genuine value. Principal for intros, ghost for check-ins.
+
+trigger:
+  type: schedule
+  cron: "0 10 * * 2,5"
+  description: Tuesday and Friday mornings.
+
+inputs:
+  - name: userId
+    type: text
+    source: system
+    required: true
+    description: The user whose relationships to nurture
+
+steps:
+  - id: sense
+    name: "SENSE: Relationship Health Scan"
+    executor: ai-agent
+    description: >
+      Scan for silence, positive last interactions, attention needed.
+    config:
+      model_hint: fast
+      cyclePhase: sense
+    trustOverride: autonomous
+    inputs: [userId]
+    outputs: [relationship-signals]
+
+  - id: assess
+    name: "ASSESS: Value-Add Opportunities"
+    executor: ai-agent
+    description: >
+      Identify genuine value-adds. Classify: intro (principal) or check-in (ghost).
+    config:
+      model_hint: capable
+      cyclePhase: assess
+    inputs: [relationship-signals]
+    outputs: [nurture-plan]
+
+  - id: act
+    name: "ACT: Draft Nurture Touches"
+    executor: ai-agent
+    description: >
+      Draft touches. Check-ins = ghost voice. Intros = principal voice.
+      Every touch must add genuine value — no filler.
+    config:
+      model_hint: capable
+      cyclePhase: act
+      mode: nurturing
+    inputs: [nurture-plan]
+    outputs: [nurture-drafts]
+
+  - id: gate
+    name: "GATE: Silence > Noise Check"
+    executor: ai-agent
+    description: >
+      Would this add value or just noise? 2+ weeks since last contact?
+      Recipient not opted out?
+    config:
+      cyclePhase: gate
+    trustOverride: supervised
+    inputs: [nurture-drafts]
+    outputs: [approved-touches]
+
+  - id: land-nurture
+    name: "LAND: Send Nurture Touches"
+    executor: sub-process
+    description: Execute via network-nurture sub-process.
+    config:
+      cyclePhase: land
+      process_id: network-nurture
+    inputs: [approved-touches]
+    outputs: [nurture-results]
+
+  - id: land-follow-ups
+    name: "LAND: Send Follow-Ups"
+    executor: sub-process
+    description: Execute follow-up sequences for stalled conversations.
+    config:
+      cyclePhase: land
+      process_id: follow-up-sequences
+    inputs: [approved-touches]
+    outputs: [follow-up-results]
+
+  - id: learn
+    name: "LEARN: Reciprocity Tracking"
+    executor: ai-agent
+    description: >
+      Track outcomes, reciprocity scores, relationship trajectory.
+    config:
+      model_hint: fast
+      cyclePhase: learn
+    trustOverride: autonomous
+    inputs: [nurture-results, follow-up-results]
+    outputs: [nurture-learnings]
+
+  - id: brief
+    name: "BRIEF: Relationship Health Report"
+    executor: ai-agent
+    description: >
+      Report: touches sent, responses, reciprocity trends.
+    config:
+      model_hint: fast
+      cyclePhase: brief
+    trustOverride: autonomous
+    inputs: [nurture-learnings, nurture-results]
+    outputs: [relationship-report]
+
+outputs:
+  - name: relationship-report
+    type: json
+    destination: user
+    description: Relationship health report.
+
+quality_criteria:
+  - "Every touch adds genuine value — no filler"
+  - "Silence > noise — when in doubt, don't send"
+  - "No contact more than once per 2 weeks via nurture"
+
+feedback:
+  metrics:
+    - name: reply_rate
+      description: Nurture touch response rate
+      target: ">30%"
+    - name: relationship_trajectory
+      description: Net positive vs declining relationships
+      target: ">80% stable or improving"
+  capture:
+    - user_overrides_on_nurture_decisions
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "5 cycles with no opt-outs and >25% reply rate"
+      upgrade_to: spot_checked
+  downgrade_triggers:
+    - "Any opt-out from a nurture touch"
+    - "User rejects 2+ touches in a single cycle"

@@ -44,6 +44,13 @@ import { handleSuggestNext } from "./self-tools/suggest-next";
 import { handleAdaptProcess } from "./self-tools/adapt-process";
 import { handleAssessConfidence } from "./self-tools/assess-confidence";
 import { handleSearchKnowledge } from "./self-tools/search-knowledge";
+import {
+  handleActivateCycle,
+  handlePauseCycle,
+  handleResumeCycle,
+  handleCycleBriefing,
+  handleCycleStatus,
+} from "./self-tools/cycle-tools";
 import { updateUserModel, type UserModelDimension, USER_MODEL_DIMENSIONS } from "./user-model";
 import { setSessionTrust } from "./session-trust";
 import { loadProcessFile } from "./process-loader";
@@ -69,18 +76,18 @@ export const selfTools: LlmToolDefinition[] = [
   {
     name: "start_dev_role",
     description:
-      "Delegate a task to a dev pipeline role. The role runs through the full harness (memory, trust, review, feedback). Use this when the human's request requires a specific dev role — PM for triage, Researcher for investigation, Architect for design, Builder for implementation, etc. The role executes and returns its output for you to synthesize.",
+      "Delegate task to a dev role (PM, Researcher, Architect, Builder, etc). Full harness run with memory, trust, review.",
     input_schema: {
       type: "object" as const,
       properties: {
         role: {
           type: "string",
           enum: VALID_ROLES as unknown as string[],
-          description: "Which dev role to delegate to",
+          description: "Dev role to delegate to",
         },
         task: {
           type: "string",
-          description: "The task description for the role to execute",
+          description: "Task description",
         },
       },
       required: ["role", "task"],
@@ -88,14 +95,13 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "approve_review",
-    description:
-      "Approve a process run that is waiting for review. Use when the human confirms the output is acceptable.",
+    description: "Approve a process run waiting for review.",
     input_schema: {
       type: "object" as const,
       properties: {
         runId: {
           type: "string",
-          description: "The process run ID to approve",
+          description: "Process run ID",
         },
       },
       required: ["runId"],
@@ -103,18 +109,17 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "edit_review",
-    description:
-      "Provide feedback on a process run that is waiting for review. The feedback is recorded and the run continues with the correction.",
+    description: "Provide feedback on a run waiting for review. Correction is recorded and applied.",
     input_schema: {
       type: "object" as const,
       properties: {
         runId: {
           type: "string",
-          description: "The process run ID to edit",
+          description: "Process run ID",
         },
         feedback: {
           type: "string",
-          description: "The feedback or correction to apply",
+          description: "Feedback or correction",
         },
       },
       required: ["runId", "feedback"],
@@ -122,18 +127,17 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "reject_review",
-    description:
-      "Reject a process run that is waiting for review. The rejection reason is recorded.",
+    description: "Reject a process run waiting for review. Reason is recorded.",
     input_schema: {
       type: "object" as const,
       properties: {
         runId: {
           type: "string",
-          description: "The process run ID to reject",
+          description: "Process run ID",
         },
         reason: {
           type: "string",
-          description: "Why the output is being rejected",
+          description: "Rejection reason",
         },
       },
       required: ["runId", "reason"],
@@ -141,24 +145,22 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "consult_role",
-    description:
-      "Quick check with a dev role's perspective. NOT a full delegation — just a lightweight LLM call that thinks from that role's viewpoint. Use this when you want a second opinion before deciding: 'Does this architecture make sense?' 'Am I interpreting this triage correctly?' Returns the role's perspective in ~10 seconds. Much cheaper than delegation.",
+    description: "Quick perspective check with a dev role (~10 sec, no harness). For second opinions before deciding.",
     input_schema: {
       type: "object" as const,
       properties: {
         role: {
           type: "string",
           enum: VALID_ROLES as unknown as string[],
-          description: "Which role's perspective to consult",
+          description: "Role to consult",
         },
         question: {
           type: "string",
-          description: "What you want the role's perspective on",
+          description: "Question for the role",
         },
         context: {
           type: "string",
-          description:
-            "Relevant context for the consultation (your current reasoning, the human's request, etc.)",
+          description: "Relevant context for the consultation",
         },
       },
       required: ["role", "question"],
@@ -169,28 +171,27 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "plan_with_role",
-    description:
-      "Collaborative planning with a dev role's perspective. The role reads project documents, analyzes the situation, and produces structured output (briefs, ADRs, insights, roadmap analysis). Richer than consult_role (document access, multi-turn tool use) but lighter than start_dev_role (no harness pipeline). Planning roles only: PM, Researcher, Designer, Architect. The Architect can additionally propose writes to docs/ — proposed content returns to you for user confirmation before persisting. Use this for planning conversations: scoping features, reviewing architecture, prioritizing work, exploring ideas.",
+    description: "Collaborative planning with a dev role. Reads docs, produces briefs/ADRs/insights. PM, Researcher, Designer, Architect only.",
     input_schema: {
       type: "object" as const,
       properties: {
         role: {
           type: "string",
           enum: ["pm", "researcher", "designer", "architect"],
-          description: "Which planning role to engage (pm, researcher, designer, architect only)",
+          description: "Planning role (pm, researcher, designer, architect)",
         },
         objective: {
           type: "string",
-          description: "What the planning conversation should achieve",
+          description: "Planning objective",
         },
         context: {
           type: "string",
-          description: "Optional: relevant context from the conversation so far",
+          description: "Optional conversation context",
         },
         documents: {
           type: "array",
           items: { type: "string" },
-          description: "Optional: file paths to read (e.g., 'docs/roadmap.md', 'docs/briefs/052-planning-workflow.md')",
+          description: "Optional file paths to read",
         },
       },
       required: ["role", "objective"],
@@ -201,8 +202,7 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "start_pipeline",
-    description:
-      "Trigger the full dev pipeline for a task. Unlike start_dev_role (single role), this runs the full pipeline: PM → Researcher → Designer → Architect → Builder → Reviewer → Documenter. The pipeline runs asynchronously — you get back immediately with a runId and can track progress via SSE events. Use this when the human says 'Build Brief X', 'implement X', or otherwise requests end-to-end execution through the pipeline.",
+    description: "Full dev pipeline (PM→Builder→Reviewer). Async — returns runId. For end-to-end execution requests.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -216,8 +216,7 @@ export const selfTools: LlmToolDefinition[] = [
         },
         sessionTrust: {
           type: "object",
-          description:
-            "Optional: per-role trust overrides for this run. Keys are role names, values must be 'spot_checked'. Cannot relax builder or reviewer (maker-checker). Example: { 'researcher': 'spot_checked', 'designer': 'spot_checked' }",
+          description: "Per-role trust overrides. Values: 'spot_checked'. Cannot relax builder/reviewer.",
           additionalProperties: { type: "string", enum: ["spot_checked"] },
         },
       },
@@ -229,18 +228,17 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "create_work_item",
-    description:
-      "Create a new work item from the user's natural language description. The item is auto-classified (task, question, goal, insight, outcome) via the intake classifier. Use when the user describes something they need done, a question they need answered, or a goal they want to achieve.",
+    description: "Create work item from natural language. Auto-classified as task/question/goal/insight/outcome.",
     input_schema: {
       type: "object" as const,
       properties: {
         content: {
           type: "string",
-          description: "Natural language description of the work item",
+          description: "Work item description",
         },
         goalContext: {
           type: "string",
-          description: "Optional: what goal this work serves",
+          description: "Optional goal context",
         },
       },
       required: ["content"],
@@ -248,14 +246,13 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "pause_goal",
-    description:
-      "Pause a goal — halts all active child runs, prevents new ones from starting. Use when the user wants to stop goal execution temporarily. The goal can be resumed later via approve_review on a child task.",
+    description: "Pause a goal — halts child runs. Resumable via approve_review.",
     input_schema: {
       type: "object" as const,
       properties: {
         goalWorkItemId: {
           type: "string",
-          description: "The goal work item ID to pause",
+          description: "Goal work item ID",
         },
       },
       required: ["goalWorkItemId"],
@@ -263,8 +260,7 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "generate_process",
-    description:
-      "Generate a new process definition from a conversational description. First call with save=false to preview the YAML. Then call again with save=true after the user confirms. IRREVERSIBLE when save=true — always preview first and get user confirmation.",
+    description: "Generate process from description. save=false to preview, save=true after confirmation. IRREVERSIBLE when save=true.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -305,8 +301,7 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "quick_capture",
-    description:
-      "Capture a quick note, observation, or piece of information. Stores it as a work item and auto-classifies. Use when the user says 'remember that...', 'note that...', or drops a quick piece of context.",
+    description: "Capture a quick note or observation. Auto-classified as work item.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -320,8 +315,7 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "adjust_trust",
-    description:
-      "Propose or apply a trust tier change for a process. IRREVERSIBLE — always call first with confirmed=false to get the proposal with evidence, present it to the user, and only call with confirmed=true after explicit user confirmation.",
+    description: "Propose/apply trust tier change. confirmed=false for proposal, confirmed=true after user approval. IRREVERSIBLE.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -347,8 +341,7 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "get_process_detail",
-    description:
-      "Get detailed information about a process: its steps, trust data, recent runs, correction rates, and trend. Returns structured data for inline rendering. Use when the user asks about a process or you need data to support a decision.",
+    description: "Get process details: steps, trust data, recent runs, correction rates, trend.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -362,8 +355,7 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "connect_service",
-    description:
-      "Guide the user through connecting an external service (GitHub, Slack, etc.). Use action='check' to list available services, action='guide' to show setup instructions and trigger the secure credential input, action='verify' to check if credentials are stored.",
+    description: "Connect external service. check=list, guide=setup instructions, verify=check credentials.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -386,19 +378,18 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "update_user_model",
-    description:
-      "Store something you've learned about the user across one of 9 dimensions: problems, tasks, work, challenges, communication, frustrations, vision, goals, concerns. Populate progressively — prioritize problems and tasks first (immediate value), deepen into vision and goals across sessions. Call this whenever you learn something meaningful about who the user is and what they need.",
+    description: "Store user insight across 9 dimensions (problems, tasks, work, challenges, communication, frustrations, vision, goals, concerns).",
     input_schema: {
       type: "object" as const,
       properties: {
         dimension: {
           type: "string",
           enum: USER_MODEL_DIMENSIONS as unknown as string[],
-          description: "Which dimension of understanding this fills",
+          description: "User model dimension",
         },
         content: {
           type: "string",
-          description: "What you learned (concise, factual)",
+          description: "What you learned",
         },
       },
       required: ["dimension", "content"],
@@ -409,14 +400,13 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "get_briefing",
-    description:
-      "Get a contextual briefing for the user. Assembles 5 dimensions: focus (what needs attention), attention (aging items), upcoming (predicted work), risk signals (woven naturally — NEVER use the word 'risk'), and suggestions. Call this proactively when a user returns after a session gap. Adapt briefing length: verbose for new users, terse for established users.",
+    description: "Contextual briefing: focus, attention, upcoming, signals, suggestions. Call proactively on user return.",
     input_schema: {
       type: "object" as const,
       properties: {
         userId: {
           type: "string",
-          description: "User ID (defaults to 'default')",
+          description: "User ID",
         },
       },
       required: [],
@@ -424,14 +414,13 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "detect_risks",
-    description:
-      "Detect operational signals: temporal (aging items), data staleness (stale integration polls), correction patterns (high correction rates). Returns typed signals to weave into briefing. NEVER present these as 'risks' to the user — weave naturally into conversation.",
+    description: "Detect operational signals: aging items, data staleness, correction patterns. Weave naturally, never say 'risk'.",
     input_schema: {
       type: "object" as const,
       properties: {
         thresholds: {
           type: "object",
-          description: "Optional override thresholds (temporalInactiveDays, dataStalenessHours, correctionRateBaseline, correctionMinRuns)",
+          description: "Optional threshold overrides",
         },
       },
       required: [],
@@ -439,14 +428,13 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "suggest_next",
-    description:
-      "Generate 1-2 suggestions based on user model (9 dimensions), industry patterns (coverage gaps), and process maturity (trust upgrades). NEVER suggest during exceptions — fix those first. Suggestions are offered naturally, not as a list.",
+    description: "Generate 1-2 suggestions from user model, coverage gaps, trust upgrades. Never during exceptions.",
     input_schema: {
       type: "object" as const,
       properties: {
         userId: {
           type: "string",
-          description: "User ID (defaults to 'default')",
+          description: "User ID",
         },
         hasExceptions: {
           type: "boolean",
@@ -461,8 +449,7 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "adapt_process",
-    description:
-      "Adapt a running process definition at runtime. Writes a run-scoped override — the canonical template stays untouched. Use during onboarding to add industry-specific steps after learning about the user's business. Scoped to system processes only. Changes take effect on the next heartbeat iteration. ALWAYS provide the full adapted definition, not a diff.",
+    description: "Adapt running process at runtime (run-scoped override). For onboarding industry-specific steps. Full definition required.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -491,8 +478,7 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "assess_confidence",
-    description:
-      "Assess your confidence in the current response after completing tool-assisted work. Call this as your FINAL tool call when you used other tools during this conversation turn. Be conservative — it's better to flag a minor uncertainty than to miss something the user should check. Do NOT call this for conversational responses where no tools were used.",
+    description: "Assess confidence after tool work. Final tool call only. Conservative: flag uncertainties. Skip for chat-only turns.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -540,8 +526,7 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "search_knowledge",
-    description:
-      "Search the ingested knowledge base for relevant documents. Returns chunks with source citations (file, page, section, line range). Use when the human asks about content from ingested documents, or when you need factual grounding from the knowledge base.",
+    description: "Search knowledge base. Returns chunks with source citations. For factual grounding from ingested docs.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -555,6 +540,111 @@ export const selfTools: LlmToolDefinition[] = [
         },
       },
       required: ["query"],
+    },
+  },
+  // ============================================================
+  // Brief 118 — Operating Cycle Management Tools
+  // ============================================================
+  {
+    name: "activate_cycle",
+    description: "Start a continuous operating cycle (sales-marketing, network-connecting, relationship-nurture). Asks config questions if incomplete.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cycleType: {
+          type: "string",
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          description: "Which operating cycle to activate",
+        },
+        userId: {
+          type: "string",
+          description: "User ID (defaults to 'default')",
+        },
+        icp: {
+          type: "string",
+          description: "Ideal customer profile — who to target",
+        },
+        goals: {
+          type: "string",
+          description: "What the user wants to achieve",
+        },
+        channels: {
+          type: "string",
+          description: "Preferred channels (email, LinkedIn, etc.)",
+        },
+        boundaries: {
+          type: "string",
+          description: "Constraints — who not to contact, topics to avoid, etc.",
+        },
+        cadence: {
+          type: "string",
+          description: "How often to operate (e.g., 'daily on weekdays')",
+        },
+        continuous: {
+          type: "boolean",
+          description: "Run continuously (default: true). If false, runs once.",
+        },
+      },
+      required: ["cycleType"],
+    },
+  },
+  {
+    name: "pause_cycle",
+    description: "Pause a running operating cycle. Stops all cycle operations until resumed.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cycleType: {
+          type: "string",
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          description: "Which cycle to pause",
+        },
+      },
+      required: ["cycleType"],
+    },
+  },
+  {
+    name: "resume_cycle",
+    description: "Resume a paused operating cycle.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cycleType: {
+          type: "string",
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          description: "Which cycle to resume",
+        },
+      },
+      required: ["cycleType"],
+    },
+  },
+  {
+    name: "cycle_briefing",
+    description: "Generate a standardised briefing for a cycle: context, summary, recommendations, options. The handoff format.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cycleType: {
+          type: "string",
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          description: "Which cycle to brief on",
+        },
+      },
+      required: ["cycleType"],
+    },
+  },
+  {
+    name: "cycle_status",
+    description: "Pipeline view: all active cycles, current phase per cycle, pending reviews, next scheduled runs.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        userId: {
+          type: "string",
+          description: "User ID (optional)",
+        },
+      },
+      required: [],
     },
   },
 ];
@@ -741,6 +831,39 @@ export async function executeDelegation(
       return await handleSearchKnowledge({
         query: toolInput.query as string,
         topK: toolInput.topK as number | undefined,
+      });
+
+    // Brief 118 — Operating Cycle Management
+    case "activate_cycle":
+      return await handleActivateCycle({
+        cycleType: toolInput.cycleType as string,
+        userId: toolInput.userId as string | undefined,
+        icp: toolInput.icp as string | undefined,
+        goals: toolInput.goals as string | undefined,
+        channels: toolInput.channels as string | undefined,
+        boundaries: toolInput.boundaries as string | undefined,
+        cadence: toolInput.cadence as string | undefined,
+        continuous: toolInput.continuous as boolean | undefined,
+      });
+
+    case "pause_cycle":
+      return await handlePauseCycle({
+        cycleType: toolInput.cycleType as string,
+      });
+
+    case "resume_cycle":
+      return await handleResumeCycle({
+        cycleType: toolInput.cycleType as string,
+      });
+
+    case "cycle_briefing":
+      return await handleCycleBriefing({
+        cycleType: toolInput.cycleType as string,
+      });
+
+    case "cycle_status":
+      return await handleCycleStatus({
+        userId: toolInput.userId as string | undefined,
       });
 
     default:

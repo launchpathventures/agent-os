@@ -256,11 +256,11 @@ describe("front-door workflow — end to end", () => {
       );
       await handleChatTurn(turn1.sessionId, "go ahead", "front-door", "127.0.0.1", "tim@launchpathventures.com");
 
-      // Verify action email sent via sendAndRecord with approval language
+      // Verify action email sent via sendAndRecord with transparency language
       expect(mockSendAndRecord).toHaveBeenCalled();
       const actionEmail = mockSendAndRecord.mock.calls[0][0];
       expect(actionEmail.to).toBe("tim@launchpathventures.com");
-      expect(actionEmail.body).toContain("approve");
+      expect(actionEmail.body).toContain("Here's what");
     });
 
     it("tracks complete funnel: started → message → mode → email → activate", async () => {
