@@ -209,30 +209,25 @@ export function isCancellationSignal(text: string): boolean {
   return false;
 }
 
+type WorkItemRow = {
+  id: string;
+  type: string;
+  content: string;
+  executionIds: string[] | null;
+  decomposition: Array<{ taskId: string }> | null;
+};
+
 /**
  * Find the parent goal workItem for a given processRunId.
- * Looks up workItems whose executionIds contain the processRunId,
- * then walks up to the parent goal.
+ * Accepts a pre-fetched work items array to avoid repeated DB queries
+ * when called in a loop.
  */
-async function findGoalForProcessRun(processRunId: string): Promise<{
-  goalWorkItemId: string;
-  goalName: string;
-} | null> {
-  // Find work items that reference this process run
-  const allWorkItems = await db
-    .select({
-      id: schema.workItems.id,
-      type: schema.workItems.type,
-      content: schema.workItems.content,
-      executionIds: schema.workItems.executionIds,
-      decomposition: schema.workItems.decomposition,
-    })
-    .from(schema.workItems)
-    .limit(200);
-
-  // Find the work item whose executionIds contains this processRunId
+function findGoalInWorkItems(
+  processRunId: string,
+  allWorkItems: WorkItemRow[],
+): { goalWorkItemId: string; goalName: string } | null {
   for (const item of allWorkItems) {
-    const execIds = (item.executionIds as string[]) || [];
+    const execIds = item.executionIds || [];
     if (execIds.includes(processRunId)) {
       if (item.type === "goal") {
         return { goalWorkItemId: item.id, goalName: item.content || "goal" };
@@ -240,16 +235,12 @@ async function findGoalForProcessRun(processRunId: string): Promise<{
       // It's a task — find the parent goal
       for (const goalCandidate of allWorkItems) {
         if (goalCandidate.type !== "goal") continue;
-        const decomp = goalCandidate.decomposition as Array<{
-          taskId: string;
-        }> | null;
-        if (decomp?.some((t) => t.taskId === item.id)) {
+        if (goalCandidate.decomposition?.some((t) => t.taskId === item.id)) {
           return { goalWorkItemId: goalCandidate.id, goalName: goalCandidate.content || "goal" };
         }
       }
     }
   }
-
   return null;
 }
 
@@ -268,8 +259,7 @@ async function resolveGoalFromThread(
   goalName: string;
   processRunId: string;
 } | null> {
-  // Find interactions in this thread that were sent by the system (outreach_sent)
-  // and belong to the user
+  // Find interactions in this thread that belong to the user
   const interactions = await db
     .select({
       id: schema.interactions.id,
@@ -281,17 +271,34 @@ async function resolveGoalFromThread(
     .where(eq(schema.interactions.userId, userId))
     .limit(200);
 
-  // Find the interaction that matches this thread
+  // Collect processRunIds from matching interactions (usually 1)
+  const candidates: string[] = [];
   for (const interaction of interactions) {
     const metadata = interaction.metadata as Record<string, unknown> | null;
     if (!metadata) continue;
     if (metadata.threadId !== threadId) continue;
     if (!interaction.processRunId) continue;
+    candidates.push(interaction.processRunId);
+  }
 
-    // Found a matching interaction — resolve the goal
-    const goal = await findGoalForProcessRun(interaction.processRunId);
+  if (candidates.length === 0) return null;
+
+  // Single DB query for work items — shared across all candidates
+  const allWorkItems = await db
+    .select({
+      id: schema.workItems.id,
+      type: schema.workItems.type,
+      content: schema.workItems.content,
+      executionIds: schema.workItems.executionIds,
+      decomposition: schema.workItems.decomposition,
+    })
+    .from(schema.workItems)
+    .limit(200) as WorkItemRow[];
+
+  for (const processRunId of candidates) {
+    const goal = findGoalInWorkItems(processRunId, allWorkItems);
     if (goal) {
-      return { ...goal, processRunId: interaction.processRunId };
+      return { ...goal, processRunId };
     }
   }
 
@@ -375,52 +382,71 @@ async function handleUserEmail(
     if (threadId) {
       const goalContext = await resolveGoalFromThread(threadId, networkUser.id);
       if (goalContext) {
-        console.log(`[inbound] Cancellation detected from ${senderEmail} — pausing goal ${goalContext.goalWorkItemId.slice(0, 8)}`);
-
-        await pauseGoal(goalContext.goalWorkItemId);
-
-        // Record the cancellation interaction
-        const personId = networkUser.personId;
-        if (personId) {
-          await recordInteraction({
-            personId,
+        // Ensure personId exists — reuse the same pattern as the Self routing
+        // path below (line ~440). Without personId we can't record the
+        // interaction or send a confirmation, violating AC9.
+        let personId = networkUser.personId;
+        if (!personId) {
+          const person = await createPerson({
             userId: networkUser.id,
-            type: "reply_received",
-            channel: "email",
-            mode: "connecting",
-            subject,
-            summary: replyText.slice(0, 500),
-            outcome: "negative",
-            processRunId: goalContext.processRunId,
-            metadata: {
-              messageId: message.message_id,
-              threadId: message.thread_id,
-              cancellation: true,
-              goalWorkItemId: goalContext.goalWorkItemId,
-            },
+            name: networkUser.name || senderEmail,
+            email: senderEmail,
+            source: "manual",
+            visibility: "connection",
           });
+          personId = person.id;
+          await db
+            .update(schema.networkUsers)
+            .set({ personId: person.id })
+            .where(eq(schema.networkUsers.id, networkUser.id));
         }
 
+        console.log(`[inbound] Cancellation detected from ${senderEmail} — pausing goal ${goalContext.goalWorkItemId.slice(0, 8)}`);
+
+        try {
+          await pauseGoal(goalContext.goalWorkItemId);
+        } catch (err) {
+          // pauseGoal failure is non-fatal — still record + notify
+          console.error(`[inbound] pauseGoal failed for ${goalContext.goalWorkItemId}:`, err);
+        }
+
+        // Record the cancellation interaction
+        await recordInteraction({
+          personId,
+          userId: networkUser.id,
+          type: "reply_received",
+          channel: "email",
+          mode: "connecting",
+          subject,
+          summary: replyText.slice(0, 500),
+          outcome: "negative",
+          processRunId: goalContext.processRunId,
+          metadata: {
+            messageId: message.message_id,
+            threadId: message.thread_id,
+            cancellation: true,
+            goalWorkItemId: goalContext.goalWorkItemId,
+          },
+        });
+
         // Notify user: "Done — I've paused this."
-        if (personId) {
-          try {
-            await notifyUser({
-              userId: networkUser.id,
-              personId,
-              subject: subject.startsWith("Re:") ? subject : `Re: ${subject}`,
-              body: `Done — I've paused ${goalContext.goalName}. Reply if you want me to pick it back up.`,
-              inReplyToMessageId: message.message_id,
-              includeOptOut: false,
-            });
-          } catch {
-            // Notification is non-fatal
-          }
+        try {
+          await notifyUser({
+            userId: networkUser.id,
+            personId,
+            subject: subject.startsWith("Re:") ? subject : `Re: ${subject}`,
+            body: `Done — I've paused ${goalContext.goalName}. Reply if you want me to pick it back up.`,
+            inReplyToMessageId: message.message_id,
+            includeOptOut: false,
+          });
+        } catch {
+          // Notification is non-fatal
         }
 
         return {
           action: "cancellation",
           networkUserId: networkUser.id,
-          personId: personId ?? undefined,
+          personId,
           processRunId: goalContext.processRunId,
           details: `Goal ${goalContext.goalWorkItemId} paused via email cancellation`,
         };
@@ -429,6 +455,31 @@ async function handleUserEmail(
     // No thread context or no matching goal — fall through to Self
     // Self will handle it conversationally
     console.log(`[inbound] Cancellation signal from ${senderEmail} but no thread context — routing to Self`);
+  }
+
+  // --- Voice model collection (Brief 124) ---
+  // Passively collect user's writing style from their email replies.
+  // V1: store the raw reply text as a voice_model memory scoped to the user (self scope).
+  // The LLM does style matching at generation time from raw samples — no extraction needed.
+  if (replyText.trim().length >= 50) {
+    // Only store substantive replies (>= 50 chars) — skip "ok" / "thanks"
+    try {
+      await db.insert(schema.memories).values({
+        scopeType: "self",
+        scopeId: networkUser.id,
+        type: "voice_model",
+        content: replyText.trim().slice(0, 2000),
+        source: "system",
+        metadata: {
+          collectedFrom: "inbound_email",
+          subject,
+          collectedAt: new Date().toISOString(),
+        },
+      });
+      console.log(`[inbound] Stored voice model sample for user ${networkUser.id.slice(0, 8)} (${replyText.trim().length} chars)`);
+    } catch {
+      // Voice model collection is non-fatal
+    }
   }
 
   // No waiting step — route through the Self for intent classification.

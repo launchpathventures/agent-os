@@ -26,7 +26,7 @@ export interface OutboundMessage {
   subject: string;
   body: string;
   personaId: PersonaId;
-  mode: "selling" | "connecting" | "nurture";
+  mode: "selling" | "connecting" | "nurture" | "ghost";
   /** If true, append opt-out footer */
   includeOptOut?: boolean;
   /** Reply to an existing message (threading) */
@@ -35,6 +35,12 @@ export interface OutboundMessage {
   referralUserId?: string;
   /** Magic link URL for "Continue in chat" footer (Brief 123) */
   magicLinkUrl?: string;
+  /** Sending identity: 'principal', 'agent-of-user', 'ghost' (Brief 124) */
+  sendingIdentity?: "principal" | "agent-of-user" | "ghost";
+  /** Sender display name override — used in ghost mode to send as user (Brief 124) */
+  senderDisplayName?: string;
+  /** BCC address — used in ghost mode to copy the user (Brief 124) */
+  bccAddress?: string;
 }
 
 export interface SendResult {
@@ -125,6 +131,13 @@ function buildReferralFooter(userId: string): string {
  *   `includeOptOut === false` (internal/system emails).
  */
 export function formatEmailBody(message: OutboundMessage): string {
+  // Ghost mode (Brief 124): no Ditto branding, no persona sign-off,
+  // no opt-out footer, no referral footer, no magic link footer.
+  // The email must appear to come entirely from the user.
+  if (message.sendingIdentity === "ghost") {
+    return message.body;
+  }
+
   const referralUserId = message.referralUserId;
   let body = message.body;
 
@@ -187,13 +200,23 @@ export class AgentMailAdapter implements ChannelAdapter {
 
     const body = formatEmailBody(message);
 
+    // Ghost mode (Brief 124): resolve display name and BCC for both reply and new-send paths
+    const isGhostSend = message.sendingIdentity === "ghost";
+    const ghostFromName = isGhostSend && message.senderDisplayName ? message.senderDisplayName : undefined;
+    const ghostBcc = isGhostSend && message.bccAddress ? [message.bccAddress] : undefined;
+
     try {
       if (message.inReplyToMessageId) {
         // Use native reply (preserves threading)
+        // Ghost mode: include from_name and BCC even for replies
+        const replyOptions: { text: string; from_name?: string; bcc?: string[] } = { text: body };
+        if (ghostFromName) replyOptions.from_name = ghostFromName;
+        if (ghostBcc) replyOptions.bcc = ghostBcc;
+
         const result = await this.client.inboxes.messages.reply(
           this.inboxId,
           message.inReplyToMessageId,
-          { text: body },
+          replyOptions,
         );
         return {
           success: true,
@@ -202,11 +225,22 @@ export class AgentMailAdapter implements ChannelAdapter {
         };
       }
 
-      const result = await this.client.inboxes.messages.send(this.inboxId, {
+      const sendOptions: {
+        to: string[];
+        subject: string;
+        text: string;
+        from_name?: string;
+        bcc?: string[];
+      } = {
         to: [message.to],
         subject: message.subject,
         text: body,
-      });
+      };
+
+      if (ghostFromName) sendOptions.from_name = ghostFromName;
+      if (ghostBcc) sendOptions.bcc = ghostBcc;
+
+      const result = await this.client.inboxes.messages.send(this.inboxId, sendOptions);
 
       return {
         success: true,
@@ -269,6 +303,12 @@ export class AgentMailAdapter implements ChannelAdapter {
     }
   }
 
+  /**
+   * Reply to a specific message with persona sign-off.
+   * WARNING: Do NOT use for ghost mode — this always appends Ditto persona
+   * sign-off. Ghost mode replies must go through send() with inReplyToMessageId
+   * and sendingIdentity: "ghost" to get correct formatting.
+   */
   async reply(messageId: string, body: string, personaId: PersonaId, toAddress?: string): Promise<SendResult> {
     if (toAddress && isTestModeSuppressed(toAddress)) {
       return { success: true, messageId: `test-suppressed-${Date.now()}` };
@@ -455,7 +495,7 @@ export interface SendAndRecordInput {
   subject: string;
   body: string;
   personaId: PersonaId;
-  mode: "selling" | "connecting" | "nurture";
+  mode: "selling" | "connecting" | "nurture" | "ghost";
   personId: string;
   userId: string;
   processRunId?: string;
@@ -465,6 +505,12 @@ export interface SendAndRecordInput {
   magicLinkUrl?: string;
   /** Skip auto-generating magic link footer (when body already contains the link) */
   skipMagicLink?: boolean;
+  /** Sending identity: 'principal', 'agent-of-user', 'ghost' (Brief 124) */
+  sendingIdentity?: "principal" | "agent-of-user" | "ghost";
+  /** Sender display name for ghost mode (Brief 124) */
+  senderDisplayName?: string;
+  /** User email address for BCC in ghost mode (Brief 124) */
+  userEmail?: string;
 }
 
 export interface SendAndRecordResult {
@@ -500,12 +546,16 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
   if (!adapter) {
     console.warn("[channel] AgentMail not configured — recording interaction without sending to", input.to);
     // Still record the interaction even if we can't send
+    // Ghost mode (Brief 124): map "ghost" to "connecting" for interaction records
+    // (InteractionMode doesn't include "ghost" — ghost is a sending identity, not a mode)
+    const interactionMode = input.mode === "ghost" ? "connecting" as const : input.mode;
+
     const interaction = await recordInteraction({
       personId: input.personId,
       userId: input.userId,
       type: "outreach_sent",
       channel: "email",
-      mode: input.mode,
+      mode: interactionMode,
       subject: input.subject,
       summary: input.body.slice(0, 500),
       outcome: undefined,
@@ -515,17 +565,26 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     return { success: false, interactionId: interaction.id, error: "AgentMail not configured" };
   }
 
-  // Send the email (with referral footer — Brief 109)
+  // Ghost mode (Brief 124): skip magic link, referral, and opt-out
+  const isGhost = input.sendingIdentity === "ghost";
+
+  // Ghost mode (Brief 124): map "ghost" to "connecting" for interaction records
+  const interactionMode = input.mode === "ghost" ? "connecting" as const : input.mode;
+
+  // Send the email (with referral footer — Brief 109, ghost mode skips all footers)
   const sendResult = await adapter.send({
     to: input.to,
     subject: input.subject,
     body: input.body,
     personaId: input.personaId,
-    mode: input.mode,
-    includeOptOut: input.includeOptOut,
+    mode: input.mode === "ghost" ? "connecting" : input.mode,
+    includeOptOut: isGhost ? false : input.includeOptOut,
     inReplyToMessageId: input.inReplyToMessageId,
-    referralUserId: input.userId,
-    magicLinkUrl,
+    referralUserId: isGhost ? undefined : input.userId,
+    magicLinkUrl: isGhost ? undefined : magicLinkUrl,
+    sendingIdentity: input.sendingIdentity,
+    senderDisplayName: input.senderDisplayName,
+    bccAddress: isGhost ? input.userEmail : undefined,
   });
 
   // Record the interaction regardless of send success
@@ -535,7 +594,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     userId: input.userId,
     type: "outreach_sent",
     channel: "email",
-    mode: input.mode,
+    mode: interactionMode,
     subject: input.subject,
     summary: input.body.slice(0, 500),
     outcome: undefined,
@@ -544,6 +603,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
       messageId: sendResult.messageId,
       threadId: sendResult.threadId,
       body: input.body,
+      ...(isGhost ? { sendingIdentity: "ghost", senderDisplayName: input.senderDisplayName } : {}),
       ...(sendResult.error ? { sendError: sendResult.error } : {}),
     },
   });
