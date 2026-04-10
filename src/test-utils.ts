@@ -121,6 +121,11 @@ function createTables(sqlite: Database.Database): void {
       definition_override_version INTEGER NOT NULL DEFAULT 0,
       chains_processed INTEGER NOT NULL DEFAULT 0,
       trust_tier_override TEXT,
+      cycle_type TEXT,
+      cycle_config TEXT,
+      parent_cycle_run_id TEXT,
+      run_metadata TEXT,
+      timeout_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 
@@ -144,6 +149,8 @@ function createTables(sqlite: Database.Database): void {
       integration_service TEXT,
       integration_protocol TEXT,
       tool_calls TEXT,
+      cognitive_mode TEXT,
+      deferred_until INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 
@@ -248,6 +255,7 @@ function createTables(sqlite: Database.Database): void {
       decided_by TEXT,
       decision_comment TEXT,
       previous_suggestion_id TEXT,
+      step_category TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 
@@ -517,7 +525,19 @@ function createTables(sqlite: Database.Database): void {
       message_count INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      expires_at INTEGER NOT NULL
+      expires_at INTEGER NOT NULL,
+      authenticated_email TEXT,
+      access_token TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS magic_links (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      session_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
 
     CREATE TABLE IF NOT EXISTS funnel_events (
@@ -593,10 +613,39 @@ function createTables(sqlite: Database.Database): void {
 /**
  * Minimal process definition fixture for testing.
  */
+/**
+ * Step definition for tests — includes Brief 121 primitives + parallel groups.
+ */
+interface TestStepDef {
+  id: string;
+  name: string;
+  executor: string;
+  commands?: string[];
+  description?: string;
+  instructions?: string;
+  input_fields?: Array<{ name: string; type: string; label?: string; description?: string; required?: boolean; options?: string[]; default?: string }>;
+  timeout?: string;
+  depends_on?: string[];
+  config?: Record<string, unknown>;
+  tools?: string[];
+  trustOverride?: string;
+  sendingIdentity?: string;
+  wait_for?: { event: "reply" | "approval"; timeout?: string };
+  gate?: { engagement: "replied" | "silent" | "any"; since_step?: string; fallback?: "skip" | "defer" };
+  email_thread?: string;
+  schedule?: { delay: string; after: "trigger" | string };
+}
+
+interface TestParallelGroup {
+  parallel_group: string;
+  depends_on?: string[];
+  steps: TestStepDef[];
+}
+
 export function makeTestProcessDefinition(overrides: Partial<{
   name: string;
   id: string;
-  steps: unknown[];
+  steps: Array<TestStepDef | TestParallelGroup>;
 }>  = {}) {
   return {
     name: overrides.name ?? "Test Process",

@@ -237,6 +237,7 @@ describe("processInboundEmail", () => {
       feedback: "Looks good, approved",
       email_subject: "Re: Review needed",
       responded_via: "email",
+      timedOut: false,
     });
   });
 

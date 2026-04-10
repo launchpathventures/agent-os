@@ -17,7 +17,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import type {
   PersonVisibility,
   JourneyLayer,
@@ -233,6 +233,57 @@ export async function listInteractions(personId: string) {
     .from(schema.interactions)
     .where(eq(schema.interactions.personId, personId))
     .orderBy(desc(schema.interactions.createdAt));
+}
+
+/**
+ * Check if a person has an interaction of a given type since a given date.
+ * Used by the gate primitive to evaluate engagement conditions (Brief 121).
+ *
+ * @param personId - The person to check
+ * @param type - Interaction type to look for (e.g. "reply_received")
+ * @param since - Only count interactions after this date
+ * @returns true if at least one matching interaction exists
+ */
+export async function hasInteractionSince(
+  personId: string,
+  type: InteractionType,
+  since: Date,
+): Promise<boolean> {
+  const [match] = await db
+    .select({ id: schema.interactions.id })
+    .from(schema.interactions)
+    .where(
+      and(
+        eq(schema.interactions.personId, personId),
+        eq(schema.interactions.type, type),
+        gte(schema.interactions.createdAt, since),
+      ),
+    )
+    .limit(1);
+
+  return !!match;
+}
+
+/**
+ * Check if a person has ANY interaction since a given date (regardless of type).
+ * Used by the gate primitive's "any" engagement mode (Brief 121).
+ */
+export async function hasAnyInteractionSince(
+  personId: string,
+  since: Date,
+): Promise<boolean> {
+  const [match] = await db
+    .select({ id: schema.interactions.id })
+    .from(schema.interactions)
+    .where(
+      and(
+        eq(schema.interactions.personId, personId),
+        gte(schema.interactions.createdAt, since),
+      ),
+    )
+    .limit(1);
+
+  return !!match;
 }
 
 export async function listInteractionsByUser(userId: string) {

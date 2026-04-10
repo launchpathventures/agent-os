@@ -403,10 +403,12 @@ export async function processInboundEmail(
     );
 
     // Resume the human step with email content as input
+    // Include timedOut: false so downstream steps know this was a real reply (Brief 121)
     const result = await resumeHumanStep(waitingRun.processRunId, {
       feedback: replyText,
       email_subject: subject,
       responded_via: "email",
+      timedOut: false,
     });
 
     // Record the interaction

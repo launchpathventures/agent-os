@@ -12,6 +12,7 @@ import { db, schema } from "../db";
 import type { ProcessStatus, TrustTier, AgentCategory } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { getIntegration } from "./integration-registry";
+import { isValidDuration } from "@ditto/core";
 import cron from "node-cron";
 
 // ============================================================
@@ -50,6 +51,11 @@ export interface StepDefinition {
   input_fields?: HumanInputField[];
   timeout?: string; // e.g. "24h", "7d"
 
+  /** Step-category trust override — relaxes trust within process tier bounds (Brief 116) */
+  trustOverride?: string;
+  /** Sending identity for outbound steps: 'principal', 'agent-of-user', 'ghost' (Brief 116) */
+  sendingIdentity?: string;
+
   // Integration tools (Brief 025): service.tool_name format
   // Provenance: ADR-005, Insight-065 (Ditto-native tools)
   tools?: string[];
@@ -65,6 +71,22 @@ export interface StepDefinition {
     max_retries: number;
     retry_condition?: string;
     feedback_inject?: boolean;
+  };
+
+  // Conversation-aware step primitives (Brief 121)
+  wait_for?: {
+    event: "reply" | "approval";
+    timeout?: string; // Default: "48h" if omitted
+  };
+  gate?: {
+    engagement: "replied" | "silent" | "any";
+    since_step?: string;
+    fallback?: "skip" | "defer";
+  };
+  email_thread?: string;
+  schedule?: {
+    delay: string;
+    after: "trigger" | string;
   };
 }
 
@@ -108,12 +130,20 @@ export interface ProcessDefinition {
   status: string;
   description: string;
   system?: boolean; // ADR-008: system agent process
+  /** Process operator — who runs this process (e.g. "alex-or-mira", "user-agent", "ditto") */
+  operator?: string;
+  /** Whether this is a template process (Brief 020) */
+  template?: boolean;
+  /** Whether this process is callable as a sub-process from a cycle (Brief 117) */
+  callable_as?: string;
+  /** Default sending identity for outbound steps: 'principal', 'agent-of-user', 'ghost' (Brief 116) */
+  defaultIdentity?: string;
   trigger: {
     type: string;
     cron?: string;
     event?: string;
     description?: string;
-    also?: { type: string; event?: string; description?: string };
+    also?: { type: string; cron?: string; event?: string; description?: string };
   };
   inputs: Array<{
     name: string;
@@ -315,6 +345,36 @@ export function validateIntegrationSteps(definition: ProcessDefinition): string[
 }
 
 /**
+ * Validate schedule primitives on steps:
+ * - schedule.delay must be a valid duration string
+ * - schedule.after must reference an existing step ID or "trigger"
+ * Returns error messages (empty array = valid).
+ * Provenance: Brief 121 AC3/AC4
+ */
+export function validateSchedulePrimitives(definition: ProcessDefinition): string[] {
+  const errors: string[] = [];
+  const allSteps = flattenSteps(definition);
+  const allIds = getAllStepIds(definition);
+
+  for (const step of allSteps) {
+    if (step.schedule) {
+      if (!isValidDuration(step.schedule.delay)) {
+        errors.push(
+          `Step "${step.id}": schedule.delay "${step.schedule.delay}" is not a valid duration (expected e.g. "4h", "3d", "2w")`,
+        );
+      }
+      if (step.schedule.after !== "trigger" && !allIds.has(step.schedule.after)) {
+        errors.push(
+          `Step "${step.id}": schedule.after "${step.schedule.after}" does not reference a known step ID or "trigger"`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
  * Validate process definition dependencies.
  * - All depends_on targets must exist as step IDs or group IDs
  * - No circular dependencies
@@ -394,7 +454,8 @@ export function loadProcessFile(filePath: string): ProcessDefinition {
  */
 export function loadAllProcesses(
   processDir: string = path.join(process.cwd(), "processes"),
-  templateDir: string = path.join(process.cwd(), "templates"),
+  templateDir: string = path.join(process.cwd(), "processes", "templates"),
+  cycleDir: string = path.join(process.cwd(), "processes", "cycles"),
 ): ProcessDefinition[] {
   const processFiles = fs.existsSync(processDir)
     ? fs.readdirSync(processDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
@@ -404,6 +465,10 @@ export function loadAllProcesses(
     ? fs.readdirSync(templateDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
     : [];
 
+  const cycleFiles = fs.existsSync(cycleDir)
+    ? fs.readdirSync(cycleDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
+    : [];
+
   const processes = processFiles.map((f) => loadProcessFile(path.join(processDir, f)));
   const templates = templateFiles.map((f) => {
     const def = loadProcessFile(path.join(templateDir, f));
@@ -411,8 +476,39 @@ export function loadAllProcesses(
     def.status = "draft";
     return def;
   });
+  const cycles = cycleFiles.map((f) => loadProcessFile(path.join(cycleDir, f)));
 
-  return [...processes, ...templates];
+  return [...processes, ...templates, ...cycles];
+}
+
+/**
+ * Validate sub-process executor steps: config.process_id must reference a known process slug.
+ * Returns error messages (empty array = valid).
+ * Provenance: Brief 117 AC9
+ */
+export function validateSubProcessSteps(
+  definition: ProcessDefinition,
+  allSlugs: Set<string>,
+): string[] {
+  const errors: string[] = [];
+  const allSteps = flattenSteps(definition);
+
+  for (const step of allSteps) {
+    if (step.executor === "sub-process") {
+      const processId = step.config?.process_id as string | undefined;
+      if (!processId) {
+        errors.push(
+          `Step "${step.id}": executor "sub-process" requires config.process_id`,
+        );
+      } else if (!allSlugs.has(processId)) {
+        errors.push(
+          `Step "${step.id}": config.process_id "${processId}" does not reference a known process slug`,
+        );
+      }
+    }
+  }
+
+  return errors;
 }
 
 /**
@@ -423,6 +519,9 @@ export function loadAllProcesses(
 export async function syncProcessesToDb(
   definitions: ProcessDefinition[]
 ): Promise<void> {
+  // Collect all process slugs for sub-process validation (Brief 117)
+  const allSlugs = new Set(definitions.map((d) => d.id));
+
   for (const def of definitions) {
     // Validate dependencies
     const depErrors = validateDependencies(def);
@@ -472,6 +571,26 @@ export async function syncProcessesToDb(
         console.error(`    - ${err}`);
       }
       throw new Error(`Process "${def.name}" has process I/O errors`);
+    }
+
+    // Validate schedule primitives (Brief 121)
+    const scheduleErrors = validateSchedulePrimitives(def);
+    if (scheduleErrors.length > 0) {
+      console.error(`  Schedule primitive validation errors in ${def.name}:`);
+      for (const err of scheduleErrors) {
+        console.error(`    - ${err}`);
+      }
+      throw new Error(`Process "${def.name}" has schedule primitive errors`);
+    }
+
+    // Validate sub-process executor steps (Brief 117 AC9)
+    const subProcessErrors = validateSubProcessSteps(def, allSlugs);
+    if (subProcessErrors.length > 0) {
+      console.error(`  Sub-process validation errors in ${def.name}:`);
+      for (const err of subProcessErrors) {
+        console.error(`    - ${err}`);
+      }
+      throw new Error(`Process "${def.name}" has sub-process reference errors`);
     }
 
     const existing = await db

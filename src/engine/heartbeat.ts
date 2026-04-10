@@ -13,8 +13,9 @@
  */
 
 import { db, schema } from "../db";
-import type { StepExecutor, TrustTier } from "../db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import type { StepExecutor, TrustTier, RunStatus } from "../db/schema";
+import { eq, and, inArray, notInArray } from "drizzle-orm";
+import { parseDuration } from "@ditto/core";
 import type {
   ProcessDefinition,
   StepDefinition,
@@ -38,6 +39,13 @@ import { routingHandler } from "./harness-handlers/routing";
 import { trustGateHandler } from "./harness-handlers/trust-gate";
 import { metacognitiveCheckHandler } from "./harness-handlers/metacognitive-check";
 import { feedbackRecorderHandler } from "./harness-handlers/feedback-recorder";
+import {
+  identityRouterHandler,
+  voiceCalibrationHandler,
+  broadcastDirectClassifierHandler,
+  outboundQualityGateHandler,
+} from "@ditto/core";
+import { hasInteractionSince, hasAnyInteractionSince } from "./people";
 import { deliverOutput } from "./process-io";
 import { processChains } from "./chain-executor";
 import { notifyProcessCompletion } from "./completion-notifier";
@@ -65,19 +73,28 @@ export interface HeartbeatResult {
 }
 
 /**
- * Build the harness pipeline with all handlers in order.
+ * Shared harness pipeline — built once at module scope.
+ * All handlers are stateless (receive context, return context), so reuse is safe.
  */
-function buildPipeline(): HarnessPipeline {
+const sharedPipeline = (() => {
   const pipeline = new HarnessPipeline();
-  pipeline.register(memoryAssemblyHandler);
-  pipeline.register(stepExecutionHandler);
-  pipeline.register(metacognitiveCheckHandler);
-  pipeline.register(reviewPatternHandler);
-  pipeline.register(routingHandler);
-  pipeline.register(trustGateHandler);
-  pipeline.register(feedbackRecorderHandler);
+  // Pre-execution
+  pipeline.register(memoryAssemblyHandler);          // 1. product layer
+  pipeline.register(identityRouterHandler);           // 2. core — Brief 116 (sets sendingIdentity)
+  pipeline.register(voiceCalibrationHandler);         // 3. core — Brief 116 (needs sendingIdentity)
+  // Execution
+  pipeline.register(stepExecutionHandler);            // 4. core
+  // Post-execution
+  pipeline.register(metacognitiveCheckHandler);       // 5. product layer
+  pipeline.register(broadcastDirectClassifierHandler); // 6. core — Brief 116
+  pipeline.register(outboundQualityGateHandler);      // 7. core — Brief 116
+  pipeline.register(reviewPatternHandler);            // 8. product layer
+  // Decision
+  pipeline.register(routingHandler);                  // 9. core
+  pipeline.register(trustGateHandler);                // 10. product layer (modified — Brief 116)
+  pipeline.register(feedbackRecorderHandler);         // 11. product layer
   return pipeline;
-}
+})();
 
 // ============================================================
 // Dependency resolution
@@ -190,6 +207,118 @@ function isDependencyMet(
 }
 
 // ============================================================
+// Step primitive pre-checks (Brief 121)
+// ============================================================
+
+/**
+ * Evaluate the `schedule` primitive on a step.
+ * Computes the absolute executeAt time based on delay + after reference.
+ * Returns null if the step should execute now, or a Date if it's deferred.
+ */
+async function evaluateSchedule(
+  step: StepDefinition,
+  processRunId: string,
+  runStartedAt: Date | null,
+): Promise<Date | null> {
+  if (!step.schedule) return null;
+
+  const delayMs = parseDuration(step.schedule.delay);
+  let anchorTime: Date;
+
+  if (step.schedule.after === "trigger") {
+    anchorTime = runStartedAt || new Date();
+  } else {
+    // Find the completed step run for the referenced step
+    const [refStepRun] = await db
+      .select({ completedAt: schema.stepRuns.completedAt })
+      .from(schema.stepRuns)
+      .where(
+        and(
+          eq(schema.stepRuns.processRunId, processRunId),
+          eq(schema.stepRuns.stepId, step.schedule.after),
+          eq(schema.stepRuns.status, "approved"),
+        ),
+      )
+      .limit(1);
+
+    if (!refStepRun?.completedAt) {
+      // Referenced step not completed — use far-future sentinel so the step stays blocked
+      // until the reference step finishes. Re-evaluated on the next heartbeat after that.
+      return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year sentinel
+    }
+    anchorTime = refStepRun.completedAt;
+  }
+
+  const executeAt = new Date(anchorTime.getTime() + delayMs);
+  return executeAt.getTime() > Date.now() ? executeAt : null;
+}
+
+/**
+ * Evaluate the `gate` primitive on a step.
+ * Returns "execute" if the step should proceed, "skip" if it should be skipped,
+ * or "defer" if it should be retried next cycle.
+ */
+async function evaluateGate(
+  step: StepDefinition,
+  processRunId: string,
+  run: { inputs: unknown },
+): Promise<"execute" | "skip" | "defer"> {
+  if (!step.gate) return "execute";
+
+  const personId = ((run.inputs as Record<string, unknown>)?.personId ||
+    (run.inputs as Record<string, unknown>)?.person_id) as string | undefined;
+
+  if (!personId) {
+    // No person context — can't evaluate engagement, execute normally
+    return "execute";
+  }
+
+  // Determine the "since" timestamp from since_step
+  let since: Date;
+  if (step.gate.since_step) {
+    const [refStepRun] = await db
+      .select({ completedAt: schema.stepRuns.completedAt })
+      .from(schema.stepRuns)
+      .where(
+        and(
+          eq(schema.stepRuns.processRunId, processRunId),
+          eq(schema.stepRuns.stepId, step.gate.since_step),
+          eq(schema.stepRuns.status, "approved"),
+        ),
+      )
+      .limit(1);
+
+    since = refStepRun?.completedAt || new Date(0);
+  } else {
+    since = new Date(0); // No reference — check all time
+  }
+
+  const hasReplied = await hasInteractionSince(personId, "reply_received", since);
+
+  let conditionMet: boolean;
+  switch (step.gate.engagement) {
+    case "replied":
+      conditionMet = hasReplied;
+      break;
+    case "silent":
+      conditionMet = !hasReplied;
+      break;
+    case "any":
+      // "any" = person has ANY interaction (reply, outreach_sent, meeting, etc.) since the reference step
+      conditionMet = await hasAnyInteractionSince(personId, since);
+      break;
+    default:
+      conditionMet = true;
+  }
+
+  if (!conditionMet) {
+    return step.gate.fallback || "skip";
+  }
+
+  return "execute";
+}
+
+// ============================================================
 // Step execution (single step through pipeline)
 // ============================================================
 
@@ -286,6 +415,142 @@ async function executeSingleStep(
     };
   }
 
+  // Sub-process executor: invoke a child process through the harness (Brief 117)
+  if (step.executor === "sub-process") {
+    const targetSlug = step.config?.process_id as string | undefined;
+    if (!targetSlug) {
+      return {
+        status: "failed",
+        stepId: step.id,
+        stepName: step.name,
+        message: `Sub-process step "${step.id}" missing config.process_id`,
+      };
+    }
+
+    const [stepRunRecord] = await db.insert(schema.stepRuns).values({
+      processRunId,
+      stepId: step.id,
+      status: "running",
+      executorType: "sub-process" as StepExecutor,
+      startedAt: new Date(),
+      parallelGroupId: parallelGroupId || null,
+    }).returning();
+
+    harnessEvents.emit({
+      type: "step-start",
+      processRunId,
+      stepId: step.id,
+      roleName: `sub-process:${targetSlug}`,
+      processName: definition.name,
+    });
+
+    try {
+      // Merge parent run inputs with step-specific inputs
+      const parentInputs = (run.inputs as Record<string, unknown>) || {};
+      const childInputs = { ...parentInputs, parentCycleRunId: processRunId };
+
+      // Start the child process run
+      const childRunId = await startProcessRun(
+        targetSlug,
+        childInputs,
+        `cycle:${definition.id}`,
+        { parentTrustTier: trustTier },
+      );
+
+      // Set parentCycleRunId on the child run
+      await db.update(schema.processRuns)
+        .set({ parentCycleRunId: processRunId })
+        .where(eq(schema.processRuns.id, childRunId));
+
+      // Execute the child run through the full harness pipeline
+      const childResult = await fullHeartbeat(childRunId);
+
+      // Collect child run outputs as step result
+      const childOutputs = await db
+        .select()
+        .from(schema.processOutputs)
+        .where(eq(schema.processOutputs.processRunId, childRunId));
+
+      const outputMap: Record<string, unknown> = {};
+      for (const output of childOutputs) {
+        outputMap[output.name] = output.content;
+      }
+
+      if (childResult.status === "failed") {
+        await db.update(schema.stepRuns)
+          .set({
+            status: "failed",
+            error: childResult.message,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.stepRuns.id, stepRunRecord.id));
+
+        return {
+          status: "failed",
+          stepId: step.id,
+          stepName: step.name,
+          message: `Sub-process "${targetSlug}" failed: ${childResult.message}`,
+        };
+      }
+
+      if (childResult.status === "waiting_review" || childResult.status === "waiting_human") {
+        await db.update(schema.stepRuns)
+          .set({
+            status: "waiting_review",
+            outputs: outputMap,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.stepRuns.id, stepRunRecord.id));
+
+        return {
+          status: "waiting_review",
+          stepId: step.id,
+          stepName: step.name,
+          message: `Sub-process "${targetSlug}" paused: ${childResult.message}`,
+        };
+      }
+
+      // Child completed successfully
+      await db.update(schema.stepRuns)
+        .set({
+          status: "approved",
+          outputs: outputMap,
+          completedAt: new Date(),
+        })
+        .where(eq(schema.stepRuns.id, stepRunRecord.id));
+
+      await logActivity("step.completed", stepRunRecord.id, "step_run", {
+        step: step.id,
+        stepName: step.name,
+        subProcess: targetSlug,
+        childRunId,
+      });
+
+      return {
+        status: "advanced",
+        stepId: step.id,
+        stepName: step.name,
+        message: `Sub-process "${targetSlug}" completed (${childResult.stepsExecuted} steps)`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await db.update(schema.stepRuns)
+        .set({
+          status: "failed",
+          error: message,
+          completedAt: new Date(),
+        })
+        .where(eq(schema.stepRuns.id, stepRunRecord.id));
+
+      return {
+        status: "failed",
+        stepId: step.id,
+        stepName: step.name,
+        message: `Sub-process "${targetSlug}" error: ${message}`,
+      };
+    }
+  }
+
   // Create step run record
   const stepRunRecord = await db
     .insert(schema.stepRuns)
@@ -309,13 +574,34 @@ async function executeSingleStep(
     processName: definition.name,
   });
 
-  // Run through harness pipeline
-  const pipeline = buildPipeline();
+  // email_thread: inject inReplyToMessageId from runMetadata (Brief 121)
+  let enrichedInputs = run.inputs as Record<string, unknown>;
+  if (step.email_thread) {
+    const [currentRun] = await db
+      .select({ runMetadata: schema.processRuns.runMetadata })
+      .from(schema.processRuns)
+      .where(eq(schema.processRuns.id, processRunId))
+      .limit(1);
+
+    const metadata = (currentRun?.runMetadata as Record<string, unknown>) || {};
+    const emailThreads = (metadata.emailThreads as Record<string, string>) || {};
+    const threadMessageId = emailThreads[step.email_thread];
+
+    if (threadMessageId) {
+      enrichedInputs = { ...enrichedInputs, inReplyToMessageId: threadMessageId };
+      // Also update the step run inputs
+      await db.update(schema.stepRuns)
+        .set({ inputs: { inReplyToMessageId: threadMessageId } })
+        .where(eq(schema.stepRuns.id, stepRunRecord[0].id));
+    }
+  }
+
+  // Run through harness pipeline (module-scoped, handlers are stateless)
   const harnessContext = createHarnessContext({
     processRun: {
       id: processRunId,
       processId: run.processId,
-      inputs: run.inputs as Record<string, unknown>,
+      inputs: enrichedInputs,
     },
     stepDefinition: step,
     processDefinition: definition,
@@ -323,7 +609,7 @@ async function executeSingleStep(
     stepRunId: stepRunRecord[0].id,
   });
 
-  const result = await pipeline.run(harnessContext);
+  const result = await sharedPipeline.run(harnessContext);
 
   // Handle failure
   if (result.stepError) {
@@ -421,6 +707,78 @@ async function executeSingleStep(
         reasoning: result.routingDecision.reasoning,
         mode: result.routingDecision.mode,
       });
+    }
+
+    // email_thread: store messageId from step output on runMetadata (Brief 121)
+    // Uses dedicated runMetadata column — survives suspend/resume, no collision with suspendState.
+    if (step.email_thread && stepResult.outputs) {
+      const messageId = (stepResult.outputs as Record<string, unknown>).messageId as string | undefined;
+      if (messageId) {
+        const [currentRun] = await db
+          .select({ runMetadata: schema.processRuns.runMetadata })
+          .from(schema.processRuns)
+          .where(eq(schema.processRuns.id, processRunId))
+          .limit(1);
+
+        const metadata = (currentRun?.runMetadata as Record<string, unknown>) || {};
+        const emailThreads = (metadata.emailThreads as Record<string, string>) || {};
+        emailThreads[step.email_thread] = messageId;
+
+        await db.update(schema.processRuns)
+          .set({ runMetadata: { ...metadata, emailThreads } })
+          .where(eq(schema.processRuns.id, processRunId));
+      }
+    }
+
+    // wait_for: suspend after execution (Brief 121)
+    if (step.wait_for) {
+      const timeoutStr = step.wait_for.timeout || "48h"; // Default: 48h if omitted
+      const timeoutMs = parseDuration(timeoutStr);
+      const timeoutAt = new Date(Date.now() + timeoutMs);
+
+      // Update step to waiting_human status with suspend info
+      await db.update(schema.stepRuns)
+        .set({
+          status: "waiting_human",
+          outputs: {
+            ...(stepResult.outputs || {}),
+            _waitFor: {
+              event: step.wait_for.event,
+              timeoutAt: timeoutAt.toISOString(),
+            },
+          },
+        })
+        .where(eq(schema.stepRuns.id, stepRunRecord[0].id));
+
+      // Serialize suspend state on the process run + set timeoutAt for indexed queries
+      await db.update(schema.processRuns)
+        .set({
+          suspendState: {
+            suspendedAtStep: step.id,
+            suspendPayload: {
+              stepId: step.id,
+              stepName: step.name,
+              stepRunId: stepRunRecord[0].id,
+              waitFor: step.wait_for,
+            },
+          },
+          timeoutAt,
+        })
+        .where(eq(schema.processRuns.id, processRunId));
+
+      await logActivity("step.wait_for.suspended", stepRunRecord[0].id, "step_run", {
+        step: step.id,
+        stepName: step.name,
+        event: step.wait_for.event,
+        timeoutAt: timeoutAt.toISOString(),
+      });
+
+      return {
+        status: "waiting_review",
+        stepId: step.id,
+        stepName: step.name,
+        message: `Step "${step.name}" waiting for ${step.wait_for.event} (timeout: ${timeoutStr})`,
+      };
     }
 
     return {
@@ -553,6 +911,10 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
     return { processRunId, stepsExecuted: 0, status: "waiting_human", message: "Waiting for human step completion" };
   }
 
+  if (run.status === "paused") {
+    return { processRunId, stepsExecuted: 0, status: "waiting_human", message: "Cycle paused" };
+  }
+
   if (run.status !== "queued" && run.status !== "running" && run.status !== "waiting_review") {
     return { processRunId, stepsExecuted: 0, status: "failed", message: `Process run is ${run.status}, not executable` };
   }
@@ -586,11 +948,28 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
       .filter((s) => s.status === "approved" || s.status === "skipped")
       .map((s) => s.stepId)
   );
-  const waitingStepIds = new Set(
-    existingStepRuns
-      .filter((s) => s.status === "waiting_review" || s.status === "running")
-      .map((s) => s.stepId)
-  );
+  // Check deferred steps: queued steps with deferredUntil in the future are waiting.
+  // Steps past their deferredUntil are cleared via UPDATE (atomic, preserves step run ID).
+  const now = new Date();
+  const deferredStepIds = new Set<string>();
+  for (const sr of existingStepRuns) {
+    if (sr.status === "queued" && sr.deferredUntil) {
+      if (sr.deferredUntil > now) {
+        deferredStepIds.add(sr.stepId);
+      } else {
+        // Step is ready — clear deferral atomically (preserves ID for audit trail)
+        await db.update(schema.stepRuns)
+          .set({ deferredUntil: null })
+          .where(eq(schema.stepRuns.id, sr.id));
+      }
+    }
+  }
+  const waitingStepIds = new Set([
+    ...existingStepRuns
+      .filter((s) => s.status === "waiting_review" || s.status === "running" || s.status === "waiting_human")
+      .map((s) => s.stepId),
+    ...deferredStepIds,
+  ]);
 
   // 4. Find next work
   const nextWork = findNextWork(definition, doneStepIds, waitingStepIds);
@@ -638,6 +1017,79 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
       console.error(`Completion notification failed for run ${processRunId.slice(0, 8)}:`, error);
     });
 
+    // Cycle auto-restart (Brief 118): if this is a continuous cycle, create a new run
+    // after the BRIEF phase completes. The new run inherits the cycle config with any
+    // updates from the LEARN phase output.
+    if (run.cycleType && run.cycleConfig) {
+      const cycleConfig = run.cycleConfig as Record<string, unknown>;
+      if (cycleConfig.continuous === true) {
+        try {
+          // Guard: check no other active run of this cycleType exists
+          // (user may have manually activated one while the previous was finishing)
+          const terminalForCheck: RunStatus[] = ["approved", "rejected", "failed", "cancelled", "skipped"];
+          const [existingActive] = await db
+            .select({ id: schema.processRuns.id })
+            .from(schema.processRuns)
+            .where(
+              and(
+                eq(schema.processRuns.cycleType, run.cycleType!),
+                notInArray(schema.processRuns.status, terminalForCheck),
+              ),
+            )
+            .limit(1);
+
+          if (existingActive) {
+            console.log(`Cycle auto-restart skipped: ${run.cycleType} already has active run ${existingActive.id.slice(0, 8)}`);
+          } else {
+            // Collect LEARN phase outputs to feed into the next cycle
+            const learnOutputs = existingStepRuns
+              .filter((s) => s.stepId === "learn" && s.status === "approved" && s.outputs)
+              .map((s) => s.outputs as Record<string, unknown>);
+
+            const updatedInputs = {
+              ...(run.inputs as Record<string, unknown>),
+              previousCycleRunId: processRunId,
+              learnOutputs: learnOutputs.length > 0 ? learnOutputs[0] : null,
+            };
+
+            const newRunId = await startProcessRun(
+              process.slug,
+              updatedInputs,
+              "cycle:auto-restart",
+            );
+
+            // Copy cycle metadata to the new run
+            await db
+              .update(schema.processRuns)
+              .set({
+                cycleType: run.cycleType,
+                cycleConfig: cycleConfig,
+              })
+              .where(eq(schema.processRuns.id, newRunId));
+
+            await logActivity("cycle.auto-restart", newRunId, "process_run", {
+              previousRunId: processRunId,
+              cycleType: run.cycleType,
+            });
+
+            // Fire-and-forget: kick off the new cycle iteration
+            fullHeartbeat(newRunId).catch((err) => {
+              console.error(`Cycle auto-restart heartbeat failed for ${newRunId.slice(0, 8)}:`, err);
+            });
+
+            console.log(`Cycle auto-restart: ${run.cycleType} → new run ${newRunId.slice(0, 8)}`);
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Cycle auto-restart failed for ${processRunId.slice(0, 8)}: ${message}`);
+          await logActivity("cycle.auto-restart.failed", processRunId, "process_run", {
+            error: message,
+            cycleType: run.cycleType,
+          }).catch(() => {}); // Don't let logging failure mask the original error
+        }
+      }
+    }
+
     return { processRunId, stepsExecuted: 0, status: "completed", message: "All steps complete" };
   }
 
@@ -661,7 +1113,62 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
     ? moreRestrictiveTrust(run.trustTierOverride as TrustTier, baseTier)
     : baseTier;
 
-  // 6. Execute
+  // 6. Pre-execution primitive checks (Brief 121)
+  if (nextWork.type === "step") {
+    // Schedule primitive: check if step is deferred
+    const deferUntil = await evaluateSchedule(nextWork.step, processRunId, run.startedAt);
+    if (deferUntil) {
+      // Record/update the deferred step — upsert pattern preserves step run ID
+      const existing = existingStepRuns.find((s) => s.stepId === nextWork.step.id);
+      if (existing) {
+        await db.update(schema.stepRuns)
+          .set({ deferredUntil: deferUntil })
+          .where(eq(schema.stepRuns.id, existing.id));
+      } else {
+        await db.insert(schema.stepRuns).values({
+          processRunId,
+          stepId: nextWork.step.id,
+          status: "queued",
+          executorType: nextWork.step.executor as StepExecutor,
+          deferredUntil: deferUntil,
+        });
+      }
+      await logActivity("step.deferred", processRunId, "process_run", {
+        step: nextWork.step.id,
+        deferredUntil: deferUntil.toISOString(),
+        reason: `schedule: ${nextWork.step.schedule?.delay} after ${nextWork.step.schedule?.after}`,
+      });
+      return { processRunId, stepsExecuted: 0, status: "waiting_review", message: `Step "${nextWork.step.name}" deferred until ${deferUntil.toISOString()}` };
+    }
+
+    // Gate primitive: check engagement condition
+    const gateResult = await evaluateGate(nextWork.step, processRunId, run);
+    if (gateResult === "skip") {
+      await db.insert(schema.stepRuns).values({
+        processRunId,
+        stepId: nextWork.step.id,
+        status: "skipped",
+        executorType: nextWork.step.executor as StepExecutor,
+      });
+      await logActivity("step.gate.skipped", processRunId, "step_run", {
+        step: nextWork.step.id,
+        stepName: nextWork.step.name,
+        gate: nextWork.step.gate,
+      });
+      // Step is skipped — continue to next heartbeat iteration
+      return { processRunId, stepsExecuted: 1, status: "advanced", message: `Step "${nextWork.step.name}" skipped by gate (engagement: ${nextWork.step.gate?.engagement})` };
+    }
+    if (gateResult === "defer") {
+      await logActivity("step.gate.deferred", processRunId, "step_run", {
+        step: nextWork.step.id,
+        stepName: nextWork.step.name,
+        gate: nextWork.step.gate,
+      });
+      return { processRunId, stepsExecuted: 0, status: "waiting_review", message: `Step "${nextWork.step.name}" deferred by gate (engagement: ${nextWork.step.gate?.engagement})` };
+    }
+  }
+
+  // 7. Execute
   if (nextWork.type === "step") {
     const result = await executeSingleStep(
       nextWork.step, processRunId, run, definition, trustTier
@@ -740,14 +1247,15 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
     }
 
     if (result.status === "waiting_review") {
-      // Human steps set run to waiting_human; AI steps set to waiting_review
+      // Human steps and wait_for steps set run to waiting_human; AI review steps set to waiting_review
       const isHumanStep = nextWork.step.executor === "human";
-      const runStatus = isHumanStep ? "waiting_human" : "waiting_review";
+      const isWaitingForEvent = nextWork.step.wait_for != null;
+      const runStatus = (isHumanStep || isWaitingForEvent) ? "waiting_human" : "waiting_review";
       await db.update(schema.processRuns)
         .set({ status: runStatus })
         .where(eq(schema.processRuns.id, processRunId));
       await logActivity(
-        isHumanStep ? "process.run.waiting_human" : "process.run.waiting_review",
+        (isHumanStep || isWaitingForEvent) ? "process.run.waiting_human" : "process.run.waiting_review",
         processRunId,
         "process_run",
         { step: result.stepId, stepName: result.stepName },
@@ -755,7 +1263,7 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
       return {
         processRunId,
         stepsExecuted: 1,
-        status: isHumanStep ? "waiting_human" : "waiting_review",
+        status: (isHumanStep || isWaitingForEvent) ? "waiting_human" : "waiting_review",
         message: result.message,
       };
     }
@@ -904,11 +1412,13 @@ export async function resumeHumanStep(
     }
   }
 
-  // Clear suspend state and set run back to running
+  // Clear suspend state and set run back to running.
+  // emailThreads live in runMetadata (not suspendState), so clearing suspendState is safe.
   await db.update(schema.processRuns)
     .set({
       status: "running",
       suspendState: null,
+      timeoutAt: null,
     })
     .where(eq(schema.processRuns.id, processRunId));
 
