@@ -18,7 +18,7 @@ import { eq } from "drizzle-orm";
 import { isOptOutSignal } from "./channel";
 import { notifyUser } from "./notify-user";
 import { recordInteraction, optOutPerson, findPersonByEmailGlobal, createPerson } from "./people";
-import { resumeHumanStep } from "./heartbeat";
+import { resumeHumanStep, pauseGoal } from "./heartbeat";
 import { selfConverse } from "./self";
 
 // ============================================================
@@ -41,7 +41,7 @@ export interface InboundEmailPayload {
 }
 
 export interface InboundProcessingResult {
-  action: "resumed_step" | "opt_out" | "positive_reply" | "interaction_recorded" | "unknown_sender" | "user_request";
+  action: "resumed_step" | "opt_out" | "positive_reply" | "interaction_recorded" | "unknown_sender" | "user_request" | "cancellation";
   personId?: string;
   processRunId?: string;
   interactionId?: string;
@@ -131,6 +131,174 @@ function classifyReply(text: string): "opt_out" | "positive" | "general" {
 }
 
 // ============================================================
+// Cancellation Detection (Brief 125)
+// ============================================================
+
+/**
+ * Detect clear cancellation intent in a user's email reply.
+ * Keyword-based — no LLM call — for speed and reliability.
+ *
+ * Returns true only for unambiguous cancellation signals.
+ * Ambiguous cases ("maybe hold off", "I'm not sure") return false
+ * and should be routed to Self for judgment.
+ *
+ * Provenance: Same pattern as isOptOutSignal() in channel.ts.
+ */
+export function isCancellationSignal(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+
+  // Exact matches (short replies)
+  const exactSignals = [
+    "cancel",
+    "cancel this",
+    "cancel that",
+    "cancel it",
+    "cancel everything",
+    "stop",
+    "stop this",
+    "stop that",
+    "stop it",
+    "stop everything",
+    "never mind",
+    "nevermind",
+    "don't do this",
+    "dont do this",
+    "don't do that",
+    "dont do that",
+    "pause",
+    "pause this",
+    "pause everything",
+    "hold off",
+    "hold off on this",
+    "hold off on that",
+    "abort",
+  ];
+
+  if (exactSignals.includes(lower)) return true;
+
+  // Prefix matches (replies that start with cancel intent)
+  const prefixSignals = [
+    "cancel ",
+    "please cancel",
+    "please stop",
+    "stop all ",
+    "stop the ",
+    "don't send",
+    "dont send",
+    "don't contact",
+    "dont contact",
+    "do not send",
+    "do not contact",
+  ];
+
+  if (prefixSignals.some((s) => lower.startsWith(s))) return true;
+
+  // Substring matches (embedded in longer text)
+  const substringSignals = [
+    "cancel this outreach",
+    "cancel the outreach",
+    "stop the outreach",
+    "stop all outreach",
+    "cancel all outreach",
+    "kill this",
+    "shut it down",
+  ];
+
+  if (substringSignals.some((s) => lower.includes(s))) return true;
+
+  return false;
+}
+
+/**
+ * Find the parent goal workItem for a given processRunId.
+ * Looks up workItems whose executionIds contain the processRunId,
+ * then walks up to the parent goal.
+ */
+async function findGoalForProcessRun(processRunId: string): Promise<{
+  goalWorkItemId: string;
+  goalName: string;
+} | null> {
+  // Find work items that reference this process run
+  const allWorkItems = await db
+    .select({
+      id: schema.workItems.id,
+      type: schema.workItems.type,
+      content: schema.workItems.content,
+      executionIds: schema.workItems.executionIds,
+      decomposition: schema.workItems.decomposition,
+    })
+    .from(schema.workItems)
+    .limit(200);
+
+  // Find the work item whose executionIds contains this processRunId
+  for (const item of allWorkItems) {
+    const execIds = (item.executionIds as string[]) || [];
+    if (execIds.includes(processRunId)) {
+      if (item.type === "goal") {
+        return { goalWorkItemId: item.id, goalName: item.content || "goal" };
+      }
+      // It's a task — find the parent goal
+      for (const goalCandidate of allWorkItems) {
+        if (goalCandidate.type !== "goal") continue;
+        const decomp = goalCandidate.decomposition as Array<{
+          taskId: string;
+        }> | null;
+        if (decomp?.some((t) => t.taskId === item.id)) {
+          return { goalWorkItemId: goalCandidate.id, goalName: goalCandidate.content || "goal" };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve which goal a user's email reply is about, using thread context.
+ * Looks up the interaction that was sent in the same thread and finds its
+ * associated processRunId, then resolves the parent goal.
+ *
+ * Also validates ownership: the interaction must belong to the given userId.
+ */
+async function resolveGoalFromThread(
+  threadId: string,
+  userId: string,
+): Promise<{
+  goalWorkItemId: string;
+  goalName: string;
+  processRunId: string;
+} | null> {
+  // Find interactions in this thread that were sent by the system (outreach_sent)
+  // and belong to the user
+  const interactions = await db
+    .select({
+      id: schema.interactions.id,
+      processRunId: schema.interactions.processRunId,
+      userId: schema.interactions.userId,
+      metadata: schema.interactions.metadata,
+    })
+    .from(schema.interactions)
+    .where(eq(schema.interactions.userId, userId))
+    .limit(200);
+
+  // Find the interaction that matches this thread
+  for (const interaction of interactions) {
+    const metadata = interaction.metadata as Record<string, unknown> | null;
+    if (!metadata) continue;
+    if (metadata.threadId !== threadId) continue;
+    if (!interaction.processRunId) continue;
+
+    // Found a matching interaction — resolve the goal
+    const goal = await findGoalForProcessRun(interaction.processRunId);
+    if (goal) {
+      return { ...goal, processRunId: interaction.processRunId };
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
 // User Email Detection (Insight-162)
 // ============================================================
 
@@ -197,6 +365,70 @@ async function handleUserEmail(
         interactionId: interaction.id,
       };
     }
+  }
+
+  // Brief 125: Check for cancellation intent before routing to Self.
+  // Clear cancellation signals are handled immediately (no LLM roundtrip).
+  // Ambiguous cases fall through to Self for judgment.
+  if (isCancellationSignal(replyText)) {
+    const threadId = message.thread_id;
+    if (threadId) {
+      const goalContext = await resolveGoalFromThread(threadId, networkUser.id);
+      if (goalContext) {
+        console.log(`[inbound] Cancellation detected from ${senderEmail} — pausing goal ${goalContext.goalWorkItemId.slice(0, 8)}`);
+
+        await pauseGoal(goalContext.goalWorkItemId);
+
+        // Record the cancellation interaction
+        const personId = networkUser.personId;
+        if (personId) {
+          await recordInteraction({
+            personId,
+            userId: networkUser.id,
+            type: "reply_received",
+            channel: "email",
+            mode: "connecting",
+            subject,
+            summary: replyText.slice(0, 500),
+            outcome: "negative",
+            processRunId: goalContext.processRunId,
+            metadata: {
+              messageId: message.message_id,
+              threadId: message.thread_id,
+              cancellation: true,
+              goalWorkItemId: goalContext.goalWorkItemId,
+            },
+          });
+        }
+
+        // Notify user: "Done — I've paused this."
+        if (personId) {
+          try {
+            await notifyUser({
+              userId: networkUser.id,
+              personId,
+              subject: subject.startsWith("Re:") ? subject : `Re: ${subject}`,
+              body: `Done — I've paused ${goalContext.goalName}. Reply if you want me to pick it back up.`,
+              inReplyToMessageId: message.message_id,
+              includeOptOut: false,
+            });
+          } catch {
+            // Notification is non-fatal
+          }
+        }
+
+        return {
+          action: "cancellation",
+          networkUserId: networkUser.id,
+          personId: personId ?? undefined,
+          processRunId: goalContext.processRunId,
+          details: `Goal ${goalContext.goalWorkItemId} paused via email cancellation`,
+        };
+      }
+    }
+    // No thread context or no matching goal — fall through to Self
+    // Self will handle it conversationally
+    console.log(`[inbound] Cancellation signal from ${senderEmail} but no thread context — routing to Self`);
   }
 
   // No waiting step — route through the Self for intent classification.
@@ -453,6 +685,16 @@ export async function processInboundEmail(
     console.log(`[inbound] Opt-out from ${senderEmail} — marking person ${person.id} as opted out`);
 
     await optOutPerson(person.id);
+
+    // Invalidate any authenticated chat sessions (Brief 123 — session revocation on opt-out)
+    try {
+      await db
+        .update(schema.chatSessions)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(schema.chatSessions.authenticatedEmail, senderEmail.toLowerCase()));
+    } catch {
+      // Non-fatal — session invalidation is best-effort
+    }
 
     const interaction = await recordInteraction({
       personId: person.id,

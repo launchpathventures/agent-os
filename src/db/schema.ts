@@ -1386,7 +1386,6 @@ export const chatSessions = sqliteTable("chat_sessions", {
     .$defaultFn(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
   // Magic link auth (Brief 123): links session to authenticated user
   authenticatedEmail: text("authenticated_email"),
-  accessToken: text("access_token"),
 });
 
 // ============================================================

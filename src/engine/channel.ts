@@ -33,6 +33,8 @@ export interface OutboundMessage {
   inReplyToMessageId?: string;
   /** User ID for referral footer tracking (Brief 109) */
   referralUserId?: string;
+  /** Magic link URL for "Continue in chat" footer (Brief 123) */
+  magicLinkUrl?: string;
 }
 
 export interface SendResult {
@@ -141,6 +143,11 @@ export function formatEmailBody(message: OutboundMessage): string {
   // Skipped when includeOptOut is explicitly false (internal emails)
   if (referralUserId && message.includeOptOut !== false) {
     body += buildReferralFooter(referralUserId);
+  }
+
+  // Add magic link footer (Brief 123 — workspace lite)
+  if (message.magicLinkUrl) {
+    body += `\n\nContinue in chat: ${message.magicLinkUrl}`;
   }
 
   return body;
@@ -454,6 +461,10 @@ export interface SendAndRecordInput {
   processRunId?: string;
   includeOptOut?: boolean;
   inReplyToMessageId?: string;
+  /** Magic link URL for "Continue in chat" footer (Brief 123) */
+  magicLinkUrl?: string;
+  /** Skip auto-generating magic link footer (when body already contains the link) */
+  skipMagicLink?: boolean;
 }
 
 export interface SendAndRecordResult {
@@ -473,6 +484,18 @@ export interface SendAndRecordResult {
 export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndRecordResult> {
   const { recordInteraction } = await import("./people");
 
+  // Auto-generate magic link for "Continue in chat" footer (Brief 123)
+  // Best-effort: if magic link generation fails, email sends without it
+  let magicLinkUrl = input.magicLinkUrl;
+  if (!magicLinkUrl && !input.skipMagicLink) {
+    try {
+      const { getMagicLinkForEmail } = await import("./magic-link");
+      magicLinkUrl = (await getMagicLinkForEmail(input.to)) ?? undefined;
+    } catch {
+      // Magic link generation is optional — don't block email delivery
+    }
+  }
+
   const adapter = createAgentMailAdapterForPersona(input.personaId);
   if (!adapter) {
     console.warn("[channel] AgentMail not configured — recording interaction without sending to", input.to);
@@ -487,7 +510,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
       summary: input.body.slice(0, 500),
       outcome: undefined,
       processRunId: input.processRunId,
-      metadata: { sendFailed: true, reason: "agentmail_not_configured" },
+      metadata: { sendFailed: true, reason: "agentmail_not_configured", body: input.body },
     });
     return { success: false, interactionId: interaction.id, error: "AgentMail not configured" };
   }
@@ -502,6 +525,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     includeOptOut: input.includeOptOut,
     inReplyToMessageId: input.inReplyToMessageId,
     referralUserId: input.userId,
+    magicLinkUrl,
   });
 
   // Record the interaction regardless of send success
@@ -519,6 +543,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     metadata: {
       messageId: sendResult.messageId,
       threadId: sendResult.threadId,
+      body: input.body,
       ...(sendResult.error ? { sendError: sendResult.error } : {}),
     },
   });
