@@ -17,7 +17,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, count } from "drizzle-orm";
 import type {
   PersonVisibility,
   JourneyLayer,
@@ -235,6 +235,57 @@ export async function listInteractions(personId: string) {
     .orderBy(desc(schema.interactions.createdAt));
 }
 
+/**
+ * Check if a person has an interaction of a given type since a given date.
+ * Used by the gate primitive to evaluate engagement conditions (Brief 121).
+ *
+ * @param personId - The person to check
+ * @param type - Interaction type to look for (e.g. "reply_received")
+ * @param since - Only count interactions after this date
+ * @returns true if at least one matching interaction exists
+ */
+export async function hasInteractionSince(
+  personId: string,
+  type: InteractionType,
+  since: Date,
+): Promise<boolean> {
+  const [match] = await db
+    .select({ id: schema.interactions.id })
+    .from(schema.interactions)
+    .where(
+      and(
+        eq(schema.interactions.personId, personId),
+        eq(schema.interactions.type, type),
+        gte(schema.interactions.createdAt, since),
+      ),
+    )
+    .limit(1);
+
+  return !!match;
+}
+
+/**
+ * Check if a person has ANY interaction since a given date (regardless of type).
+ * Used by the gate primitive's "any" engagement mode (Brief 121).
+ */
+export async function hasAnyInteractionSince(
+  personId: string,
+  since: Date,
+): Promise<boolean> {
+  const [match] = await db
+    .select({ id: schema.interactions.id })
+    .from(schema.interactions)
+    .where(
+      and(
+        eq(schema.interactions.personId, personId),
+        gte(schema.interactions.createdAt, since),
+      ),
+    )
+    .limit(1);
+
+  return !!match;
+}
+
 export async function listInteractionsByUser(userId: string) {
   return db
     .select()
@@ -283,6 +334,79 @@ export async function addPersonMemory(input: {
     })
     .returning();
   return memory;
+}
+
+// ============================================================
+// Voice Model Readiness (Brief 124 — Ghost Mode)
+// ============================================================
+
+/** Minimum voice model samples required before ghost mode is available */
+const VOICE_MODEL_MIN_SAMPLES = 5;
+
+/**
+ * Check if a user has enough voice model samples for ghost mode.
+ * Voice model memories are scoped to "self" with scopeId = userId
+ * and type = "voice_model". Ghost mode requires minimum 5 samples.
+ */
+export async function getVoiceModelReadiness(userId: string): Promise<{
+  ready: boolean;
+  sampleCount: number;
+}> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(schema.memories)
+    .where(
+      and(
+        eq(schema.memories.scopeType, "self"),
+        eq(schema.memories.scopeId, userId),
+        eq(schema.memories.type, "voice_model"),
+        eq(schema.memories.active, true),
+      ),
+    );
+
+  const sampleCount = result?.count ?? 0;
+  return {
+    ready: sampleCount >= VOICE_MODEL_MIN_SAMPLES,
+    sampleCount,
+  };
+}
+
+/**
+ * Load voice model samples for a user — used by the voiceModelLoader callback
+ * injected into the harness pipeline for ghost mode.
+ *
+ * Returns formatted raw email samples for LLM voice matching, or null
+ * if insufficient samples.
+ */
+export async function loadVoiceModelSamples(userId: string): Promise<string | null> {
+  // Single query: load up to 10 most recent samples. If fewer than 5 exist,
+  // voice model isn't ready — return null without a separate COUNT query.
+  const samples = await db
+    .select({
+      content: schema.memories.content,
+      metadata: schema.memories.metadata,
+    })
+    .from(schema.memories)
+    .where(
+      and(
+        eq(schema.memories.scopeType, "self"),
+        eq(schema.memories.scopeId, userId),
+        eq(schema.memories.type, "voice_model"),
+        eq(schema.memories.active, true),
+      ),
+    )
+    .orderBy(desc(schema.memories.createdAt))
+    .limit(10);
+
+  if (samples.length < VOICE_MODEL_MIN_SAMPLES) return null;
+
+  return samples
+    .map((s, i) => {
+      const meta = s.metadata as Record<string, unknown> | null;
+      const subject = meta?.subject ? ` (Re: ${meta.subject})` : "";
+      return `--- Sample ${i + 1}${subject} ---\n${s.content}`;
+    })
+    .join("\n\n");
 }
 
 /**

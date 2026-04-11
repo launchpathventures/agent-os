@@ -1,0 +1,147 @@
+# Ditto — Operating Cycle: Network Connecting
+#
+# Archetype: SENSE -> ASSESS -> ACT -> GATE -> LAND -> LEARN -> BRIEF
+# Alex as principal — institutional reputation at stake.
+# Three litmus tests (Insight-166): Reverse, Reputation, Network.
+#
+# Provenance: Insight-168 (archetype), Insight-166 (connection-first)
+
+name: Network Connecting Cycle
+id: network-connecting-cycle
+version: 1
+status: active
+
+operator: alex-or-mira
+defaultIdentity: principal
+
+description: >
+  Network connection cycle. Alex acts as principal — connections are made
+  in Alex's name. Three litmus tests gate every introduction.
+
+trigger:
+  type: schedule
+  cron: "0 9 * * 1,4"
+  description: Monday and Thursday mornings.
+
+inputs:
+  - name: userId
+    type: text
+    source: system
+    required: true
+    description: The user whose network to scan
+
+steps:
+  - id: sense
+    name: "SENSE: Relationship Scan"
+    executor: ai-agent
+    description: >
+      Scan relationship graph for match opportunities.
+    config:
+      model_hint: fast
+      cyclePhase: sense
+    trustOverride: autonomous
+    inputs: [userId]
+    outputs: [match-opportunities]
+
+  - id: assess
+    name: "ASSESS: Evaluate Fit"
+    executor: ai-agent
+    description: >
+      Evaluate each match against three litmus tests:
+      1. Reverse — would recipient thank Alex even with no deal?
+      2. Reputation — if commercial motive discovered, would they feel deceived?
+      3. Network — does this strengthen the network or extract value?
+    config:
+      model_hint: capable
+      cyclePhase: assess
+    inputs: [match-opportunities]
+    outputs: [qualified-matches]
+
+  - id: act
+    name: "ACT: Draft Introductions"
+    executor: ai-agent
+    description: >
+      Draft introductions framing mutual value. Connection first, commerce follows.
+    config:
+      model_hint: capable
+      cyclePhase: act
+      mode: connecting
+    inputs: [qualified-matches]
+    outputs: [introduction-drafts]
+
+  - id: gate
+    name: "GATE: Introduction Quality Gate"
+    executor: ai-agent
+    description: >
+      Quality gate — Alex's institutional reputation at stake.
+      Verify litmus tests passed, mutual value framed, not a disguised pitch.
+    config:
+      cyclePhase: gate
+    trustOverride: critical
+    inputs: [introduction-drafts]
+    outputs: [approved-introductions]
+
+  - id: land
+    name: "LAND: Send Introductions"
+    executor: sub-process
+    description: Execute introductions via connecting-introduction sub-process.
+    config:
+      cyclePhase: land
+      process_id: connecting-introduction
+    inputs: [approved-introductions]
+    outputs: [introduction-results]
+
+  - id: learn
+    name: "LEARN: Outcome Tracking"
+    executor: ai-agent
+    description: >
+      Track outcomes. Update reciprocity scores, match quality model.
+    config:
+      model_hint: fast
+      cyclePhase: learn
+    trustOverride: autonomous
+    inputs: [introduction-results]
+    outputs: [connection-learnings]
+
+  - id: brief
+    name: "BRIEF: Connection Report"
+    executor: ai-agent
+    description: >
+      Report: introductions made, outcomes, reciprocity balance.
+    config:
+      model_hint: fast
+      cyclePhase: brief
+    trustOverride: autonomous
+    inputs: [connection-learnings, introduction-results]
+    outputs: [connection-report]
+
+outputs:
+  - name: connection-report
+    type: json
+    destination: user
+    description: Connection cycle report.
+
+quality_criteria:
+  - "Every introduction passes all three litmus tests (Reverse, Reputation, Network)"
+  - "Mutual value framed — never one-sided"
+  - "Connection first, commerce follows — no disguised pitches"
+
+feedback:
+  metrics:
+    - name: connection_rate
+      description: Rate of intros leading to connections
+      target: ">60%"
+    - name: reciprocity_balance
+      description: Balance of intros made vs received
+      target: "within 2:1 ratio"
+  capture:
+    - user_overrides_on_match_selection
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "10 introductions with >70% connection rate"
+      upgrade_to: spot_checked
+  downgrade_triggers:
+    - "Introduction damages a relationship"
+    - "Recipient reports feeling misled"

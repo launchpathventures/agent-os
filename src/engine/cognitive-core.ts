@@ -7,6 +7,7 @@
 export {
   getCognitiveCore,
   getCognitiveCoreCompact,
+  getCognitiveModeExtension,
   clearCognitiveCoreCache,
   configureCognitivePath,
   extractSections,

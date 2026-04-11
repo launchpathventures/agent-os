@@ -1,0 +1,195 @@
+# Ditto — Template Process: Ghost Follow-Up
+#
+# Follow-up emails sent AS the user (ghost mode) for existing relationships only.
+# Strictest trust tier — always critical, never upgrades.
+# BCC to user on every send. No Ditto branding.
+#
+# Provenance: Brief 124, Insight-166 (three sending identities),
+# Insight-167 (broadcast vs direct trust model)
+
+name: Ghost Follow-Up
+id: ghost-follow-up
+version: 1
+status: active
+template: true
+callable_as: sub-process
+
+operator: user-agent
+defaultIdentity: ghost
+
+description: >
+  Follow-up emails sent as the user themselves (ghost mode) for existing
+  relationships. Alex drafts in the user's voice, sends from Ditto's
+  infrastructure with the user's display name, and BCC's the user so they
+  see what was sent. Only available for people the user has interacted with
+  before — never for cold outreach. Always runs at critical trust tier.
+
+trigger:
+  type: event
+  description: >
+    Triggered when the user delegates a follow-up to an existing contact.
+    Requires: (1) existing relationship (prior interactions), (2) voice
+    model readiness (5+ email samples), (3) explicit user delegation.
+
+inputs:
+  - name: personId
+    type: text
+    source: self
+    required: true
+    description: The person to follow up with (must have prior interactions)
+  - name: context
+    type: text
+    source: self
+    required: true
+    description: What the follow-up is about and what the user wants to convey
+  - name: userId
+    type: text
+    source: self
+    required: true
+    description: The user who is delegating this follow-up
+  - name: inReplyToMessageId
+    type: text
+    source: self
+    required: false
+    description: Message ID to reply to (preserves threading)
+
+steps:
+  - id: validate-eligibility
+    name: Validate Ghost Eligibility
+    executor: rules
+    description: >
+      Before anything else, verify:
+      - Person has prior interactions with the user (not cold contact)
+      - Voice model is ready (5+ samples)
+      - Person has not opted out
+      If any check fails, refuse with explanation and suggest alternative
+      (agent-of-user identity or manual send).
+    inputs:
+      - personId
+      - userId
+    outputs:
+      - eligibility-result
+    route_to:
+      - condition: "eligibility-result.eligible === false"
+        goto: refuse-ghost
+    default_next: draft-ghost-message
+
+  - id: draft-ghost-message
+    name: Draft Ghost Message
+    executor: ai-agent
+    sendingIdentity: ghost
+    description: >
+      Draft a follow-up in the user's voice. Use the voice model samples
+      to match their writing style exactly. The message should read as if
+      the user typed it themselves. No Ditto sign-off, no branding, no
+      formal structure unless that's the user's style.
+    config:
+      model_hint: capable
+      person_id: "{personId}"
+    inputs:
+      - context
+      - eligibility-result
+    outputs:
+      - ghost-draft
+
+  - id: approve-ghost-draft
+    name: Approve Ghost Draft
+    executor: trust-gate
+    description: >
+      Present the ghost draft to the user for approval. First sends to
+      any new recipient always require explicit approval. After 3+ clean
+      approvals to the same recipient, the process can be spot-checked
+      (but trust tier stays critical).
+    inputs:
+      - ghost-draft
+    outputs:
+      - approved-draft
+    route_to:
+      - condition: "approved-draft.approved === false"
+        goto: end-process
+    default_next: send-ghost-email
+
+  - id: send-ghost-email
+    name: Send Ghost Email
+    executor: integration
+    sendingIdentity: ghost
+    description: >
+      Send the approved email as the user. No Ditto branding, user's
+      display name, BCC to user's email address. No opt-out footer,
+      no referral footer, no magic link footer.
+    config:
+      service: agentmail
+    tools:
+      - agentmail.send_message
+    inputs:
+      - approved-draft
+      - personId
+      - userId
+    outputs:
+      - send-result
+
+  - id: wait-for-reply
+    name: Wait for Reply
+    executor: wait_for
+    description: >
+      Wait for a reply from the recipient. If no reply within the
+      configured period, the process ends. If a reply comes in,
+      notify the user.
+    config:
+      wait_type: reply
+      timeout_days: 7
+    inputs:
+      - send-result
+    outputs:
+      - reply-result
+
+  - id: refuse-ghost
+    name: Refuse Ghost Mode
+    executor: rules
+    description: >
+      Ghost mode is not available for this request. Provide a clear
+      explanation (no prior relationship, voice model not ready, etc.)
+      and suggest alternatives.
+    inputs:
+      - eligibility-result
+    outputs:
+      - refusal-result
+
+  - id: end-process
+    name: End Process
+    executor: rules
+    description: Record outcome and clean up.
+    inputs:
+      - send-result
+    outputs:
+      - process-result
+
+outputs:
+  - name: process-result
+    type: json
+    description: >
+      Outcome: sent, refused (with reason), or rejected by user.
+
+quality_criteria:
+  - "Email matches user's writing voice — sentence length, formality, vocabulary"
+  - "No Ditto branding leaks — no sign-off, no footer, no header"
+  - "BCC to user on every ghost send"
+  - "Only for existing relationships — never cold outreach"
+  - "User's display name used as sender, not persona name"
+
+feedback:
+  metrics:
+    - ghost_approval_rate
+    - voice_match_accuracy_user_rating
+    - recipient_reply_rate
+  capture:
+    - user_edits_to_ghost_drafts
+    - rejections_with_reason
+
+trust:
+  initial_tier: critical
+  upgrade_path: []
+  downgrade_triggers:
+    - "User rejects ghost draft due to voice mismatch"
+    - "Recipient detects AI involvement"
+    - "Ghost email sent to person with no prior interaction"

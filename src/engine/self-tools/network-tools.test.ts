@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb, type TestDb } from "../../test-utils";
 import * as schema from "../../db/schema";
+import { randomUUID } from "crypto";
 
 let testDb: TestDb;
 let cleanup: () => void;
@@ -18,6 +19,40 @@ vi.mock("../../db", async () => {
   return {
     get db() { return testDb; },
     schema: realSchema,
+  };
+});
+
+// Mock heartbeat for cycle-aware sales/connection plan tools (Brief 118)
+vi.mock("../heartbeat", async () => {
+  const { eq: eqFn } = await vi.importActual<typeof import("drizzle-orm")>("drizzle-orm");
+  const schemaRef = await vi.importActual<typeof import("../../db/schema")>("../../db/schema");
+  const { randomUUID: uuid } = await vi.importActual<typeof import("crypto")>("crypto");
+  return {
+    startProcessRun: vi.fn(async (slug: string, inputs: Record<string, unknown>, triggeredBy: string) => {
+      // Look up real process ID from test DB
+      const [proc] = testDb
+        .select({ id: schemaRef.processes.id })
+        .from(schemaRef.processes)
+        .where(eqFn(schemaRef.processes.slug, slug))
+        .all();
+      const processId = proc?.id ?? `proc-${slug}`;
+
+      const runId = uuid();
+      testDb.insert(schemaRef.processRuns).values({
+        id: runId,
+        processId,
+        status: "queued",
+        triggeredBy,
+        inputs: inputs as Record<string, unknown>,
+      }).run();
+      return runId;
+    }),
+    fullHeartbeat: vi.fn(async () => ({
+      processRunId: "mock",
+      stepsExecuted: 0,
+      status: "completed",
+      message: "mock",
+    })),
   };
 });
 
@@ -35,10 +70,24 @@ beforeEach(() => {
   const result = createTestDb();
   testDb = result.db;
   cleanup = result.cleanup;
+
+  // Seed cycle processes for sales/connection plan tools
+  testDb.insert(schema.processes).values({
+    name: "Sales & Marketing Cycle",
+    slug: "sales-marketing-cycle",
+    definition: { name: "Sales & Marketing Cycle", id: "sales-marketing-cycle", version: 1, status: "active", trigger: { type: "manual" }, inputs: [], steps: [], outputs: [], quality_criteria: [], feedback: { metrics: [], capture: [] }, trust: { initial_tier: "supervised", upgrade_path: [], downgrade_triggers: [] } } as unknown as Record<string, unknown>,
+  }).run();
+
+  testDb.insert(schema.processes).values({
+    name: "Network Connecting Cycle",
+    slug: "network-connecting-cycle",
+    definition: { name: "Network Connecting Cycle", id: "network-connecting-cycle", version: 1, status: "active", trigger: { type: "manual" }, inputs: [], steps: [], outputs: [], quality_criteria: [], feedback: { metrics: [], capture: [] }, trust: { initial_tier: "supervised", upgrade_path: [], downgrade_triggers: [] } } as unknown as Record<string, unknown>,
+  }).run();
 });
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 // ============================================================
@@ -46,13 +95,14 @@ afterEach(() => {
 // ============================================================
 
 describe("handleCreateSalesPlan", () => {
-  it("creates a sales plan with goal", async () => {
+  it("creates a sales plan (activates sales-marketing cycle)", async () => {
     const result = await handleCreateSalesPlan({
       goal: "Generate more inbound for my consulting business",
     });
     expect(result.success).toBe(true);
-    expect(result.output).toContain("Sales plan created");
-    expect(result.output).toContain("consulting business");
+    expect(result.toolName).toBe("create_sales_plan");
+    expect(result.metadata?.cycleType).toBe("sales-marketing");
+    expect(result.output).toContain("continuous");
   });
 
   it("includes ICP when provided", async () => {
@@ -82,21 +132,14 @@ describe("handleCreateSalesPlan", () => {
 // ============================================================
 
 describe("handleCreateConnectionPlan", () => {
-  it("creates a connection plan with need", async () => {
+  it("creates a connection plan (activates network-connecting cycle)", async () => {
     const result = await handleCreateConnectionPlan({
       need: "A logistics consultant in Melbourne",
     });
     expect(result.success).toBe(true);
-    expect(result.output).toContain("Connection plan created");
-    expect(result.output).toContain("logistics consultant");
-  });
-
-  it("includes context when provided", async () => {
-    const result = await handleCreateConnectionPlan({
-      need: "Fintech founders",
-      context: "I'm launching a payment product and need advisors",
-    });
-    expect(result.output).toContain("payment product");
+    expect(result.toolName).toBe("create_connection_plan");
+    expect(result.metadata?.cycleType).toBe("network-connecting");
+    expect(result.output).toContain("continuous");
   });
 
   it("fails without a need", async () => {
@@ -104,11 +147,12 @@ describe("handleCreateConnectionPlan", () => {
     expect(result.success).toBe(false);
   });
 
-  it("mentions user decides on introductions", async () => {
+  it("mentions control and briefings", async () => {
     const result = await handleCreateConnectionPlan({
       need: "A good accountant",
     });
-    expect(result.output).toContain("You decide");
+    // Cycle-aware output mentions daily briefings and user control
+    expect(result.output).toContain("briefing");
   });
 });
 

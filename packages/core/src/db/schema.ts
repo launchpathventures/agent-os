@@ -38,6 +38,7 @@ export const runStatusValues = [
   "running",
   "waiting_review",
   "waiting_human",
+  "paused",
   "approved",
   "rejected",
   "failed",
@@ -54,6 +55,7 @@ export const stepExecutorValues = [
   "human",
   "handoff",
   "integration",
+  "sub-process",
 ] as const;
 export type StepExecutor = (typeof stepExecutorValues)[number];
 
@@ -131,6 +133,7 @@ export const memoryTypeValues = [
   "skill",
   "user_model",
   "solution",
+  "voice_model",
 ] as const;
 export type MemoryType = (typeof memoryTypeValues)[number];
 
@@ -283,6 +286,18 @@ export const processRuns = sqliteTable("process_runs", {
   definitionOverrideVersion: integer("definition_override_version")
     .notNull()
     .default(0),
+  /** Operating cycle type — e.g. 'sales', 'connect', 'intel' (Brief 116) */
+  cycleType: text("cycle_type"),
+  /** Operating cycle configuration — JSON (Brief 116) */
+  cycleConfig: text("cycle_config", { mode: "json" })
+    .$type<Record<string, unknown> | null>(),
+  /** Parent cycle run ID for sub-process invocations (Brief 116) */
+  parentCycleRunId: text("parent_cycle_run_id"),
+  /** Run-scoped metadata (Brief 121) — email thread IDs, etc. Survives suspend/resume. */
+  runMetadata: text("run_metadata", { mode: "json" })
+    .$type<Record<string, unknown>>(),
+  /** Absolute timeout timestamp for wait_for steps (Brief 121). Indexed for scheduler queries. */
+  timeoutAt: integer("timeout_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -317,6 +332,10 @@ export const stepRuns = sqliteTable("step_runs", {
   integrationProtocol: text("integration_protocol"),
   toolCalls: text("tool_calls", { mode: "json" })
     .$type<Array<{ name: string; args: Record<string, unknown>; resultSummary: string; timestamp: number }>>(),
+  /** Cognitive mode loaded for this step (Brief 114). Null when no mode resolved. */
+  cognitiveMode: text("cognitive_mode"),
+  /** Deferred execution timestamp — step won't execute until this time (Brief 121: schedule primitive). */
+  deferredUntil: integer("deferred_until", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -519,6 +538,8 @@ export const trustSuggestions = sqliteTable("trust_suggestions", {
   decidedBy: text("decided_by"),
   decisionComment: text("decision_comment"),
   previousSuggestionId: text("previous_suggestion_id"),
+  /** Step category for step-level trust suggestions (Brief 116) */
+  stepCategory: text("step_category"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -622,6 +643,31 @@ export const credentials = sqliteTable("credentials", {
   iv: text("iv").notNull(),
   authTag: text("auth_tag").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// ============================================================
+// Outbound Actions — outbound action tracking (Brief 116)
+// ============================================================
+
+export const outboundActions = sqliteTable("outbound_actions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => randomUUID()),
+  processRunId: text("process_run_id")
+    .references(() => processRuns.id)
+    .notNull(),
+  stepRunId: text("step_run_id")
+    .references(() => stepRuns.id)
+    .notNull(),
+  channel: text("channel").notNull(),
+  sendingIdentity: text("sending_identity").notNull(),
+  recipientId: text("recipient_id"),
+  contentSummary: text("content_summary"),
+  blocked: integer("blocked", { mode: "boolean" }).notNull().default(false),
+  blockReason: text("block_reason"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

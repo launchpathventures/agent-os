@@ -41,6 +41,9 @@ export {
   type ProcessSourceConfig,
   type ProcessOutputDeliveryConfig,
   type ChainDefinition,
+  type OutboundQualityRule,
+  type OutboundActionRecord,
+  type StagedOutboundAction,
 } from "./harness/index.js";
 
 export {
@@ -60,6 +63,14 @@ export {
   setSamplingSalt,
   parseHarnessConfig,
   type HarnessConfig,
+  // Model purpose resolution (Brief 128)
+  modelPurposeResolverHandler,
+  resolveModelPurpose,
+  // Operating Cycle handlers (Brief 116)
+  identityRouterHandler,
+  voiceCalibrationHandler,
+  broadcastDirectClassifierHandler,
+  outboundQualityGateHandler,
 } from "./harness/index.js";
 
 // ============================================================
@@ -103,6 +114,7 @@ export {
 export {
   getCognitiveCore,
   getCognitiveCoreCompact,
+  getCognitiveModeExtension,
   configureCognitivePath,
   clearCognitiveCoreCache,
   extractSections,
@@ -112,6 +124,11 @@ export {
 // Goal decomposition
 // ============================================================
 export * from "./goal-decomposition.js";
+
+// ============================================================
+// Duration parser
+// ============================================================
+export { parseDuration, isValidDuration } from "./duration.js";
 
 // ============================================================
 // Content blocks

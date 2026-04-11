@@ -17,9 +17,11 @@
  */
 
 import { db, schema } from "../../db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import type { RunStatus } from "../../db/schema";
+import { eq, and, desc, sql, notInArray } from "drizzle-orm";
 import type { DelegationResult } from "../self-delegation";
 import { listConnections, listPeople, getPersonByEmail, getPersonById, createPerson } from "../people";
+import { handleActivateCycle } from "./cycle-tools";
 
 // ============================================================
 // create_sales_plan
@@ -43,30 +45,24 @@ export async function handleCreateSalesPlan(
     };
   }
 
-  const plan = {
-    mode: "selling" as const,
-    goal: input.goal.trim(),
-    icp: input.icp?.trim() || null,
-    messaging: input.messaging?.trim() || null,
+  // Delegate to cycle activation (Brief 118: sales plan → sales-marketing cycle)
+  const cycleResult = await handleActivateCycle({
+    cycleType: "sales-marketing",
+    goals: input.goal.trim(),
+    icp: input.icp?.trim(),
     cadence: input.cadence?.trim() || "5 prospects per week",
-    createdAt: Date.now(),
-  };
+    continuous: true,
+  });
 
+  // Wrap the result with the create_sales_plan tool name for backward compat
   return {
+    ...cycleResult,
     toolName: "create_sales_plan",
-    success: true,
-    output: [
-      `Sales plan created.`,
-      ``,
-      `**Goal:** ${plan.goal}`,
-      plan.icp ? `**ICP:** ${plan.icp}` : `**ICP:** Not yet defined — I'll ask clarifying questions.`,
-      plan.messaging ? `**Messaging:** ${plan.messaging}` : `**Messaging:** I'll draft based on your goal and refine from your feedback.`,
-      `**Cadence:** ${plan.cadence}`,
-      ``,
-      `I'll start researching prospects and come back with candidates for your review.`,
-      `Every email gets your approval until you're confident in my voice.`,
-    ].join("\n"),
-    metadata: { plan },
+    metadata: {
+      ...cycleResult.metadata,
+      mode: "selling",
+      messaging: input.messaging?.trim() || null,
+    },
   };
 }
 
@@ -91,28 +87,22 @@ export async function handleCreateConnectionPlan(
     };
   }
 
-  const plan = {
-    mode: "connecting" as const,
-    need: input.need.trim(),
-    context: input.context?.trim() || null,
-    constraints: input.constraints?.trim() || null,
-    createdAt: Date.now(),
-  };
+  // Delegate to cycle activation (Brief 118: connection plan → network-connecting cycle)
+  const cycleResult = await handleActivateCycle({
+    cycleType: "network-connecting",
+    goals: input.need.trim(),
+    boundaries: input.constraints?.trim(),
+    continuous: true,
+  });
 
   return {
+    ...cycleResult,
     toolName: "create_connection_plan",
-    success: true,
-    output: [
-      `Connection plan created.`,
-      ``,
-      `**Looking for:** ${plan.need}`,
-      plan.context ? `**Context:** ${plan.context}` : "",
-      plan.constraints ? `**Constraints:** ${plan.constraints}` : "",
-      ``,
-      `I'll research candidates and come back with names, context, and my recommendation.`,
-      `You decide who you want introduced to.`,
-    ].filter(Boolean).join("\n"),
-    metadata: { plan },
+    metadata: {
+      ...cycleResult.metadata,
+      mode: "connecting",
+      context: input.context?.trim() || null,
+    },
   };
 }
 
@@ -135,20 +125,38 @@ export async function handleNetworkStatus(
     };
   }
 
-  const connections = await listConnections(input.userId);
-  const allPeople = await listPeople(input.userId);
-
-  // Count recent interactions (last 7 days)
+  // Parallel fetch: connections, people, interactions, and active cycles
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const recentInteractions = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(schema.interactions)
-    .where(
-      and(
-        eq(schema.interactions.userId, input.userId),
-        sql`${schema.interactions.createdAt} > ${weekAgo}`,
+  const terminalStatuses: RunStatus[] = ["approved", "rejected", "failed", "cancelled", "skipped"];
+
+  const [connections, allPeople, recentInteractions, activeCycles] = await Promise.all([
+    listConnections(input.userId),
+    listPeople(input.userId),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.interactions)
+      .where(
+        and(
+          eq(schema.interactions.userId, input.userId),
+          sql`${schema.interactions.createdAt} > ${weekAgo}`,
+        ),
       ),
-    );
+    db
+      .select({
+        cycleType: schema.processRuns.cycleType,
+        status: schema.processRuns.status,
+        currentStepId: schema.processRuns.currentStepId,
+        createdAt: schema.processRuns.createdAt,
+      })
+      .from(schema.processRuns)
+      .where(
+        and(
+          sql`${schema.processRuns.cycleType} IS NOT NULL`,
+          notInArray(schema.processRuns.status, terminalStatuses),
+        ),
+      )
+      .orderBy(desc(schema.processRuns.createdAt)),
+  ]);
 
   const recentCount = recentInteractions[0]?.count ?? 0;
 
@@ -181,6 +189,20 @@ export async function handleNetworkStatus(
     }
     if (cooling.length > 5) {
       statusLines.push(`- ...and ${cooling.length - 5} more`);
+    }
+  }
+
+  if (activeCycles.length > 0) {
+    statusLines.push(``);
+    statusLines.push(`**Active Cycles**`);
+    // Deduplicate by cycle type (show most recent)
+    const seen = new Set<string>();
+    for (const cycle of activeCycles) {
+      if (!cycle.cycleType || seen.has(cycle.cycleType)) continue;
+      seen.add(cycle.cycleType);
+      statusLines.push(
+        `- ${cycle.cycleType}: ${cycle.status}${cycle.currentStepId ? ` (phase: ${cycle.currentStepId})` : ""}`,
+      );
     }
   }
 
@@ -314,6 +336,7 @@ export async function startIntake(
   _userId?: string, // Deprecated: networkUsers.id is now auto-created from email
   forcePersona?: "alex" | "mira",
   skipEmail?: boolean,
+  sessionId?: string,
 ): Promise<IntakeResult> {
   if (!email || !email.includes("@")) {
     return { success: false, recognised: false, message: "A valid email is required." };
@@ -350,7 +373,7 @@ export async function startIntake(
 
     // Send welcome-back email (unless caller will send later)
     if (!skipEmail) {
-      await sendWelcomeEmail(normalizedEmail, personaId, existing.name, need, true, contextNote, existing.id, ownerUserId);
+      await sendWelcomeEmail(normalizedEmail, personaId, existing.name, need, true, contextNote, existing.id, ownerUserId, sessionId);
     }
 
     return {
@@ -397,7 +420,7 @@ export async function startIntake(
 
   // Send welcome email (unless caller will send later with richer context)
   if (!skipEmail) {
-    await sendWelcomeEmail(normalizedEmail, personaId, name, need, false, undefined, person.id, ownerUserId);
+    await sendWelcomeEmail(normalizedEmail, personaId, name, need, false, undefined, person.id, ownerUserId, sessionId);
   }
 
   const needAck = need ? ` You mentioned you're looking for help with "${need}" — I'll keep that in mind.` : "";
@@ -430,6 +453,7 @@ async function sendIntroEmail(
   contextNote?: string,
   personId?: string,
   userId?: string,
+  sessionId?: string,
 ): Promise<void> {
   const { sendAndRecord } = await import("../channel");
 
@@ -443,15 +467,15 @@ async function sendIntroEmail(
       "",
       `It's ${personaName} from Ditto.${contextNote || ""} Good to reconnect.`,
       "",
-      "I'm just finishing up our chat on the site — I'll follow up shortly with a proper plan. In the meantime, you can always reply here if anything comes to mind.",
+      "Just making sure you have my email — this is where the real work happens. If we got cut off on the site, no worries. Reply here and we'll pick up where we left off.",
     ].join("\n");
   } else {
     body = [
       `${greeting},`,
       "",
-      `${personaName} here from Ditto. We're chatting on the site right now — just wanted to make sure you have my email.`,
+      `${personaName} here from Ditto. Just making sure you have my email — this is where the real work happens.`,
       "",
-      "I'll follow up shortly with a proper plan once we've finished talking. You can always reply here if you think of anything.",
+      "If we got cut off on the site, no worries. Reply here with what you're working on and I'll get started. Otherwise, I'll follow up shortly with a plan.",
     ].join("\n");
   }
 
@@ -470,6 +494,9 @@ async function sendIntroEmail(
       personId,
       userId: userId || "founder",
       includeOptOut: true,
+      // Brief 126 AC4: sessionId in DB metadata (never in email headers/body — AC18)
+      // so replies to the intro email can be traced to the user's session
+      ...(sessionId ? { metadata: { sessionId, chatContext: true } } : {}),
     });
 
     if (result.success) {
@@ -495,6 +522,7 @@ export async function sendActionEmail(
   name?: string,
   conversationContext?: string,
   personId?: string,
+  outreachMode: "connector" | "sales" = "connector",
 ): Promise<void> {
   const { sendAndRecord } = await import("../channel");
 
@@ -505,20 +533,40 @@ export async function sendActionEmail(
     ? `\nHere's what I've got from our conversation:\n${conversationContext}`
     : "";
 
-  const body = [
-    `${greeting},`,
-    "",
-    `${personaName} again. Good chat — I've got enough to get started.`,
-    contextLine,
-    "",
-    "Here's what happens next:",
-    "1. I'll research the right people to connect you with",
-    "2. I'll draft introductions — you'll see exactly how I position you and what I say",
-    "3. You approve, edit, or reject each one. Nothing goes out without your say-so",
-    "4. Once you approve, I'll reach out on your behalf",
-    "",
-    "I'll be back in touch within 24 hours with the first batch. If anything changes or you think of something, just reply here.",
-  ].join("\n");
+  const body = outreachMode === "sales"
+    ? [
+        `${greeting},`,
+        "",
+        `${personaName} again. Good chat — I'm already working on this.`,
+        contextLine,
+        "",
+        "Quick question before I start reaching out — I want to get this right since I'll be representing your company:",
+        "",
+        "1. What's your website? (so prospects can see your work)",
+        "2. How would you describe what you do in one sentence — in your own words?",
+        "",
+        "Once I have that, here's the plan:",
+        "- Research prospects who'd be a great fit",
+        "- Reach out as your company, using the tone we discussed",
+        "- Send you a full report — who I contacted, what I said, any responses",
+        "",
+        "Just reply with those two things and I'll get moving. Your brand is on the line, so I want to nail the positioning.",
+      ].join("\n")
+    : [
+        `${greeting},`,
+        "",
+        `${personaName} again. Good chat — I'm already working on this.`,
+        contextLine,
+        "",
+        "Quick question — what's your website? When I introduce you, people are going to want to see your work.",
+        "",
+        "Here's what's happening:",
+        "- I'm researching the right people to connect you with",
+        "- I'll reach out as myself, using the framing we discussed",
+        "- You'll get a full report on who I contacted and how it went",
+        "",
+        "Reply with your website and anything else you want me to know. I'll be back in touch tomorrow with an update.",
+      ].join("\n");
 
   if (!personId) {
     console.error("[intake] No personId for action email — cannot send untracked email to", email);
@@ -630,6 +678,7 @@ async function sendWelcomeEmail(
   contextNote?: string,
   personId?: string,
   userId?: string,
+  sessionId?: string,
 ): Promise<void> {
-  return sendIntroEmail(email, personaId, name, recognised, contextNote, personId, userId);
+  return sendIntroEmail(email, personaId, name, recognised, contextNote, personId, userId, sessionId);
 }
