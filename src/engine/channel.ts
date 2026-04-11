@@ -37,9 +37,12 @@ export interface OutboundMessage {
   magicLinkUrl?: string;
   /** Sending identity: 'principal', 'agent-of-user', 'ghost' (Brief 124) */
   sendingIdentity?: "principal" | "agent-of-user" | "ghost";
-  /** Sender display name override — used in ghost mode to send as user (Brief 124) */
-  senderDisplayName?: string;
-  /** BCC address — used in ghost mode to copy the user (Brief 124) */
+  /**
+   * BCC address — used in ghost mode to copy the user (Brief 124).
+   * Note: per-message sender display name is NOT supported by AgentMail.
+   * Display name is set at inbox level. v1 ghost emails use the inbox's
+   * configured display name. Per-user ghost inbox is a future enhancement.
+   */
   bccAddress?: string;
 }
 
@@ -200,23 +203,24 @@ export class AgentMailAdapter implements ChannelAdapter {
 
     const body = formatEmailBody(message);
 
-    // Ghost mode (Brief 124): resolve display name and BCC for both reply and new-send paths
+    // Ghost mode (Brief 124): BCC the user on ghost sends.
+    // Note: display name is set at inbox level (inboxes.create/update), not per-message.
+    // v1 ghost emails send from the inbox's configured display name. Per-user display
+    // name requires a dedicated ghost inbox per user — future enhancement.
     const isGhostSend = message.sendingIdentity === "ghost";
-    const ghostFromName = isGhostSend && message.senderDisplayName ? message.senderDisplayName : undefined;
-    const ghostBcc = isGhostSend && message.bccAddress ? [message.bccAddress] : undefined;
+    const ghostBcc = isGhostSend && message.bccAddress ? message.bccAddress : undefined;
 
     try {
       if (message.inReplyToMessageId) {
         // Use native reply (preserves threading)
-        // Ghost mode: include from_name and BCC even for replies
-        const replyOptions: { text: string; from_name?: string; bcc?: string[] } = { text: body };
-        if (ghostFromName) replyOptions.from_name = ghostFromName;
-        if (ghostBcc) replyOptions.bcc = ghostBcc;
-
+        // Ghost mode: BCC user even for replies
         const result = await this.client.inboxes.messages.reply(
           this.inboxId,
           message.inReplyToMessageId,
-          replyOptions,
+          {
+            text: body,
+            ...(ghostBcc ? { bcc: ghostBcc } : {}),
+          },
         );
         return {
           success: true,
@@ -225,22 +229,12 @@ export class AgentMailAdapter implements ChannelAdapter {
         };
       }
 
-      const sendOptions: {
-        to: string[];
-        subject: string;
-        text: string;
-        from_name?: string;
-        bcc?: string[];
-      } = {
+      const result = await this.client.inboxes.messages.send(this.inboxId, {
         to: [message.to],
         subject: message.subject,
         text: body,
-      };
-
-      if (ghostFromName) sendOptions.from_name = ghostFromName;
-      if (ghostBcc) sendOptions.bcc = ghostBcc;
-
-      const result = await this.client.inboxes.messages.send(this.inboxId, sendOptions);
+        ...(ghostBcc ? { bcc: ghostBcc } : {}),
+      });
 
       return {
         success: true,
@@ -507,10 +501,10 @@ export interface SendAndRecordInput {
   skipMagicLink?: boolean;
   /** Sending identity: 'principal', 'agent-of-user', 'ghost' (Brief 124) */
   sendingIdentity?: "principal" | "agent-of-user" | "ghost";
-  /** Sender display name for ghost mode (Brief 124) */
-  senderDisplayName?: string;
   /** User email address for BCC in ghost mode (Brief 124) */
   userEmail?: string;
+  /** Additional metadata to store on the interaction record (never exposed in email headers/body — Brief 126 AC18) */
+  metadata?: Record<string, unknown>;
 }
 
 export interface SendAndRecordResult {
@@ -560,7 +554,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
       summary: input.body.slice(0, 500),
       outcome: undefined,
       processRunId: input.processRunId,
-      metadata: { sendFailed: true, reason: "agentmail_not_configured", body: input.body },
+      metadata: { sendFailed: true, reason: "agentmail_not_configured", body: input.body, ...(input.metadata || {}) },
     });
     return { success: false, interactionId: interaction.id, error: "AgentMail not configured" };
   }
@@ -583,7 +577,6 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     referralUserId: isGhost ? undefined : input.userId,
     magicLinkUrl: isGhost ? undefined : magicLinkUrl,
     sendingIdentity: input.sendingIdentity,
-    senderDisplayName: input.senderDisplayName,
     bccAddress: isGhost ? input.userEmail : undefined,
   });
 
@@ -603,8 +596,9 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
       messageId: sendResult.messageId,
       threadId: sendResult.threadId,
       body: input.body,
-      ...(isGhost ? { sendingIdentity: "ghost", senderDisplayName: input.senderDisplayName } : {}),
+      ...(isGhost ? { sendingIdentity: "ghost" } : {}),
       ...(sendResult.error ? { sendError: sendResult.error } : {}),
+      ...(input.metadata || {}),
     },
   });
 

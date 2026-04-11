@@ -21,6 +21,8 @@ import { db, schema } from "../../db";
 import { eq, and, desc, ne } from "drizzle-orm";
 import type { HarnessHandler, HarnessContext } from "../harness";
 import { resolveTools } from "../tool-resolver";
+import { getCognitiveCoreCompact, getCognitiveModeExtension } from "../cognitive-core";
+import { resolveModeFromProcess, resolveGhostModeOverride } from "../cognitive-core";
 
 /** Default token budget for memory injection (4 chars ≈ 1 token) */
 const DEFAULT_TOKEN_BUDGET = 2000;
@@ -43,7 +45,20 @@ export const RUN_CONTEXT_TOKEN_BUDGET = 1500;
 export const SOLUTION_KNOWLEDGE_TOKEN_BUDGET = 1000;
 
 /**
+ * Compact type abbreviations for memory rendering (Insight-170: token efficiency).
+ */
+const MEMORY_TYPE_ABBREV: Record<string, string> = {
+  correction: "c",
+  preference: "p",
+  context: "x",
+  skill: "s",
+  user_model: "u",
+  solution: "sol",
+};
+
+/**
  * Render a single memory as a formatted line.
+ * Token efficiency (Insight-170): compact type prefix, metadata only for low-confidence.
  */
 function renderMemory(memory: {
   type: string;
@@ -51,7 +66,11 @@ function renderMemory(memory: {
   confidence: number;
   reinforcementCount: number;
 }): string {
-  return `- [${memory.type}] ${memory.content} (confidence: ${memory.confidence}, reinforced: ${memory.reinforcementCount}x)`;
+  const abbrev = MEMORY_TYPE_ABBREV[memory.type] || memory.type;
+  if (memory.confidence < 0.7) {
+    return `- [${abbrev}] ${memory.content} (${memory.confidence.toFixed(1)}, ${memory.reinforcementCount}x)`;
+  }
+  return `- [${abbrev}] ${memory.content}`;
 }
 
 /**
@@ -344,11 +363,73 @@ export const memoryAssemblyHandler: HarnessHandler = {
       context.memoriesInjected = injectedCount;
     }
 
+    // --- Cognitive mode extension (Brief 114, Brief 124) ---
+    // Resolve mode from process operator + ID, load compact core + mode extension.
+    // Mode governs process execution only — conversational surfaces use full core + self.md.
+    // Ghost mode override (Brief 124): when sendingIdentity is "ghost", load ghost mode
+    // regardless of process operator. Identity-driven, not operator-driven.
+    const resolvedMode =
+      resolveGhostModeOverride(context.sendingIdentity) ??
+      resolveModeFromProcess(
+        context.processDefinition.operator,
+        context.processDefinition.id,
+      );
+
+    const cognitiveCoreSections: string[] = [];
+    const compactCore = getCognitiveCoreCompact();
+    if (compactCore) {
+      cognitiveCoreSections.push(compactCore);
+    }
+
+    if (resolvedMode) {
+      const modeExtension = getCognitiveModeExtension(resolvedMode);
+      if (modeExtension) {
+        cognitiveCoreSections.push(modeExtension);
+      }
+    }
+
+    if (cognitiveCoreSections.length > 0) {
+      const cognitiveContext = cognitiveCoreSections.join("\n\n");
+      // Prepend cognitive context before memories
+      context.memories = context.memories
+        ? cognitiveContext + "\n\n" + context.memories
+        : cognitiveContext;
+    }
+
+    // --- Voice model injection (Brief 124) ---
+    // When ghost mode is active, inject user's voice samples into the prompt.
+    // The voice model is loaded by the voice-calibration handler (packages/core)
+    // via the voiceModelLoader callback. We inject it here as context.
+    if (resolvedMode === "ghost" && context.voiceModel) {
+      const voiceSection = [
+        "## Voice Reference",
+        "Write in this person's voice. Here are their recent emails:",
+        "",
+        context.voiceModel,
+      ].join("\n");
+
+      context.memories = context.memories
+        ? context.memories + "\n\n" + voiceSection
+        : voiceSection;
+    }
+
+    // Record resolved mode on stepRun for audit trail
+    if (resolvedMode) {
+      try {
+        await db
+          .update(schema.stepRuns)
+          .set({ cognitiveMode: resolvedMode })
+          .where(eq(schema.stepRuns.id, context.stepRunId));
+      } catch {
+        // Non-critical — don't fail the pipeline if audit write fails
+      }
+    }
+
     // --- Integration tool resolution (Brief 025) ---
     // Resolve step-level tools into LlmToolDefinitions + dispatch function.
     // Separate from memory budget — tools don't consume token budget.
     if (context.stepDefinition.tools && context.stepDefinition.tools.length > 0) {
-      const resolved = resolveTools(context.stepDefinition.tools, undefined, context.processRun.processId);
+      const resolved = resolveTools(context.stepDefinition.tools, undefined, context.processRun.processId, context.stagedOutboundActions);
       if (resolved.tools.length > 0) {
         context.resolvedTools = resolved;
         console.log(

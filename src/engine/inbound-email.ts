@@ -14,12 +14,13 @@
  */
 
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, and, gte, desc } from "drizzle-orm";
 import { isOptOutSignal } from "./channel";
 import { notifyUser } from "./notify-user";
 import { recordInteraction, optOutPerson, findPersonByEmailGlobal, createPerson } from "./people";
 import { resumeHumanStep, pauseGoal } from "./heartbeat";
 import { selfConverse } from "./self";
+import { fireEvent } from "./scheduler";
 
 // ============================================================
 // Types
@@ -338,42 +339,8 @@ async function handleUserEmail(
 
   console.log(`[inbound] User email from ${senderEmail} (${networkUser.name || "unnamed"}): "${subject}"`);
 
-  // Check if user is replying to a waiting_human step on one of their processes
-  if (networkUser.personId) {
-    const waitingRun = await findWaitingRunForPerson(networkUser.personId);
-    if (waitingRun) {
-      console.log(`[inbound] User reply resumes waiting step in run ${waitingRun.processRunId.slice(0, 8)}`);
-
-      await resumeHumanStep(waitingRun.processRunId, {
-        feedback: replyText,
-        email_subject: subject,
-        responded_via: "email",
-      });
-
-      // Record as interaction on the user's own person record
-      const interaction = await recordInteraction({
-        personId: networkUser.personId,
-        userId: networkUser.id,
-        type: "reply_received",
-        channel: "email",
-        mode: "connecting",
-        subject,
-        summary: replyText.slice(0, 500),
-        outcome: "positive",
-        processRunId: waitingRun.processRunId,
-        metadata: { resumedStep: true, userInitiated: true },
-      });
-
-      return {
-        action: "resumed_step",
-        networkUserId: networkUser.id,
-        personId: networkUser.personId,
-        processRunId: waitingRun.processRunId,
-        interactionId: interaction.id,
-      };
-    }
-  }
-
+  // Brief 126 AC21: Cancellation MUST run BEFORE waiting-step resume.
+  // A "cancel" reply should cancel, not resume a waiting step.
   // Brief 125: Check for cancellation intent before routing to Self.
   // Clear cancellation signals are handled immediately (no LLM roundtrip).
   // Ambiguous cases fall through to Self for judgment.
@@ -457,26 +424,80 @@ async function handleUserEmail(
     console.log(`[inbound] Cancellation signal from ${senderEmail} but no thread context — routing to Self`);
   }
 
+  // Check if user is replying to a waiting_human step on one of their processes.
+  // This runs AFTER cancellation check — a "cancel" reply cancels, doesn't resume.
+  if (networkUser.personId) {
+    const waitingRun = await findWaitingRunForPerson(networkUser.personId);
+    if (waitingRun) {
+      console.log(`[inbound] User reply resumes waiting step in run ${waitingRun.processRunId.slice(0, 8)}`);
+
+      await resumeHumanStep(waitingRun.processRunId, {
+        feedback: replyText,
+        email_subject: subject,
+        responded_via: "email",
+      });
+
+      const interaction = await recordInteraction({
+        personId: networkUser.personId,
+        userId: networkUser.id,
+        type: "reply_received",
+        channel: "email",
+        mode: "connecting",
+        subject,
+        summary: replyText.slice(0, 500),
+        outcome: "positive",
+        processRunId: waitingRun.processRunId,
+        metadata: { resumedStep: true, userInitiated: true },
+      });
+
+      return {
+        action: "resumed_step",
+        networkUserId: networkUser.id,
+        personId: networkUser.personId,
+        processRunId: waitingRun.processRunId,
+        interactionId: interaction.id,
+      };
+    }
+  }
+
   // --- Voice model collection (Brief 124) ---
   // Passively collect user's writing style from their email replies.
   // V1: store the raw reply text as a voice_model memory scoped to the user (self scope).
   // The LLM does style matching at generation time from raw samples — no extraction needed.
+  // Throttle: max 1 sample per hour per user to prevent burst conversations from
+  // filling all slots with back-and-forth context rather than representative samples.
   if (replyText.trim().length >= 50) {
     // Only store substantive replies (>= 50 chars) — skip "ok" / "thanks"
     try {
-      await db.insert(schema.memories).values({
-        scopeType: "self",
-        scopeId: networkUser.id,
-        type: "voice_model",
-        content: replyText.trim().slice(0, 2000),
-        source: "system",
-        metadata: {
-          collectedFrom: "inbound_email",
-          subject,
-          collectedAt: new Date().toISOString(),
-        },
-      });
-      console.log(`[inbound] Stored voice model sample for user ${networkUser.id.slice(0, 8)} (${replyText.trim().length} chars)`);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const [recentSample] = await db
+        .select({ id: schema.memories.id })
+        .from(schema.memories)
+        .where(
+          and(
+            eq(schema.memories.scopeType, "self"),
+            eq(schema.memories.scopeId, networkUser.id),
+            eq(schema.memories.type, "voice_model"),
+            gte(schema.memories.createdAt, oneHourAgo),
+          ),
+        )
+        .limit(1);
+
+      if (!recentSample) {
+        await db.insert(schema.memories).values({
+          scopeType: "self",
+          scopeId: networkUser.id,
+          type: "voice_model",
+          content: replyText.trim().slice(0, 2000),
+          source: "system",
+          metadata: {
+            collectedFrom: "inbound_email",
+            subject,
+            collectedAt: new Date().toISOString(),
+          },
+        });
+        console.log(`[inbound] Stored voice model sample for user ${networkUser.id.slice(0, 8)} (${replyText.trim().length} chars)`);
+      }
     } catch {
       // Voice model collection is non-fatal
     }
@@ -795,11 +816,20 @@ export async function processInboundEmail(
 
   if (classification === "positive") {
     console.log(
-      `[inbound] Positive reply from ${senderEmail} — event: positive-reply (chain trigger)`,
+      `[inbound] Positive reply from ${senderEmail} — firing positive-reply event`,
     );
-    // Note: Event-type chain triggers (connecting-introduction) are logged
-    // but not yet active (098a AC11). When event handlers are fully wired,
-    // this will fire the "positive-reply" event.
+
+    // Brief 126: Fire the chain trigger event for connecting-introduction.
+    // Chain-spawned processes inherit the more restrictive trust tier (098a AC9).
+    fireEvent("positive-reply", {
+      personId: person.id,
+      userId: person.userId,
+      email: senderEmail,
+      subject,
+      replyText: replyText.slice(0, 500),
+    }).catch((err) => {
+      console.error(`[inbound] fireEvent("positive-reply") failed:`, err);
+    });
 
     // Notify user immediately — this is the most exciting thing that can happen
     notifyUserImmediately(person.userId, person.id, "positive_reply", {

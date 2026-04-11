@@ -305,14 +305,14 @@ describe("process-loader", () => {
   });
 
   describe("callable_as metadata (Brief 117)", () => {
-    it("all 25 templates have callable_as: sub-process", () => {
+    it("all templates have callable_as: sub-process", () => {
       const templateDir = path.join(process.cwd(), "processes", "templates");
       const all = loadAllProcesses(
         path.join(process.cwd(), "processes"),
         templateDir,
       );
       const templates = all.filter((d) => d.template === true);
-      expect(templates.length).toBe(26);
+      expect(templates.length).toBe(28);
       for (const t of templates) {
         expect(t.callable_as).toBe("sub-process");
       }
