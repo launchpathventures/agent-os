@@ -135,12 +135,11 @@ function shouldTrigger(
     }
 
     case "high-stakes": {
-      // High stakes = outbound actions or external consequences
+      // High stakes = outbound actions or sending as user's voice (ghost/principal)
       const hasOutbound = context.stagedOutboundActions.length > 0;
-      const hasSendingIdentity = context.sendingIdentity !== null;
-      const isGhostOrPrincipal =
+      const isSendingAsUser =
         context.sendingIdentity === "ghost" || context.sendingIdentity === "principal";
-      return hasOutbound || hasSendingIdentity || isGhostOrPrincipal;
+      return hasOutbound || isSendingAsUser;
     }
 
     case "novel-input":
