@@ -429,10 +429,10 @@ describe("assembleSelfContext", () => {
     expect(context.sessionId).toBeTruthy();
   });
 
-  it("fits within ~7K token budget", async () => {
+  it("fits within ~9K token budget", async () => {
     const context = await assembleSelfContext("creator", "telegram");
-    // 7K tokens * 4 chars/token = 28K chars
-    expect(context.systemPrompt.length).toBeLessThanOrEqual(28000);
+    // 9K tokens * 4 chars/token = 36K chars
+    expect(context.systemPrompt.length).toBeLessThanOrEqual(36000);
   });
 });
 

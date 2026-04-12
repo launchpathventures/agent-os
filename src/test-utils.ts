@@ -526,6 +526,7 @@ function createTables(sqlite: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
       expires_at INTEGER NOT NULL,
+      learned TEXT,
       authenticated_email TEXT
     );
 

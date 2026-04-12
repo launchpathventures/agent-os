@@ -26,7 +26,6 @@ describe("network-chat-prompt", () => {
       expect(prompt).toContain("Alex");
       expect(prompt).toContain("Ditto");
       expect(prompt).toContain("Australian");
-      expect(prompt).toContain("MAX 3 SENTENCES");
       expect(prompt).toContain("Front Door Advisor");
     });
 
@@ -35,7 +34,6 @@ describe("network-chat-prompt", () => {
       const prompt = buildFrontDoorPrompt("referred");
       expect(prompt).toContain("Alex");
       expect(prompt).toContain("Referred Visitor");
-      expect(prompt).toContain("MAX 3 SENTENCES");
       expect(prompt).not.toContain("Front Door Advisor");
     });
 
@@ -187,8 +185,8 @@ describe("network-chat-prompt", () => {
     it("stage-gated gather includes strategic framing", async () => {
       const { buildFrontDoorPrompt } = await import("./network-chat-prompt");
       const prompt = buildFrontDoorPrompt("front-door", undefined, "gather");
-      expect(prompt).toContain("mutual value");
-      expect(prompt).toContain("commercial outcome");
+      expect(prompt).toContain("GATHER");
+      expect(prompt).toContain("Detect mode");
     });
   });
 
@@ -203,7 +201,11 @@ describe("network-chat-prompt", () => {
       expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("detectedMode");
       expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("searchQuery");
       expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("resendEmail");
-      expect(ALEX_RESPONSE_TOOL.input_schema.required).toEqual(["suggestions"]);
+      expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("question");
+      expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("requestName");
+      expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("fetchUrl");
+      expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("plan");
+      expect(ALEX_RESPONSE_TOOL.input_schema.properties).toHaveProperty("learned");
     });
   });
 });

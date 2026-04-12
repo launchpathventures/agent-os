@@ -226,6 +226,56 @@ const builtInTools: Record<string, BuiltInTool> = {
     },
   },
 
+  // ---- Web tools (GTM pipeline, front door) ----
+  "web-search": {
+    definition: {
+      name: "web_search",
+      description:
+        "Search the web in real-time via Perplexity Sonar. Returns a synthesized answer with sources. Use for researching people, companies, pain signals, competitors, and market trends.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query — natural language question or keywords",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { webSearch } = await import("./web-search");
+      const query = input.query as string;
+      const result = await webSearch(query);
+      return result ?? "No results — PERPLEXITY_API_KEY may not be configured.";
+    },
+  },
+
+  "web-fetch": {
+    definition: {
+      name: "web_fetch",
+      description:
+        "Fetch a URL and extract readable text content. Use for reading websites, profiles, portfolios, articles, and landing pages shared during research or outreach.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          url: {
+            type: "string",
+            description: "The URL to fetch (https:// added automatically if missing)",
+          },
+        },
+        required: ["url"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { fetchUrlContent } = await import("./web-fetch");
+      const url = input.url as string;
+      const result = await fetchUrlContent(url);
+      if (result.error) return `Error: ${result.error}`;
+      return result.content ?? "No readable content extracted from the page.";
+    },
+  },
+
   // ---- Knowledge tools (Brief 079) ----
   "knowledge.search": {
     definition: {

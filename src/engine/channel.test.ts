@@ -322,11 +322,11 @@ describe("AgentMailAdapter", () => {
     expect(result.messageId).toBe("am-msg-123");
     expect(result.threadId).toBe("am-thread-456");
 
-    expect(mockSend).toHaveBeenCalledWith("inbox-1", {
+    expect(mockSend).toHaveBeenCalledWith("inbox-1", expect.objectContaining({
       to: ["recipient@example.com"],
       subject: "Hello from Alex",
       text: expect.stringContaining("Alex\nDitto"),
-    });
+    }));
   });
 
   it("replies to an existing message (threading)", async () => {
@@ -350,7 +350,7 @@ describe("AgentMailAdapter", () => {
     expect(mockReply).toHaveBeenCalledWith(
       "inbox-1",
       "am-msg-123",
-      { text: expect.stringContaining("Mira\nDitto") },
+      expect.objectContaining({ text: expect.stringContaining("Mira\nDitto") }),
     );
   });
 
