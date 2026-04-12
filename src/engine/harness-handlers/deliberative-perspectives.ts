@@ -169,10 +169,18 @@ async function runLensGeneration(
       ? `\nEvaluation questions:\n${lens.evaluationQuestions.map((q) => `- ${q}`).join("\n")}`
       : "";
 
-    // Inject relevant memories if memoryCategories specified
+    // Inject relevant memories filtered by category keywords.
+    // The memories string is pre-assembled by memory-assembly handler as
+    // "[type] content" lines. We filter lines matching the lens's requested
+    // categories for targeted injection (ADR-028 §2, ADR-022 integration).
     let memoryBlock = "";
     if (lens.memoryCategories && lens.memoryCategories.length > 0 && context.memories) {
-      memoryBlock = `\nRelevant accumulated knowledge:\n${context.memories.slice(0, 500)}`;
+      const lines = context.memories.split("\n");
+      const relevant = lines.filter((line) =>
+        lens.memoryCategories!.some((cat) => line.toLowerCase().includes(cat.replace("_", " ")))
+      );
+      const filtered = relevant.length > 0 ? relevant.join("\n") : context.memories;
+      memoryBlock = `\nRelevant accumulated knowledge:\n${filtered.slice(0, 500)}`;
     }
 
     const systemPrompt = `${lens.systemPrompt}${questionsBlock}${memoryBlock}
@@ -193,6 +201,8 @@ Respond with a JSON object:
     const response = await createCompletion({
       model,
       system: systemPrompt,
+      // Output truncated to 2000 chars per lens for cost control.
+      // Lenses get more than the composer (1500) since they do deeper analysis.
       messages: [{ role: "user", content: `Evaluate this output:\n\n${outputText.slice(0, 2000)}` }],
       maxTokens: 1024,
     });
@@ -336,24 +346,34 @@ export const deliberativePerspectivesHandler: HarnessHandler = {
     // --------------------------------------------------------
     // Stage 0: Lens Composition
     // --------------------------------------------------------
-    const composerResult = await composeLenses({
-      output: outputText,
-      processContext: {
-        name: context.processDefinition.name,
-        qualityCriteria: context.processDefinition.quality_criteria || [],
-        goalAncestry: [], // Goal ancestry not in context — leave empty
-        trustTier: context.trustTier,
-        runCount: 0, // Run count not in context — leave 0
-      },
-      decisionSignals: {
-        confidence: (context.stepResult?.confidence as "high" | "medium" | "low") ?? "medium",
-        stakes: context.stagedOutboundActions.length > 0 ? "high" : "medium",
-        domain: context.processDefinition.description || context.processDefinition.name,
-      },
-      memories: context.memories,
-      composerHints: config.composerHints,
-      maxLenses: effectiveMaxLenses,
-    });
+    let composerResult;
+    try {
+      composerResult = await composeLenses({
+        output: outputText,
+        processContext: {
+          name: context.processDefinition.name,
+          qualityCriteria: context.processDefinition.quality_criteria || [],
+          goalAncestry: [], // Goal ancestry not available in HarnessContext — MVP simplification
+          trustTier: context.trustTier,
+          runCount: 0, // Run count not available in HarnessContext — MVP simplification
+        },
+        decisionSignals: {
+          confidence: (context.stepResult?.confidence as "high" | "medium" | "low") ?? "medium",
+          stakes: context.stagedOutboundActions.length > 0 ? "high" : "medium",
+          domain: context.processDefinition.description || context.processDefinition.name,
+        },
+        memories: context.memories,
+        composerHints: config.composerHints,
+        maxLenses: effectiveMaxLenses,
+      });
+    } catch {
+      // Lens Composer LLM call failed — skip perspectives gracefully
+      context.reviewDetails = {
+        ...context.reviewDetails,
+        perspectives: { skipped: true, reason: "composer_failed" },
+      };
+      return context;
+    }
 
     totalCostCents += composerResult.costCents;
 

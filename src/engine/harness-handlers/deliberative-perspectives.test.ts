@@ -610,4 +610,97 @@ describe("deliberativePerspectivesHandler.execute", () => {
     // 7 existing + 5 composer + 10 lens = 22
     expect(result.reviewCostCents).toBe(22);
   });
+
+  it("skips gracefully when composer LLM call fails", async () => {
+    mockCreateCompletion.mockRejectedValueOnce(new Error("LLM service unavailable"));
+
+    const ctx = makeContext({
+      stepDefinition: makeStep({
+        config: { perspectives: { enabled: true, trigger: "always" } },
+      }),
+    });
+
+    const result = await deliberativePerspectivesHandler.execute(ctx);
+
+    const perspectives = result.reviewDetails.perspectives as Record<string, unknown>;
+    expect(perspectives.skipped).toBe(true);
+    expect(perspectives.reason).toBe("composer_failed");
+    // Should not throw — graceful degradation
+  });
+
+  it("runs peer review with malformed JSON — keeps original perspectives", async () => {
+    const composerResponse = makeLlmResponse(JSON.stringify({
+      lenses: [
+        { id: "lens-1", cognitiveFunction: "Test 1", systemPrompt: "Test 1", evaluationQuestions: [] },
+        { id: "lens-2", cognitiveFunction: "Test 2", systemPrompt: "Test 2", evaluationQuestions: [] },
+      ],
+    }), 1);
+
+    const lensResponse = makeLlmResponse(JSON.stringify({
+      assessment: "Original assessment",
+      signals: [{ type: "risk", summary: "A risk", severity: "minor" }],
+      confidence: "high",
+    }), 2);
+
+    // Peer review returns malformed JSON
+    const malformedPeerReview = makeLlmResponse("This is not valid JSON at all {{{", 1);
+
+    mockCreateCompletion
+      .mockResolvedValueOnce(composerResponse)   // Stage 0
+      .mockResolvedValueOnce(lensResponse)        // Stage 1 lens 1
+      .mockResolvedValueOnce(lensResponse)        // Stage 1 lens 2
+      .mockResolvedValueOnce(malformedPeerReview) // Stage 2 peer review 1 (malformed)
+      .mockResolvedValueOnce(malformedPeerReview); // Stage 2 peer review 2 (malformed)
+
+    const ctx = makeContext({
+      stepDefinition: makeStep({
+        config: { perspectives: { enabled: true, trigger: "always", peer_review: true } },
+      }),
+    });
+
+    const result = await deliberativePerspectivesHandler.execute(ctx);
+
+    const perspectives = result.reviewDetails.perspectives as Record<string, unknown>;
+    const lenses = perspectives.lenses as Array<Record<string, unknown>>;
+    expect(lenses).toHaveLength(2);
+    // Original assessments should be preserved when peer review fails to parse
+    expect(lenses[0].assessment).toBe("Original assessment");
+    expect(lenses[1].assessment).toBe("Original assessment");
+  });
+});
+
+// ============================================================
+// canHandle: high-stakes sendingIdentity branch
+// ============================================================
+
+describe("deliberativePerspectivesHandler.canHandle (high-stakes identity)", () => {
+  it("returns true with high-stakes when sendingIdentity is ghost", () => {
+    const ctx = makeContext({
+      stepDefinition: makeStep({
+        config: { perspectives: { enabled: true, trigger: "high-stakes" } },
+      }),
+      sendingIdentity: "ghost",
+    });
+    expect(deliberativePerspectivesHandler.canHandle(ctx)).toBe(true);
+  });
+
+  it("returns true with high-stakes when sendingIdentity is principal", () => {
+    const ctx = makeContext({
+      stepDefinition: makeStep({
+        config: { perspectives: { enabled: true, trigger: "high-stakes" } },
+      }),
+      sendingIdentity: "principal",
+    });
+    expect(deliberativePerspectivesHandler.canHandle(ctx)).toBe(true);
+  });
+
+  it("returns false with high-stakes when sendingIdentity is agent-of-user (not high stakes)", () => {
+    const ctx = makeContext({
+      stepDefinition: makeStep({
+        config: { perspectives: { enabled: true, trigger: "high-stakes" } },
+      }),
+      sendingIdentity: "agent-of-user",
+    });
+    expect(deliberativePerspectivesHandler.canHandle(ctx)).toBe(false);
+  });
 });

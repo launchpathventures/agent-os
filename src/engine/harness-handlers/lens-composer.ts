@@ -36,7 +36,14 @@ export interface LensComposerInput {
     stakes: "low" | "medium" | "high";
     domain: string;
   };
-  /** Pre-assembled memories string from context (may include failure patterns) */
+  /**
+   * Pre-assembled memories string from harness context.
+   * MVP simplification: ADR-028 §2 specifies userContext (cognitiveMode,
+   * recentCorrections, operatingCycle) and decisionSignals.novelty, but
+   * these are not yet available in HarnessContext. The memories string is
+   * a pragmatic proxy — it includes failure patterns and corrections that
+   * inform lens generation. Structured category access is a follow-up.
+   */
   memories: string;
   /** Optional domain hints from process config */
   composerHints: string[];
@@ -100,7 +107,7 @@ export async function composeLenses(
     model,
     system: COMPOSER_SYSTEM_PROMPT,
     messages: [{ role: "user", content: contextMessage }],
-    maxTokens: 1024,
+    maxTokens: 512, // ADR-028 §3: target ~200 output tokens; cap at 512 for safety
   });
 
   const costCents = response.costCents;
@@ -142,6 +149,9 @@ function buildComposerContext(input: LensComposerInput): string {
   }
 
   parts.push(`\nMax lenses: ${input.maxLenses}`);
+  // Output truncated to 1500 chars for composer cost control.
+  // The composer only needs enough to understand the decision domain,
+  // not the full output. Lenses receive a larger slice (2000 chars).
   parts.push(`\nOutput to evaluate:\n${input.output.slice(0, 1500)}`);
 
   return parts.join("\n");
