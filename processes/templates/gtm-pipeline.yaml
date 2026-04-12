@@ -1,0 +1,372 @@
+# Ditto — Template Process: GTM Pipeline
+#
+# The universal go-to-market cycle. Works for any product, service,
+# or project that needs to find its audience and grow.
+#
+# Not a marketing automation tool. A thinking partner that asks:
+# who are we talking to, what do they actually care about, where
+# are they, and is any of this working?
+#
+# Archetype: SENSE -> ASSESS -> ACT -> GATE -> LAND -> LEARN -> BRIEF
+#
+# Provenance: Insight-168 (archetype), Ditto's own GTM cycle (dogfood)
+
+name: GTM Pipeline
+id: gtm-pipeline
+version: 1
+status: active
+template: true
+callable_as: sub-process
+
+operator: user-agent
+
+description: >
+  Weekly go-to-market cycle for any product, service, or project.
+  Three tracks run in parallel: (1) credibility — prove you know what
+  you're talking about, (2) content — name the pain your audience feels,
+  (3) outreach — talk directly to people who have that pain. Each track
+  feeds the others. The cycle learns what works and kills what doesn't.
+
+trigger:
+  type: schedule
+  cron: "0 8 * * 1"
+  description: >
+    Weekly on Monday mornings. Also on-demand: "What should we do
+    for GTM this week?" or "How's the launch going?"
+
+inputs:
+  - name: gtmContext
+    type: json
+    source: self
+    required: true
+    description: >
+      The GTM context, built up over time through conversation:
+      - What you're selling (product, service, offer)
+      - Who it's for (in their words, not yours — what they say
+        out loud when they're frustrated)
+      - Why it's different (the moment someone tries yours and
+        can't go back to the alternative)
+      - Where they hang out (channels, communities, events)
+      - What's been tried so far and what happened
+
+  - name: lastCycleResults
+    type: json
+    source: self
+    required: false
+    description: >
+      Last cycle's results: what was published, engagement numbers,
+      outreach responses, sign-ups, any surprises.
+
+steps:
+  # ─── SENSE ────────────────────────────────────────────────────
+  - id: sense
+    name: "SENSE: What's happening out there?"
+    executor: ai-agent
+    description: >
+      Scan for signals since last cycle:
+
+      Your audience:
+      - Are people talking about the problem you solve? Where?
+      - Any new complaints, frustrations, or wishes you can respond to?
+      - Competitor moves — new launches, pricing changes, content?
+
+      Your channels:
+      - How did last week's content perform? What got shared vs ignored?
+      - Any inbound interest? (emails, DMs, comments, sign-ups)
+      - Referral sources — where are people finding you?
+
+      The world:
+      - Industry news or trends that create an opening?
+      - Seasonal or timing factors? (events, holidays, budget cycles)
+
+      Report signals, not noise. Only flag things worth acting on.
+    config:
+      model_hint: capable
+      cyclePhase: sense
+    tools:
+      - web-search
+    inputs: [gtmContext, lastCycleResults]
+    outputs: [signals]
+
+  # ─── ASSESS ───────────────────────────────────────────────────
+  - id: assess
+    name: "ASSESS: What do we do this week?"
+    executor: ai-agent
+    description: >
+      Pick 3-5 specific plays for this week. Each play is one
+      thing you can actually finish in a week.
+
+      For each play:
+      - What: the specific thing to create or do
+      - Who sees it: which segment of your audience
+      - Where: which channel or platform
+      - The hook: why would they stop scrolling? (in their words)
+      - Track: credibility | content | outreach
+      - Effort: how many hours to produce
+
+      Prioritisation:
+      1. What's already working? Do more. Don't abandon momentum.
+      2. What pain is loudest right now? Respond to it while it's hot.
+      3. What hasn't been tried? One experiment per week max.
+      4. What should we stop? Kill underperforming plays explicitly.
+
+      If last week had zero traction on a channel, don't repeat
+      the same play hoping for different results. Diagnose or drop.
+    config:
+      model_hint: capable
+      cyclePhase: assess
+    inputs: [signals, gtmContext]
+    outputs: [weekly-plays]
+
+  # ─── ACT: Credibility track ──────────────────────────────────
+  - id: act-credibility
+    name: "ACT: Build credibility"
+    executor: ai-agent
+    description: >
+      Produce credibility-track deliverables for this week.
+
+      Credibility = proof you know what you're talking about.
+      Not claims. Proof. Examples:
+      - A case study showing real results
+      - A behind-the-scenes breakdown of how you built something
+      - A free tool, template, or resource that's genuinely useful
+      - A talk, webinar, or live demo
+      - A public artifact (open source repo, published data, benchmark)
+      - An expert opinion on something happening in your industry
+
+      The test: would your audience save or bookmark this even if
+      they never bought from you? If not, it's marketing, not credibility.
+
+      Voice: authoritative but not arrogant. Teach, don't preach.
+    config:
+      model_hint: capable
+      cyclePhase: act
+    inputs: [weekly-plays]
+    outputs: [credibility-content]
+
+  # ─── ACT: Content track ──────────────────────────────────────
+  - id: act-content
+    name: "ACT: Name the pain"
+    executor: sub-process
+    description: >
+      Produce content-track deliverables for this week.
+
+      Content = naming a pain your audience feels but hasn't
+      articulated. Not features. Not benefits. The pain itself.
+
+      The formula:
+      1. Name the pain (in words they'd actually say out loud)
+      2. Show why the current way of handling it doesn't work
+      3. Show the moment where things could be different
+      4. Make it obvious what to do next
+
+      Good: "I spend 3 hours every Monday reconciling invoices
+      and I know a machine should be doing this."
+      Bad: "Our AI-powered reconciliation platform leverages
+      advanced machine learning to streamline your workflows."
+
+      If your audience wouldn't say it at a pub, don't write it.
+    config:
+      cyclePhase: act
+      process_id: content-creation
+    inputs: [weekly-plays]
+    outputs: [pain-content]
+
+  # ─── ACT: Outreach track ─────────────────────────────────────
+  - id: act-outreach
+    name: "ACT: Talk to real people"
+    executor: ai-agent
+    description: >
+      Produce outreach-track deliverables for this week.
+
+      Outreach = direct conversation with people who have the pain.
+      Not mass email. Not "just checking in." Real, personalised,
+      specific outreach to specific people.
+
+      Find people who:
+      - Recently complained about the problem you solve (on X, forums,
+        LinkedIn, review sites)
+      - Are in your ICP and recently changed something relevant
+        (new role, new company, new initiative)
+      - Were referred by someone in your network
+      - Engaged with your content but haven't converted
+
+      For each person, draft a message that:
+      - References something specific about them (not their company bio)
+      - Gives value before asking for anything
+      - Is short enough to read on a phone
+      - Has a low-friction next step (not "book a demo" — more like
+        "would this be useful for you?")
+
+      Better to send 5 perfect messages than 50 generic ones.
+    config:
+      model_hint: capable
+      cyclePhase: act
+    inputs: [weekly-plays]
+    outputs: [outreach-drafts]
+
+  # ─── GATE ─────────────────────────────────────────────────────
+  - id: gate
+    name: "GATE: Would you be proud of this?"
+    executor: ai-agent
+    description: >
+      Review everything before it goes out. One question per piece:
+      "Would I be proud to put my name on this?"
+
+      Credibility content:
+      - Is it actually useful or just self-promotional?
+      - Would an expert in the field respect it?
+      - Is it accurate?
+
+      Pain content:
+      - Does it sound like a human wrote it or like AI generated it?
+      - Would the target audience read past the first sentence?
+      - Is it about them or about you?
+
+      Outreach:
+      - Is it genuinely personalised or template with [NAME] swapped?
+      - Would you be happy to receive this message?
+      - Does it give before it asks?
+
+      Kill anything mediocre. Two great things beat five forgettable ones.
+      Mediocre content actively hurts your brand.
+    config:
+      cyclePhase: gate
+    trustOverride: supervised
+    inputs: [credibility-content, pain-content, outreach-drafts]
+    outputs: [approved-content]
+
+  # ─── LAND ─────────────────────────────────────────────────────
+  - id: land-publish
+    name: "LAND: Publish content"
+    executor: sub-process
+    description: >
+      Publish approved credibility and pain content to the right
+      channels at the right times.
+    config:
+      cyclePhase: land
+      process_id: social-publishing
+    inputs: [approved-content]
+    outputs: [publish-results]
+
+  - id: land-outreach
+    name: "LAND: Send outreach"
+    executor: sub-process
+    description: >
+      Send approved outreach. Track sends and responses.
+    config:
+      cyclePhase: land
+      process_id: selling-outreach
+    inputs: [approved-content]
+    outputs: [outreach-results]
+
+  # ─── LEARN ────────────────────────────────────────────────────
+  - id: learn
+    name: "LEARN: What actually worked?"
+    executor: ai-agent
+    description: >
+      End-of-week honest assessment:
+
+      For each play:
+      - Did it get attention? (impressions, engagement, replies)
+      - Did it drive action? (clicks, sign-ups, conversations)
+      - Was it worth the effort?
+
+      Patterns:
+      - Which hooks get the strongest reaction?
+      - Which channels are worth the time vs which are vanity?
+      - Is the credibility → content → outreach flywheel spinning?
+        (credibility gets shared → content names the pain → outreach
+        converts because they've already seen you → new users
+        generate stories → more credibility)
+      - What did we learn about our audience that we didn't know before?
+
+      Be honest. "Nothing worked this week" is a valid finding.
+      "Everything is going great" is almost never true.
+
+      Update the GTM context with new learnings.
+    config:
+      model_hint: capable
+      cyclePhase: learn
+    trustOverride: autonomous
+    inputs: [publish-results, outreach-results]
+    outputs: [learnings]
+
+  # ─── BRIEF ───────────────────────────────────────────────────
+  - id: brief
+    name: "BRIEF: This week in GTM"
+    executor: ai-agent
+    description: >
+      Produce a 60-second GTM digest:
+
+      - The number: one headline metric that tells the story
+        this week (could be engagement, sign-ups, reply rate,
+        or "zero — nothing landed")
+      - What worked: 1-2 lines, specific
+      - What didn't: 1-2 lines, specific
+      - Surprise: one thing you didn't expect
+      - Next week: 3 plays to run (carried forward or new)
+      - Gut check: is the overall trajectory up, flat, or down?
+
+      No fluff. No "continued to build momentum." Specifics only.
+    config:
+      model_hint: capable
+      cyclePhase: brief
+    trustOverride: autonomous
+    inputs: [learnings]
+    outputs: [gtm-digest]
+
+outputs:
+  - name: gtm-digest
+    type: json
+    destination: user
+    description: >
+      Weekly GTM digest: headline metric, what worked, what didn't,
+      surprise, next plays, trajectory.
+
+quality_criteria:
+  - "Every piece of content names a specific pain, not a feature"
+  - "Outreach is personalised — no templates with name-swaps"
+  - "The gate actually kills mediocre content, not rubber-stamps everything"
+  - "Plays are specific and completable in a week"
+  - "The digest is honest, not optimistic"
+  - "Learnings actually change next week's plays (no repeating failures)"
+
+feedback:
+  metrics:
+    - name: content_engagement
+      description: Average engagement rate across published content
+      target: "increasing trend"
+    - name: outreach_reply_rate
+      description: Reply rate on personalised outreach
+      target: ">15%"
+    - name: funnel_movement
+      description: >
+        People moving through: aware → interested → trying → using
+      target: "positive weekly flow"
+    - name: plays_killed
+      description: >
+        Plays stopped because they weren't working. Zero means
+        you're not being honest enough.
+      target: ">0 per month"
+    - name: time_to_produce
+      description: Hours spent producing this week's content
+      target: "decreasing trend (efficiency)"
+  capture:
+    - user_edits_to_content
+    - user_edits_to_outreach
+    - plays_user_added_or_cut
+    - hooks_that_resonated
+    - audience_language_captured
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "4 cycles with >80% content approval and honest retrospectives"
+      upgrade_to: spot_checked
+    - after: "12 cycles with funnel growth and <15% edit rate"
+      upgrade_to: autonomous
+  downgrade_triggers:
+    - "User rewrites content entirely (voice mismatch)"
+    - "Outreach generates complaints or opt-outs >5%"
+    - "Digest was wrong about what worked (user corrects metrics)"

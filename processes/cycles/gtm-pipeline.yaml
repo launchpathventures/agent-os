@@ -1,0 +1,356 @@
+# Ditto — Operating Cycle: GTM Pipeline
+#
+# Archetype: SENSE -> ASSESS -> ACT -> GATE -> LAND -> LEARN -> BRIEF
+# Runs the full go-to-market loop: who are we talking to, what do we
+# say, where do we say it, did it work, what do we change.
+#
+# This is Ditto's own GTM cycle. It eats its own cooking — the same
+# harness that runs user processes runs the product's own launch.
+#
+# Provenance: Insight-168 (archetype), Insight-147 (recipient = growth engine),
+# Insight-155 (every email drives acquisition), Insight-154 (value before identity)
+
+name: GTM Pipeline Cycle
+id: gtm-pipeline-cycle
+version: 1
+status: active
+
+operator: alex-or-mira
+defaultIdentity: principal
+
+description: >
+  Ditto's go-to-market operating cycle. Runs weekly. Covers three
+  concurrent tracks: (1) developer credibility via open source,
+  (2) content that shows vs tells, (3) direct outreach to people
+  who already feel the pain. Each track feeds the others — open source
+  gets attention, attention generates content, content warms outreach,
+  outreach generates users, users generate stories. The flywheel.
+
+trigger:
+  type: schedule
+  cron: "0 8 * * 1"
+  description: >
+    Monday mornings. Also triggered on-demand: "What should we
+    be doing on GTM this week?"
+
+inputs:
+  - name: gtmPlan
+    type: json
+    source: self
+    required: true
+    description: >
+      The current GTM plan: target audiences (developer community,
+      outcome owners), active hooks, channel priorities, open source
+      repos in flight, content calendar, outreach targets.
+
+  - name: lastCycleResults
+    type: json
+    source: self
+    required: false
+    description: >
+      Results from the last GTM cycle: what was published, engagement
+      metrics, repo stars/forks, outreach responses, sign-ups, funnel
+      movement.
+
+steps:
+  # ─── SENSE: What happened since last cycle? ───────────────────
+  - id: sense
+    name: "SENSE: Scan the landscape"
+    executor: ai-agent
+    description: >
+      Review what happened since last cycle across all three tracks:
+
+      Developer track:
+      - Open source repo activity (stars, forks, issues, PRs)
+      - Mentions on X, Hacker News, Reddit, Discord
+      - Developer questions or feedback that signal what resonates
+
+      Content track:
+      - Published content performance (engagement, shares, saves)
+      - Competitor content moves (what are they saying?)
+      - Trending topics in the agent/AI space we should respond to
+
+      Outreach track:
+      - Email outreach responses (interested, not now, unsubscribed)
+      - Front door conversations (who's showing up, what are they asking?)
+      - Referral traffic (who's sending people to us, from where?)
+
+      Also scan for pain signals — people complaining on X about
+      the exact problems Ditto solves ("ChatGPT keeps forgetting",
+      "I spent all day re-explaining context", "AI email tools are spam").
+    config:
+      model_hint: capable
+      cyclePhase: sense
+    tools:
+      - web-search
+    inputs: [gtmPlan, lastCycleResults]
+    outputs: [landscape-signals]
+
+  # ─── ASSESS: What's working, what's not, what to prioritise ───
+  - id: assess
+    name: "ASSESS: Prioritise this week's plays"
+    executor: ai-agent
+    description: >
+      Based on landscape signals, decide what to focus on this week.
+      Max 5 plays. Each play must be specific and completable in a week.
+
+      Prioritisation criteria:
+      1. What's already getting traction? Do more of that.
+      2. What pain signals are loudest right now? Respond to those.
+      3. What's stale or underperforming? Stop or pivot.
+      4. What's the one thing that could 10x attention this week?
+         (A viral thread, a repo launch, a demo video, a hot take)
+
+      For each play, specify:
+      - What: the specific deliverable
+      - Who: which audience sees it
+      - Where: which channel
+      - Hook: why anyone would care (in their words, not ours)
+      - Track: developer credibility | content | outreach
+      - Effort: hours to produce
+    config:
+      model_hint: capable
+      cyclePhase: assess
+    inputs: [landscape-signals, gtmPlan]
+    outputs: [weekly-plays]
+
+  # ─── ACT: Produce the content and outreach ────────────────────
+  - id: act-developer
+    name: "ACT: Developer credibility track"
+    executor: ai-agent
+    description: >
+      Execute developer-track plays for this week:
+      - Draft README updates, code examples, or new extractions
+        for open source repos
+      - Draft X threads that teach something real (code snippets,
+        architecture decisions, patterns) — not marketing speak
+      - Respond to developer questions/issues on repos
+      - Draft Hacker News or Reddit posts if a repo launch is planned
+
+      Voice: technical, opinionated, specific. Show the code.
+      No corporate marketing language. Talk like a developer
+      explaining something cool they built to another developer.
+    config:
+      model_hint: capable
+      cyclePhase: act
+    inputs: [weekly-plays]
+    outputs: [developer-content]
+
+  - id: act-content
+    name: "ACT: Pain-point content track"
+    executor: sub-process
+    description: >
+      Execute content-track plays for this week. These target
+      outcome owners (not developers) by naming their pain:
+      - "I spend my whole Sunday doing quotes"
+      - "I told it exactly how I want things and now it's like
+        talking to a stranger"
+      - "It wrote a nice email but I still sent it myself"
+
+      Call the content-creation process with briefs for each
+      content piece. Voice: empathetic, specific, zero jargon.
+      The reader should think "that's exactly my problem."
+    config:
+      cyclePhase: act
+      process_id: content-creation
+    inputs: [weekly-plays]
+    outputs: [outcome-owner-content]
+
+  - id: act-outreach
+    name: "ACT: Direct outreach track"
+    executor: ai-agent
+    description: >
+      Execute outreach-track plays for this week:
+      - Identify specific people who publicly expressed the pains
+        Ditto solves (X posts, LinkedIn complaints, forum threads)
+      - Draft personalised outreach that acknowledges their specific
+        pain, not a generic pitch
+      - Draft influencer/press outreach if relevant this week
+      - Prepare Alex introduction emails for warm prospects
+
+      Every outreach email is a product demo. Alex's quality IS
+      the pitch. If the email itself isn't impressive, nothing
+      else matters.
+    config:
+      model_hint: capable
+      cyclePhase: act
+    inputs: [weekly-plays]
+    outputs: [outreach-drafts]
+
+  # ─── GATE: Quality check everything before it goes out ────────
+  - id: gate
+    name: "GATE: Quality check all outbound"
+    executor: ai-agent
+    description: >
+      Review everything produced this week before it ships:
+
+      Developer content:
+      - Is the code correct and runnable?
+      - Does it teach something, not just promote?
+      - Would a developer respect this or roll their eyes?
+
+      Outcome owner content:
+      - Is it in human language (no jargon, no "leverage", no "paradigm")?
+      - Does it name a real pain the reader has felt?
+      - Is there a clear "this is what Ditto does differently" moment?
+      - Would a tradie or property manager read past the first line?
+
+      Outreach:
+      - Is it personalised (references something specific about them)?
+      - Is it short enough to read on a phone?
+      - Does it give value before asking for anything?
+      - Would you be happy receiving this email yourself?
+
+      Reject anything that feels generic, salesy, or AI-generated.
+      Better to ship 2 great things than 5 mediocre things.
+    config:
+      cyclePhase: gate
+    trustOverride: supervised
+    inputs: [developer-content, outcome-owner-content, outreach-drafts]
+    outputs: [approved-content]
+
+  # ─── LAND: Ship it ────────────────────────────────────────────
+  - id: land-developer
+    name: "LAND: Publish developer content"
+    executor: sub-process
+    description: >
+      Publish approved developer content:
+      - Push code/README changes to repos
+      - Post X threads (schedule for peak developer hours)
+      - Submit to Hacker News / Reddit if launching a repo
+      - Respond to open issues/questions
+    config:
+      cyclePhase: land
+      process_id: social-publishing
+    inputs: [approved-content]
+    outputs: [developer-publish-results]
+
+  - id: land-content
+    name: "LAND: Publish outcome owner content"
+    executor: sub-process
+    description: >
+      Publish approved outcome owner content:
+      - Post to LinkedIn (where outcome owners actually are)
+      - Post to X (for reach and shares)
+      - Email newsletter if active
+    config:
+      cyclePhase: land
+      process_id: social-publishing
+    trustOverride: supervised
+    inputs: [approved-content]
+    outputs: [content-publish-results]
+
+  - id: land-outreach
+    name: "LAND: Send outreach"
+    executor: sub-process
+    description: >
+      Send approved outreach emails via Alex.
+    config:
+      cyclePhase: land
+      process_id: selling-outreach
+    inputs: [approved-content]
+    outputs: [outreach-results]
+
+  # ─── LEARN: What worked? ──────────────────────────────────────
+  - id: learn
+    name: "LEARN: What moved the needle?"
+    executor: ai-agent
+    description: >
+      End-of-week retrospective (runs Friday, or async with results):
+
+      For each play this week:
+      - Did it land? (engagement metrics, responses, sign-ups)
+      - What surprised us? (unexpected traction or unexpected silence)
+      - What should we do again? What should we stop?
+
+      Cross-track patterns:
+      - Which hooks get the strongest reaction?
+      - Which channels are worth the effort vs which are noise?
+      - Is the developer track feeding the content track? (developers
+        sharing → outcome owners seeing → front door visits)
+      - Are outreach recipients converting or just replying?
+
+      Update the GTM plan with learnings. Kill what's not working.
+      Double down on what is.
+    config:
+      model_hint: capable
+      cyclePhase: learn
+    trustOverride: autonomous
+    inputs:
+      - developer-publish-results
+      - content-publish-results
+      - outreach-results
+    outputs: [cycle-learnings]
+
+  # ─── BRIEF: Tell me what happened ────────────────────────────
+  - id: brief
+    name: "BRIEF: Weekly GTM digest"
+    executor: ai-agent
+    description: >
+      Produce a scannable GTM digest for the weekly brief:
+
+      - Headline number (the one metric that matters most this week:
+        could be stars, sign-ups, reply rate, or a single viral post)
+      - Developer track: 2-3 lines (repo activity, community engagement)
+      - Content track: 2-3 lines (what performed, what flopped)
+      - Outreach track: 2-3 lines (responses, meetings, conversions)
+      - Flywheel health: is the loop spinning? (devs → content → outreach → users → stories → devs)
+      - Next week: top 3 plays to carry forward or try
+
+      Format for the user to scan in 60 seconds over coffee.
+    config:
+      model_hint: capable
+      cyclePhase: brief
+    trustOverride: autonomous
+    inputs: [cycle-learnings]
+    outputs: [gtm-digest]
+
+outputs:
+  - name: gtm-digest
+    type: json
+    destination: user
+    description: >
+      Weekly GTM digest: headline metric, track summaries, flywheel
+      health, and next week's top plays.
+
+quality_criteria:
+  - "Every piece of content names a specific pain, not a feature"
+  - "Developer content teaches something real, not just promotes"
+  - "Outreach is personalised — no templates, no spray-and-pray"
+  - "Weekly plays are specific and completable, not vague aspirations"
+  - "The digest is scannable in 60 seconds"
+
+feedback:
+  metrics:
+    - name: content_engagement_rate
+      description: Average engagement across all content published
+      target: "increasing trend"
+    - name: outreach_reply_rate
+      description: Reply rate on direct outreach
+      target: ">15%"
+    - name: front_door_visits
+      description: Weekly front door conversation starts
+      target: "increasing trend"
+    - name: repo_stars_weekly
+      description: New stars across open source repos
+      target: "increasing trend"
+    - name: funnel_conversion
+      description: Front door → active user conversion
+      target: ">5%"
+  capture:
+    - user_edits_to_content
+    - user_edits_to_outreach
+    - plays_that_user_cut_or_added
+    - channel_performance_by_week
+
+trust:
+  initial_tier: supervised
+  upgrade_path:
+    - after: "4 cycles with >80% play approval rate"
+      upgrade_to: spot_checked
+    - after: "12 cycles with consistent quality and funnel growth"
+      upgrade_to: autonomous
+  downgrade_triggers:
+    - "User rejects 3+ pieces in a single cycle"
+    - "Content published that user finds embarrassing"
+    - "Outreach generates complaints"
