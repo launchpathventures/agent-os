@@ -93,17 +93,18 @@ export async function POST(request: Request) {
     } catch { /* env vars may be set via platform */ }
 
     const body = await request.json();
-    const { sessionId, voiceToken, message } = body as {
+    const { sessionId, voiceToken, message, role } = body as {
       sessionId?: string;
       voiceToken?: string;
       message?: string;
+      role?: "user" | "assistant";
     };
 
     if (!sessionId || !voiceToken || !message) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const { loadSessionForVoice, appendTextContext, extractAndMergeLearned } = await import(
+    const { loadSessionForVoice } = await import(
       "../../../../../../../../src/engine/network-chat"
     );
 
@@ -112,7 +113,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    await appendTextContext(session, message);
+    // Save message to session with correct role
+    const { db, schema } = await import("../../../../../../../../src/db");
+    const { eq } = await import("drizzle-orm");
+    session.messages.push({ role: role || "user", content: message });
+    session.messageCount += 1;
+    await db
+      .update(schema.chatSessions)
+      .set({
+        messages: session.messages,
+        messageCount: session.messageCount,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.chatSessions.sessionId, sessionId));
 
     // Fire-and-forget: evaluate conversation in parallel via Haiku
     const { evaluateVoiceConversation } = await import(

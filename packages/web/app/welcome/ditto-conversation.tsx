@@ -997,15 +997,20 @@ export function DittoConversation() {
                           }}
                           onMessage={(role, text) => {
                             setMessages((prev) => [...prev, { role: role === "alex" ? "alex" : "user", text }]);
-                            // User message: send to harness for learning extraction
-                            if (role === "user" && sessionId && voiceToken) {
+                            // Save ALL messages (user + agent) to session so harness sees full conversation
+                            if (sessionId && voiceToken) {
                               fetch("/api/v1/network/chat/session-updates", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ sessionId, voiceToken, message: text }),
+                                body: JSON.stringify({
+                                  sessionId,
+                                  voiceToken,
+                                  message: text,
+                                  role: role === "alex" ? "assistant" : "user",
+                                }),
                               }).catch(() => {});
                             }
-                            // Agent message: push fresh guidance for the next turn
+                            // After agent message: push fresh guidance for the next turn
                             if (role === "alex") pushGuidance();
                           }}
                         />
