@@ -1,0 +1,215 @@
+# Ditto — Template Process: Ghost LinkedIn DM
+#
+# LinkedIn DMs sent AS the user (ghost mode) via Unipile.
+# Strictest trust tier — always critical, never upgrades.
+# No Ditto branding. Messages appear to come from the user.
+#
+# Provenance: Brief 133, Insight-174 (unified channel APIs),
+# ghost-follow-up.yaml (pattern source)
+
+name: Ghost LinkedIn DM
+id: ghost-linkedin-dm
+version: 1
+status: active
+template: true
+callable_as: sub-process
+
+operator: user-agent
+defaultIdentity: ghost
+
+description: >
+  LinkedIn DMs sent as the user themselves (ghost mode) via Unipile.
+  Alex drafts in the user's voice and sends via the user's connected
+  LinkedIn account. Only available for existing connections — never
+  cold outreach to strangers. Always runs at critical trust tier.
+
+trigger:
+  type: event
+  description: >
+    Triggered when the user delegates a LinkedIn DM to an existing contact.
+    Requires: (1) existing relationship (prior interactions), (2) voice
+    model readiness (5+ samples), (3) explicit user delegation,
+    (4) LinkedIn account connected via Unipile.
+
+inputs:
+  - name: personId
+    type: text
+    source: self
+    required: true
+    description: The person to message (must have prior interactions)
+  - name: context
+    type: text
+    source: self
+    required: true
+    description: What the message is about and what the user wants to convey
+  - name: userId
+    type: text
+    source: self
+    required: true
+    description: The user who is delegating this message
+  - name: recipientLinkedinId
+    type: text
+    source: self
+    required: true
+    description: Unipile attendee ID or LinkedIn handle for the recipient
+  - name: chatId
+    type: text
+    source: self
+    required: false
+    description: Existing Unipile chat ID for reply threading
+
+steps:
+  - id: validate-eligibility
+    name: Validate Ghost Eligibility
+    executor: rules
+    description: >
+      Before anything else, verify:
+      - Person has prior interactions with the user (not cold contact)
+      - Voice model is ready (5+ samples)
+      - Person has not opted out
+      - LinkedIn account is connected via Unipile
+      - Daily rate limit not reached (~50 DMs/day)
+      If any check fails, refuse with explanation.
+    inputs:
+      - personId
+      - userId
+    outputs:
+      - eligibility-result
+    config:
+      rules:
+        - check: prior_interaction
+          description: Person must have prior interactions with user (not cold outreach)
+        - check: voice_model_ready
+          description: User must have >= 5 voice model samples
+        - check: linkedin_connected
+          description: User must have a LinkedIn account connected via Unipile
+        - check: rate_limit
+          description: Daily LinkedIn DM limit (~50) must not be exceeded
+    route_to:
+      - condition: "not_eligible"
+        goto: refuse-ghost
+    default_next: draft-ghost-message
+
+  - id: draft-ghost-message
+    name: Draft Ghost LinkedIn DM
+    executor: ai-agent
+    sendingIdentity: ghost
+    description: >
+      Draft a LinkedIn DM in the user's voice. Use the voice model samples
+      to match their writing style exactly. The message should read as if
+      the user typed it themselves. Keep it conversational — LinkedIn DMs
+      are typically shorter and less formal than email. No Ditto branding.
+    config:
+      model_hint: capable
+      person_id: "{personId}"
+    inputs:
+      - context
+      - eligibility-result
+    outputs:
+      - ghost-draft
+
+  - id: approve-ghost-draft
+    name: Approve Ghost Draft
+    executor: trust-gate
+    description: >
+      Present the ghost draft to the user for approval. First message to
+      any new recipient always requires explicit approval. After 3+ clean
+      approvals to the same recipient, spot-checking is allowed (but
+      trust tier stays critical).
+    inputs:
+      - ghost-draft
+    outputs:
+      - approved-draft
+    route_to:
+      - condition: "approved-draft.approved === false"
+        goto: end-process
+    default_next: send-ghost-dm
+
+  - id: send-ghost-dm
+    name: Send Ghost LinkedIn DM
+    executor: integration
+    sendingIdentity: ghost
+    description: >
+      Send the approved DM as the user via Unipile. No Ditto branding.
+      The message appears in the recipient's LinkedIn inbox as if the
+      user sent it directly.
+    config:
+      service: unipile
+      platform: linkedin
+    tools:
+      - unipile.send_message
+    inputs:
+      - approved-draft
+      - personId
+      - userId
+      - recipientLinkedinId
+      - chatId
+    outputs:
+      - send-result
+
+  - id: wait-for-reply
+    name: Wait for Reply
+    executor: wait_for
+    description: >
+      Wait for a reply from the recipient. If no reply within the
+      configured period, the process ends. If a reply comes in,
+      notify the user.
+    config:
+      wait_type: reply
+      timeout_days: 7
+    inputs:
+      - send-result
+    outputs:
+      - reply-result
+
+  - id: refuse-ghost
+    name: Refuse Ghost Mode
+    executor: rules
+    description: >
+      Ghost mode is not available for this request. Provide a clear
+      explanation (no prior relationship, voice model not ready,
+      LinkedIn not connected, rate limit reached, etc.) and suggest
+      alternatives.
+    inputs:
+      - eligibility-result
+    outputs:
+      - refusal-result
+
+  - id: end-process
+    name: End Process
+    executor: rules
+    description: Record outcome and clean up.
+    inputs:
+      - send-result
+    outputs:
+      - process-result
+
+outputs:
+  - name: process-result
+    type: json
+    description: >
+      Outcome: sent, refused (with reason), or rejected by user.
+
+quality_criteria:
+  - "Message matches user's writing voice — sentence length, formality, vocabulary"
+  - "No Ditto branding leaks — no sign-off, no footer, no header"
+  - "Only for existing relationships — never cold outreach"
+  - "Rate limit respected — max ~50 LinkedIn DMs per day"
+
+feedback:
+  metrics:
+    - ghost_approval_rate
+    - voice_match_accuracy_user_rating
+    - recipient_reply_rate
+  capture:
+    - user_edits_to_ghost_drafts
+    - rejections_with_reason
+
+trust:
+  initial_tier: critical
+  upgrade_path: []
+  downgrade_triggers:
+    - "User rejects ghost draft due to voice mismatch"
+    - "Recipient detects AI involvement"
+    - "Ghost DM sent to person with no prior interaction"
+    - "LinkedIn account restricted due to rate limit violation"

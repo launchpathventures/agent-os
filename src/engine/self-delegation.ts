@@ -51,6 +51,7 @@ import {
   handleCycleBriefing,
   handleCycleStatus,
 } from "./self-tools/cycle-tools";
+import { handleBrowseWeb } from "./self-tools/browser-tools";
 import { updateUserModel, type UserModelDimension, USER_MODEL_DIMENSIONS } from "./user-model";
 import { setSessionTrust } from "./session-trust";
 import { createMagicLink } from "./magic-link";
@@ -548,13 +549,13 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "activate_cycle",
-    description: "Start a continuous operating cycle (sales-marketing, network-connecting, relationship-nurture). Asks config questions if incomplete.",
+    description: "Start a continuous operating cycle (sales-marketing, network-connecting, relationship-nurture, gtm-pipeline). Asks config questions if incomplete.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which operating cycle to activate",
         },
         userId: {
@@ -585,20 +586,36 @@ export const selfTools: LlmToolDefinition[] = [
           type: "boolean",
           description: "Run continuously (default: true). If false, runs once.",
         },
+        gtmContext: {
+          type: "object",
+          description: "GTM pipeline context: planName (required), product, audience, differentiator, channels. Required for gtm-pipeline cycle type.",
+          properties: {
+            planName: { type: "string", description: "Unique name for this growth plan" },
+            product: { type: "string", description: "What you're selling (plain language)" },
+            audience: { type: "string", description: "Who it's for (what they say when frustrated)" },
+            differentiator: { type: "string", description: "Why it's different (the moment they can't go back)" },
+            channels: { type: "string", description: "Where the audience is (channels, communities)" },
+          },
+          required: ["planName"],
+        },
       },
       required: ["cycleType"],
     },
   },
   {
     name: "pause_cycle",
-    description: "Pause a running operating cycle. Stops all cycle operations until resumed.",
+    description: "Pause a running operating cycle. Stops all cycle operations until resumed. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to pause",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target (required for gtm-pipeline when multiple plans active)",
         },
       },
       required: ["cycleType"],
@@ -606,14 +623,18 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "resume_cycle",
-    description: "Resume a paused operating cycle.",
+    description: "Resume a paused operating cycle. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to resume",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target (required for gtm-pipeline when multiple plans active)",
         },
       },
       required: ["cycleType"],
@@ -621,14 +642,18 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "cycle_briefing",
-    description: "Generate a standardised briefing for a cycle: context, summary, recommendations, options. The handoff format.",
+    description: "Generate a standardised briefing for a cycle: context, summary, recommendations, options. The handoff format. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to brief on",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target a specific GTM plan",
         },
       },
       required: ["cycleType"],
@@ -699,6 +724,35 @@ export const selfTools: LlmToolDefinition[] = [
         },
       },
       required: ["userEmail", "emailContext"],
+    },
+  },
+  // ============================================================
+  // Brief 134 — Browser Research Skill
+  // ============================================================
+  {
+    name: "browse_web",
+    description: "Browse a URL or search the web and extract structured data. READ-only — for research, profile viewing, data extraction. No form submission or message sending.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        url: {
+          type: "string",
+          description: "URL to navigate to (e.g., LinkedIn profile, company website)",
+        },
+        query: {
+          type: "string",
+          description: "Search query (used when no URL provided — searches via Google)",
+        },
+        extractionGoal: {
+          type: "string",
+          description: "What to extract from the page — natural language instruction (e.g., 'recent posts and activity')",
+        },
+        tokenBudget: {
+          type: "number",
+          description: "Max tokens for Stagehand AI calls (default: 500)",
+        },
+      },
+      required: ["extractionGoal"],
     },
   },
 ];
@@ -898,21 +952,25 @@ export async function executeDelegation(
         boundaries: toolInput.boundaries as string | undefined,
         cadence: toolInput.cadence as string | undefined,
         continuous: toolInput.continuous as boolean | undefined,
+        gtmContext: toolInput.gtmContext as { planName: string; product?: string; audience?: string; differentiator?: string; channels?: string } | undefined,
       });
 
     case "pause_cycle":
       return await handlePauseCycle({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "resume_cycle":
       return await handleResumeCycle({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "cycle_briefing":
       return await handleCycleBriefing({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "cycle_status":
@@ -934,6 +992,15 @@ export async function executeDelegation(
       return await handleGenerateChatLink({
         userEmail: toolInput.userEmail as string,
         emailContext: toolInput.emailContext as string | undefined,
+      });
+
+    // Brief 134 — Browser Research
+    case "browse_web":
+      return await handleBrowseWeb({
+        url: toolInput.url as string | undefined,
+        query: toolInput.query as string | undefined,
+        extractionGoal: toolInput.extractionGoal as string,
+        tokenBudget: toolInput.tokenBudget as number | undefined,
       });
 
     default:

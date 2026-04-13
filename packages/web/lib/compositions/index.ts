@@ -20,6 +20,8 @@ import { composeInbox } from "./inbox";
 import { composeWork } from "./work";
 import { composeProjects } from "./projects";
 import { composeRoutines } from "./routines";
+import { composeGrowth } from "./growth";
+import { composeLibrary } from "./library";
 import { composeRoadmap } from "./roadmap";
 
 export type { CompositionIntent, CompositionContext } from "./types";
@@ -29,6 +31,8 @@ export { composeToday } from "./today";
 export { composeInbox } from "./inbox";
 export { composeWork } from "./work";
 export { composeProjects } from "./projects";
+export { composeGrowth } from "./growth";
+export { composeLibrary } from "./library";
 export { composeRoutines } from "./routines";
 export { composeRoadmap } from "./roadmap";
 
@@ -43,6 +47,8 @@ const COMPOSITION_FUNCTIONS: Record<
   inbox: composeInbox,
   work: composeWork,
   projects: composeProjects,
+  growth: composeGrowth,
+  library: composeLibrary,
   routines: composeRoutines,
   roadmap: composeRoadmap,
 };

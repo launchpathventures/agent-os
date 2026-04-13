@@ -12,6 +12,19 @@
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Light inline formatting: **bold** in step text.
+ */
+function formatInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
 interface ProcessStep {
   name: string;
   description?: string;
@@ -83,11 +96,11 @@ export function ProcessProposal({
                         : "text-text-secondary",
                   )}
                 >
-                  {step.name}
+                  {formatInline(step.name)}
                 </span>
                 {step.description && step.status !== "done" && (
                   <p className="text-xs text-text-tertiary mt-0.5">
-                    {step.description}
+                    {formatInline(step.description)}
                   </p>
                 )}
               </div>

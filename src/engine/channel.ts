@@ -1030,6 +1030,7 @@ function buildOAuth1Header(
   method: string,
   url: string,
   config: XApiConfig,
+  queryParams?: Record<string, string>,
 ): string {
   // Dynamic import avoided — crypto is a Node.js built-in
   const crypto = require("crypto") as typeof import("crypto");
@@ -1047,12 +1048,12 @@ function buildOAuth1Header(
   };
 
   // Build parameter string (sorted).
-  // NOTE: POST body parameters are intentionally excluded from the signature.
-  // Per OAuth 1.0a spec (RFC 5849 §3.4.1.3), only form-encoded body params
-  // are included. X API v2 uses JSON bodies, which are not signed.
-  const paramString = Object.keys(oauthParams)
+  // Per OAuth 1.0a spec (RFC 5849 §3.4.1.3): query params + oauth params
+  // are included in the signature. JSON POST bodies are NOT signed.
+  const allParams: Record<string, string> = { ...oauthParams, ...(queryParams ?? {}) };
+  const paramString = Object.keys(allParams)
     .sort()
-    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(oauthParams[k])}`)
+    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(allParams[k])}`)
     .join("&");
 
   // Build signature base string
@@ -1102,15 +1103,77 @@ export class XApiClient {
   /**
    * Post a single tweet. Returns tweet ID and URL.
    */
+  /**
+   * Upload media (image/video) to X.
+   * Uses v1.1 media upload endpoint (still required for v2 tweets).
+   * Returns media_id_string for attaching to tweets.
+   */
+  /**
+   * Upload media (image) to X via v1.1 media upload endpoint.
+   * Uses multipart/form-data — OAuth signature excludes body params per spec.
+   * Supports images up to 5MB. Videos require chunked upload (not yet implemented).
+   */
+  async uploadMedia(
+    mediaBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ mediaId: string }> {
+    // Size guard: simple upload supports images <5MB only
+    const MAX_SIMPLE_UPLOAD = 5 * 1024 * 1024;
+    if (mediaBuffer.length > MAX_SIMPLE_UPLOAD) {
+      throw new Error(`Media too large for simple upload (${(mediaBuffer.length / 1024 / 1024).toFixed(1)}MB, max 5MB). Video/large image upload not yet supported.`);
+    }
+
+    const uploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
+
+    // Multipart form data — OAuth signature does NOT include multipart body params
+    const boundary = `----DittoMediaUpload${Date.now()}`;
+    const mediaCategory = mimeType.startsWith("video/") ? "tweet_video" : "tweet_image";
+
+    const bodyParts = [
+      `--${boundary}\r\nContent-Disposition: form-data; name="media_data"\r\n\r\n${mediaBuffer.toString("base64")}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="media_category"\r\n\r\n${mediaCategory}\r\n`,
+      `--${boundary}--\r\n`,
+    ];
+    const body = bodyParts.join("");
+
+    // OAuth signature for multipart requests: sign only OAuth params, not body
+    const authHeader = buildOAuth1Header("POST", uploadUrl, this.config);
+
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`X media upload error ${response.status}: ${errorText}`);
+    }
+
+    const data = (await response.json()) as { media_id_string: string };
+    return { mediaId: data.media_id_string };
+  }
+
+  /**
+   * Post a single tweet, optionally with media attachments.
+   */
   async postTweet(
     text: string,
     replyToTweetId?: string,
+    mediaIds?: string[],
   ): Promise<{ tweetId: string; tweetUrl: string }> {
     const url = `${this.baseUrl}/tweets`;
     const body: Record<string, unknown> = { text };
 
     if (replyToTweetId) {
       body.reply = { in_reply_to_tweet_id: replyToTweetId };
+    }
+
+    if (mediaIds && mediaIds.length > 0) {
+      body.media = { media_ids: mediaIds };
     }
 
     const authHeader = buildOAuth1Header("POST", url, this.config);
@@ -1145,6 +1208,7 @@ export class XApiClient {
    */
   async postThread(
     tweets: string[],
+    mediaIds?: string[],
   ): Promise<{
     results: Array<{ postId: string; postUrl: string; index: number }>;
     error?: string;
@@ -1154,7 +1218,9 @@ export class XApiClient {
 
     for (let i = 0; i < tweets.length; i++) {
       try {
-        const { tweetId, tweetUrl } = await this.postTweet(tweets[i], previousTweetId);
+        // Attach media to the first tweet only
+        const tweetMediaIds = i === 0 ? mediaIds : undefined;
+        const { tweetId, tweetUrl } = await this.postTweet(tweets[i], previousTweetId, tweetMediaIds);
         results.push({ postId: tweetId, postUrl: tweetUrl, index: i });
         previousTweetId = tweetId;
       } catch (err) {
@@ -1167,6 +1233,72 @@ export class XApiClient {
     }
 
     return { results };
+  }
+
+  /**
+   * Get public metrics for a tweet.
+   * Uses GET /2/tweets/:id?tweet.fields=public_metrics
+   */
+  async getTweetMetrics(
+    tweetId: string,
+  ): Promise<{
+    metrics: { likes: number; retweets: number; replies: number; impressions: number; quotes: number };
+  }> {
+    const url = `${this.baseUrl}/tweets/${tweetId}?tweet.fields=public_metrics`;
+    const authHeader = buildOAuth1Header("GET", url.split("?")[0], this.config, { "tweet.fields": "public_metrics" });
+
+    const response = await fetch(url, {
+      headers: { Authorization: authHeader },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`X API metrics error ${response.status}: ${errorText}`);
+    }
+
+    const data = (await response.json()) as {
+      data: { public_metrics: { like_count: number; retweet_count: number; reply_count: number; impression_count: number; quote_count: number } };
+    };
+    const pm = data.data.public_metrics;
+
+    return {
+      metrics: {
+        likes: pm.like_count,
+        retweets: pm.retweet_count,
+        replies: pm.reply_count,
+        impressions: pm.impression_count,
+        quotes: pm.quote_count,
+      },
+    };
+  }
+
+  /**
+   * Send a direct message to a user on X.
+   * Uses POST /2/dm_conversations/with/:participant_id/messages
+   */
+  async sendDm(
+    participantId: string,
+    text: string,
+  ): Promise<{ messageId: string }> {
+    const url = `${this.baseUrl}/dm_conversations/with/${participantId}/messages`;
+    const authHeader = buildOAuth1Header("POST", url, this.config);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`X DM API error ${response.status}: ${errorText}`);
+    }
+
+    const data = (await response.json()) as { data: { dm_event_id: string } };
+    return { messageId: data.data.dm_event_id };
   }
 }
 
@@ -1199,6 +1331,8 @@ export async function publishPost(
     attachments?: string[];
     /** If content is an array of strings, post as X thread */
     threadTweets?: string[];
+    /** Local file paths for media to attach (images/video) */
+    mediaFilePaths?: string[];
   },
 ): Promise<PublishResult> {
   // Invocation guard: publishPost() must be called from within step execution.
@@ -1227,7 +1361,7 @@ export async function publishPost(
   }
 
   if (platform === "x") {
-    return publishToX(content, options?.threadTweets);
+    return publishToX(content, options?.threadTweets, options?.mediaFilePaths);
   }
 
   return { success: false, platform, error: `Unsupported publish platform: ${platform}` };
@@ -1283,6 +1417,7 @@ async function publishToLinkedIn(
 async function publishToX(
   content: string,
   threadTweets?: string[],
+  mediaFilePaths?: string[],
 ): Promise<PublishResult> {
   const config = getXApiConfig();
   if (!config) {
@@ -1291,16 +1426,38 @@ async function publishToX(
 
   const client = new XApiClient(config);
 
+  // Upload media if provided
+  let mediaIds: string[] | undefined;
+  if (mediaFilePaths && mediaFilePaths.length > 0) {
+    const fs = require("fs") as typeof import("fs");
+    const path = require("path") as typeof import("path");
+    mediaIds = [];
+    for (const filePath of mediaFilePaths) {
+      try {
+        const buffer = fs.readFileSync(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeMap: Record<string, string> = {
+          ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+          ".gif": "image/gif", ".webp": "image/webp", ".mp4": "video/mp4",
+        };
+        const mimeType = mimeMap[ext] || "image/png";
+        const { mediaId } = await client.uploadMedia(buffer, mimeType);
+        mediaIds.push(mediaId);
+      } catch (err) {
+        console.warn(`[channel] Failed to upload media ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
   try {
-    // Thread mode: array of tweets
+    // Thread mode: array of tweets (media attaches to first tweet only)
     if (threadTweets && threadTweets.length > 1) {
-      const { results, error } = await client.postThread(threadTweets);
+      const { results, error } = await client.postThread(threadTweets, mediaIds);
 
       if (results.length === 0) {
         return { success: false, platform: "x", error: error ?? "Thread posting failed" };
       }
 
-      // First tweet is the "head" of the thread
       return {
         success: !error,
         postId: results[0].postId,
@@ -1311,8 +1468,8 @@ async function publishToX(
       };
     }
 
-    // Single tweet
-    const { tweetId, tweetUrl } = await client.postTweet(content);
+    // Single tweet with optional media
+    const { tweetId, tweetUrl } = await client.postTweet(content, undefined, mediaIds);
     return {
       success: true,
       postId: tweetId,

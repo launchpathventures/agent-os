@@ -484,6 +484,14 @@ AI SDR market in correction: 50-70% churn within 3 months. Hybrid (AI+human) mod
 - Refusals as trust-building feature
 - Relationship-first outreach for SMB owners
 
+### Browser Automation (2026-04-13)
+
+**Stagehand** — github.com/browserbase/stagehand (8k+ stars, TypeScript, MIT)
+- AI browser SDK built on Playwright. Four primitives: `act`, `extract`, `observe`, `agent`. Supports Anthropic, OpenAI, Gemini via Vercel AI SDK. Production cloud option via Browserbase ($99/mo). Local mode uses headless Chromium.
+- **Classification:** ADOPT — TypeScript-first, MIT license, clean API, actively maintained. Best fit for Ditto's stack. Young project (startup-backed, 8k stars) — validation step included.
+- **Ditto usage:** `browse_web` self-tool (Brief 134). READ-only: `extract` primitive for research and data extraction. No `act` (write operations blocked by design). SSRF guard blocks private/internal network addresses. Token budget hard-enforced. Model configurable via `STAGEHAND_MODEL` env var.
+- **Full evaluation:** `docs/research/linkedin-ghost-mode-and-browser-automation.md`
+
 ### Hub-and-Spoke Deployment (2026-04-06)
 
 New category for Insight-152 (Network Service is centralized). Full report: `docs/research/centralized-network-service-deployment.md`.

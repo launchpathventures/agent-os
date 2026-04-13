@@ -84,8 +84,20 @@ steps:
     config:
       model_hint: capable
       cyclePhase: sense
+    harness:
+      perspectives:
+        enabled: true
+        trigger: always
+        peer_review: false
+        max_lenses: 5
+        model_tier: fast
+        composer_hints:
+          - "Consider the audience's platform behavior and language"
+          - "Evaluate signal quality — venting vs actively looking"
+          - "Check for channel-specific norms and timing"
     tools:
       - web-search
+      - social.get_post_metrics
     inputs: [gtmContext]
     outputs: [pain-signals]
     trustOverride: autonomous
@@ -120,6 +132,17 @@ steps:
     config:
       model_hint: capable
       cyclePhase: assess
+    harness:
+      perspectives:
+        enabled: true
+        trigger: always
+        peer_review: false
+        max_lenses: 4
+        model_tier: fast
+        composer_hints:
+          - "Evaluate experiment selection against audience channel preferences"
+          - "Challenge kill/continue/graduate decisions with evidence"
+          - "Consider resource allocation across the three tracks"
     inputs: [pain-signals, gtmContext]
     outputs: [experiments]
 
@@ -141,12 +164,22 @@ steps:
       The test: would your audience save this even if they
       never bought from you? If not, it's marketing, not credibility.
 
+      VISUALS — posts with media get 2-3x more engagement. Pick one:
+      - Generate an image via content.generate_image (quote cards, diagrams)
+      - Request a screen recording via content.request_screen_recording
+        when a product demo would be more compelling
+      - Use content.upload_asset if user has a file ready
+      Always include at least one visual. Include filePath in output.
+
       Voice: match your brand. Authoritative but not arrogant.
     config:
       model_hint: capable
       cyclePhase: act
     tools:
       - web-search
+      - content.generate_image
+      - content.request_screen_recording
+      - content.upload_asset
     inputs: [experiments]
     outputs: [credibility-draft]
     depends_on: [assess]
@@ -164,12 +197,18 @@ steps:
       3. Show the moment where things could be different
       4. One mention of your product. One link. That's it.
 
+      VISUALS: Generate an image using content.generate_image.
+      Relatable pain illustrations, before/after, or quote cards.
+      Include filePath in output.
+
       Voice: empathetic, specific, zero jargon. Sounds like a
       person, not a brand. Test: would your customer forward this
       to a colleague? If no, rewrite.
     config:
       model_hint: capable
       cyclePhase: act
+    tools:
+      - content.generate_image
     inputs: [experiments]
     outputs: [pain-naming-draft]
     depends_on: [assess]
@@ -188,6 +227,11 @@ steps:
       4. Low-friction ask: not "book a demo" — more like
          "curious if you've found something that works"
       5. Under 100 words. Phone-readable.
+
+      Channel selection per person:
+      - LinkedIn contact → LinkedIn DM via Unipile
+      - X contact → X DM via X API v2
+      - Public email → email via crm.send_email
 
       Every message is a product demo. The quality of this outreach
       IS the pitch.
@@ -232,10 +276,13 @@ steps:
     executor: ai-agent
     description: >
       Alex publishes approved content at optimal times.
+      LinkedIn posts via Unipile Posts API. X posts/threads via X API v2.
       Records what was posted, where, when, with links.
     config:
       model_hint: fast
       cyclePhase: land
+    tools:
+      - social.publish_post
     inputs: [approved-experiments]
     outputs: [content-results]
     depends_on: [gate]
@@ -244,13 +291,15 @@ steps:
     name: "LAND: Send outreach"
     executor: ai-agent
     description: >
-      Alex sends approved outreach. Records each send.
-      Schedules follow-up checks in 3 days.
+      Alex sends approved outreach. LinkedIn DMs via Unipile Messaging API.
+      X DMs via X API v2. Emails via crm.send_email.
+      Records each send. Schedules follow-up checks in 3 days.
     config:
       model_hint: fast
       cyclePhase: land
     tools:
       - crm.send_email
+      - crm.send_social_dm
       - crm.create_person
       - crm.record_interaction
     inputs: [approved-experiments]
@@ -276,10 +325,21 @@ steps:
       - Any flywheel signals? (outreach recipient also engaged with content)
       - What did people say back? (exact quotes → language bank)
 
+      PULL REAL METRICS — don't guess:
+      - Use social.get_post_metrics to get actual engagement numbers
+        for each published post (likes, comments, shares, impressions)
+      - Use crm.get_interactions to check outreach reply status
+      - Use crm.get_pipeline to see overall pipeline health
+
       Alex updates gtmContext with all learnings.
     config:
       model_hint: capable
       cyclePhase: learn
+    tools:
+      - social.get_post_metrics
+      - crm.get_interactions
+      - crm.get_pipeline
+      - web-search
     trustOverride: autonomous
     inputs: [content-results, outreach-results, gtmContext]
     outputs: [cycle-learnings]

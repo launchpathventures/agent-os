@@ -50,10 +50,11 @@ export async function POST(request: Request) {
       "../../../../../../../src/engine/elevenlabs-agent"
     );
 
-    // Run in parallel: agent setup + harness evaluation
-    const [agentId, signedUrl, evaluation] = await Promise.all([
-      ensureAgent(),
-      ensureAgent().then(() => getSignedUrl()),
+    // Ensure agent exists first (single call to avoid race condition on cold start),
+    // then run signed URL + harness evaluation in parallel
+    const agentId = await ensureAgent();
+    const [signedUrl, evaluation] = await Promise.all([
+      getSignedUrl(),
       evaluateVoiceConversation(session.sessionId),
     ]);
 

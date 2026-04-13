@@ -39,6 +39,8 @@ export type CompositionIntent =
   | "inbox"
   | "work"
   | "projects"
+  | "growth"
+  | "library"
   | "routines"
   | "roadmap";
 
@@ -67,8 +69,71 @@ export interface CompositionContext {
   currentRisks?: Array<{ type: string; description: string; severity: "low" | "medium" | "high" }>;
   /** Roadmap data — lazily loaded when roadmap intent is active (Brief 055) */
   roadmap?: RoadmapData;
+  /** Growth plan data — lazily loaded when growth intent is active (Brief 140) */
+  growthPlans?: GrowthPlanSummary[];
+  /** Process capabilities — lazily loaded when library intent is active */
+  capabilities?: ProcessCapability[];
   /** Current time for narrative generation */
   now: Date;
+}
+
+// ============================================================
+// Growth plan summary (Brief 140) — assembled server-side from GTM pipeline runs
+// ============================================================
+
+export interface GrowthExperiment {
+  track: "credibility" | "pain-naming" | "outreach" | string;
+  description: string;
+  verdict?: "kill" | "continue" | "graduate" | string;
+}
+
+export interface PublishedContent {
+  platform: string;
+  postId?: string;
+  postUrl?: string;
+  publishedAt?: string;
+  content?: string;
+}
+
+export interface GrowthPlanSummary {
+  planName: string;
+  runId: string;
+  processSlug: string;
+  status: string;
+  currentStep: string;
+  cycleNumber: number;
+  startedAt: string;
+  gtmContext: {
+    audience?: string;
+    channels?: string[];
+    goals?: string[];
+  };
+  experiments: GrowthExperiment[];
+  publishedContent: PublishedContent[];
+  lastBrief?: string;
+}
+
+// ============================================================
+// Process capability (Library view) — assembled from templates + cycles
+// ============================================================
+
+export interface ProcessCapability {
+  /** Template slug (e.g., "gtm-pipeline") */
+  slug: string;
+  /** Human-readable name */
+  name: string;
+  /** Plain-language description of what Alex does */
+  description: string;
+  /** Business function category */
+  category: "growth" | "sales" | "relationships" | "operations" | "admin";
+  /** Whether this is a continuous cycle or a one-shot template */
+  type: "cycle" | "template";
+  /** Whether this capability is currently active (has a running instance) */
+  active: boolean;
+  /** Number of active instances (for multi-plan types like GTM) */
+  activeCount: number;
+  /** The operator (who runs it) */
+  operator?: string;
 }
 
 // ============================================================

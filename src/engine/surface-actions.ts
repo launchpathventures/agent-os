@@ -113,6 +113,10 @@ export interface SurfaceActionResult {
   success: boolean;
   message: string;
   blocks: ContentBlock[];
+  /** Clipboard content for post.copy actions (client calls navigator.clipboard) */
+  clipboardContent?: string;
+  /** Conversation context for setup actions (injected into Self's next turn) */
+  conversationContext?: Record<string, unknown>;
 }
 
 /**
@@ -248,6 +252,75 @@ export async function handleSurfaceAction(
         }
 
         return { success: false, message: `Unknown review action: ${action}`, blocks: [] };
+      }
+
+      case "asset": {
+        // asset.generate.{type} — return suggestion block with generation prompt
+        // Prompt text comes from the registered action's context (Brief 141)
+        const assetAction = parts[1]; // "generate"
+        const assetType = parts.slice(2).join(".");
+
+        if (assetAction === "generate") {
+          const prompt = (registered.context.prompt as string) ?? (payload?.prompt as string);
+          if (!prompt) {
+            return { success: false, message: "No generation prompt found for asset", blocks: [] };
+          }
+
+          const suggestionBlock: ContentBlock = {
+            type: "suggestion",
+            content: prompt,
+            reasoning: `Asset generation: ${assetType}`,
+            actions: [
+              { id: `suggest-accept-asset-${assetType}-${Date.now()}`, label: "Run this prompt", style: "primary" as const },
+              { id: `suggest-dismiss-asset-${assetType}-${Date.now()}`, label: "Dismiss", style: "secondary" as const },
+            ],
+          };
+
+          return {
+            success: true,
+            message: `Asset generation prompt ready: ${assetType}`,
+            blocks: [suggestionBlock],
+          };
+        }
+
+        return { success: false, message: `Unknown asset action: ${assetAction}`, blocks: [] };
+      }
+
+      case "capability": {
+        // capability.start.{slug} — inject setup prompt into conversation
+        // Self picks up the templateId and drives the conversational setup
+        const capAction = parts[1]; // "start" or "view"
+        const templateSlug = parts.slice(2).join(".");
+        if (capAction === "view") {
+          return {
+            success: true,
+            message: `Viewing ${templateSlug}`,
+            blocks: [],
+            conversationContext: { intent: "view_process", templateId: templateSlug },
+          };
+        }
+        const templateName = (registered.context.templateName as string) ?? (payload?.templateName as string) ?? templateSlug;
+
+        const setupPrompt = `I'd like to set up "${templateName}". Help me configure it for my business.`;
+
+        return {
+          success: true,
+          message: `Starting setup for ${templateName}`,
+          blocks: [{
+            type: "suggestion",
+            content: setupPrompt,
+            reasoning: `Alex will ask you questions to customise ${templateName} for your needs, then activate it.`,
+            actions: [
+              { id: `suggest-accept-setup-${templateSlug}-${Date.now()}`, label: "Let's go", style: "primary" as const },
+              { id: `suggest-dismiss-setup-${templateSlug}-${Date.now()}`, label: "Not now", style: "secondary" as const },
+            ],
+          }],
+          conversationContext: {
+            intent: "setup_process",
+            templateId: templateSlug,
+            templateName,
+          },
+        };
       }
 
       default:

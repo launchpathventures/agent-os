@@ -3,7 +3,7 @@
 /**
  * Ditto — Sidebar Navigation
  *
- * Seven destinations: Today / Inbox / Work / Projects / Routines / Roadmap / Settings
+ * Eight destinations: Today / Inbox / Work / Projects / Growth / Routines / Roadmap / Settings
  * per ADR-024 Section 2 and .impeccable.md nav label table.
  *
  * Inbox shows count badge when items need attention.
@@ -63,6 +63,23 @@ function IconFolder() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function IconTrendingUp() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
+function IconZap() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   );
 }
@@ -130,6 +147,8 @@ const MAIN_NAV: NavItemDef[] = [
   { id: "inbox",    label: "Inbox",    Icon: IconInbox },
   { id: "work",     label: "Work",     Icon: IconCheckSquare },
   { id: "projects", label: "Projects", Icon: IconFolder },
+  { id: "growth",   label: "Growth",   Icon: IconTrendingUp },
+  { id: "library",  label: "Capabilities", Icon: IconZap },
   { id: "routines", label: "Routines", Icon: IconGitBranch },
   { id: "roadmap",  label: "Roadmap",  Icon: IconMap },
 ];

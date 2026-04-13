@@ -340,95 +340,91 @@ function healthDot(health: "green" | "yellow" | "red") {
 }
 
 export default function AdminTeammatePage() {
-  const [token, setToken] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState<TeammateResponse | null>(null);
   const [userOverview, setUserOverview] = useState<UserHealthSummary[] | null>(null);
 
-  // Check for stored token on mount
+  // Check workspace session on mount (magic link auth — Brief 143)
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) {
-      setToken(stored);
-      fetchData(stored);
-    }
+    checkSessionAndFetch();
   }, []);
 
-  async function fetchData(authToken: string) {
+  async function checkSessionAndFetch() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/v1/network/admin/teammate", {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      // Check workspace session cookie
+      const sessionRes = await fetch("/api/v1/workspace/session");
+      const session = await sessionRes.json();
+
+      if (!session.authenticated) {
+        // Not logged in — redirect to workspace login
+        window.location.href = "/login?redirect=/admin";
+        return;
+      }
+
+      setAuthenticated(true);
+      await fetchData();
+    } catch {
+      setError("Failed to check session.");
+      setLoading(false);
+    }
+  }
+
+  async function fetchData() {
+    setLoading(true);
+    setError("");
+    try {
+      // Fetch admin data using cookie auth (no Bearer token needed)
+      const res = await fetch("/api/v1/network/admin/teammate");
       if (res.status === 401 || res.status === 403) {
-        setAuthenticated(false);
-        localStorage.removeItem(TOKEN_KEY);
-        setError("Session expired. Please log in again.");
+        // Fallback: try with stored legacy token if cookie auth not supported on admin API
+        const legacyToken = localStorage.getItem(TOKEN_KEY);
+        if (legacyToken) {
+          const retryRes = await fetch("/api/v1/network/admin/teammate", {
+            headers: { Authorization: `Bearer ${legacyToken}` },
+          });
+          if (retryRes.ok) {
+            const json = await retryRes.json();
+            setData(json);
+            await fetchUserOverview(legacyToken);
+            setLoading(false);
+            return;
+          }
+          localStorage.removeItem(TOKEN_KEY);
+        }
+        setError("Admin access denied. You may need an admin token.");
         setLoading(false);
         return;
       }
       if (!res.ok) throw new Error("API error");
       const json = await res.json();
       setData(json);
-      setAuthenticated(true);
-      localStorage.setItem(TOKEN_KEY, authToken);
-      // Brief 108: Also fetch user oversight data
-      try {
-        const usersRes = await fetch("/api/v1/network/admin/users", {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        if (usersRes.ok) {
-          const usersJson = await usersRes.json();
-          setUserOverview(usersJson.users);
-        }
-      } catch { /* User oversight fetch is optional — don't fail the page */ }
+      // Fetch user oversight data
+      await fetchUserOverview();
     } catch {
       setError("Failed to load data. Check your connection.");
     }
     setLoading(false);
   }
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) return;
-    setLoading(true);
-    setError("");
-
+  async function fetchUserOverview(legacyToken?: string) {
     try {
-      const loginRes = await fetch("/api/v1/network/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password: password.trim() }),
-      });
-
-      if (loginRes.status === 401) {
-        setError("Invalid username or password.");
-        setLoading(false);
-        return;
+      const headers: Record<string, string> = legacyToken
+        ? { Authorization: `Bearer ${legacyToken}` }
+        : {};
+      const usersRes = await fetch("/api/v1/network/admin/users", { headers });
+      if (usersRes.ok) {
+        const usersJson = await usersRes.json();
+        setUserOverview(usersJson.users);
       }
-      if (!loginRes.ok) {
-        const body = await loginRes.json().catch(() => ({}));
-        setError(body.error || "Login failed.");
-        setLoading(false);
-        return;
-      }
-
-      const { token: newToken } = await loginRes.json();
-      setToken(newToken);
-      await fetchData(newToken);
-    } catch {
-      setError("Login failed. Check your connection.");
-      setLoading(false);
-    }
+    } catch { /* User oversight fetch is optional */ }
   }
 
   // ============================================================
-  // Auth gate
+  // Auth gate — redirect to magic link login if not authenticated
   // ============================================================
 
   if (!authenticated) {
@@ -439,39 +435,25 @@ export default function AdminTeammatePage() {
           <span className="text-sm text-text-muted">Admin</span>
         </nav>
         <main className="flex flex-1 items-center justify-center px-4">
-          <div className="w-full max-w-sm">
-            <h1 className="text-2xl font-bold text-text-primary">Alex&apos;s Teammate View</h1>
-            <p className="mt-2 text-sm text-text-secondary">
-              Log in to see what Alex is working on across the network.
-            </p>
-            <form onSubmit={handleLogin} className="mt-6 space-y-3">
-              <input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoFocus
-                autoComplete="username"
-                className="w-full rounded-2xl border-2 border-border bg-white px-4 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none"
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="w-full rounded-2xl border-2 border-border bg-white px-4 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={loading || !username.trim() || !password.trim()}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-vivid px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
-                {loading ? "Logging in..." : "Log in"}
-              </button>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-            </form>
+          <div className="w-full max-w-sm text-center">
+            {loading ? (
+              <Loader2 size={24} className="animate-spin mx-auto text-vivid" />
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-text-primary">Alex&apos;s Teammate View</h1>
+                <p className="mt-2 text-sm text-text-secondary">
+                  Sign in to your workspace to access the admin dashboard.
+                </p>
+                {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+                <Link
+                  href="/login?redirect=/admin"
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-vivid px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
+                >
+                  <ArrowRight size={18} />
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -499,15 +481,16 @@ export default function AdminTeammatePage() {
             Smoke Tests
           </Link>
           <button
-            onClick={() => fetchData(token)}
+            onClick={() => fetchData()}
             disabled={loading}
             className="text-sm text-text-secondary hover:text-text-primary"
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
               localStorage.removeItem(TOKEN_KEY);
+              await fetch("/api/v1/workspace/session", { method: "DELETE" });
               setAuthenticated(false);
               setData(null);
             }}

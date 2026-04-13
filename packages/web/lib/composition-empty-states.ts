@@ -19,14 +19,14 @@ export function emptyToday(greeting: string): ContentBlock[] {
   return [
     {
       type: "text",
-      text: `${greeting}. Nothing active yet.`,
+      text: `${greeting}. Alex isn\u2019t working for you yet.`,
     },
     {
       type: "actions",
       actions: [
         {
           id: "empty-today-start",
-          label: "What would you like to work on?",
+          label: "Tell Alex what you do",
           style: "primary",
           payload: { intentContext: "today" },
         },
@@ -34,38 +34,38 @@ export function emptyToday(greeting: string): ContentBlock[] {
     },
     {
       type: "suggestion",
-      content: "Start a project",
-      reasoning: "Projects group related work, processes, and goals together.",
+      content: "Find me more clients",
+      reasoning: "Tell Alex about your business and who you sell to. He\u2019ll find prospects, draft outreach, and handle follow-ups.",
       actions: [
         {
-          id: "empty-today-start-project",
-          label: "Start a project",
+          id: "empty-today-start-outreach",
+          label: "Find me clients",
           style: "primary",
-          payload: { intentContext: "today", action: "start-project" },
+          payload: { intentContext: "today", action: "start-outreach" },
         },
       ],
     },
     {
       type: "suggestion",
-      content: "Set up a routine",
-      reasoning: "Routines are recurring processes that run on a schedule.",
+      content: "Introduce me to the right people",
+      reasoning: "Alex will research who you should meet and reach out on your behalf. Real introductions, not spam.",
       actions: [
         {
-          id: "empty-today-start-routine",
-          label: "Set up a routine",
-          payload: { intentContext: "today", action: "start-routine" },
+          id: "empty-today-start-networking",
+          label: "Make introductions",
+          payload: { intentContext: "today", action: "start-networking" },
         },
       ],
     },
     {
       type: "suggestion",
-      content: "Ask me anything",
-      reasoning: "I can help with tasks, answer questions, or just chat.",
+      content: "Help me stay on top of things",
+      reasoning: "Alex will send you daily briefings with what needs your attention, what\u2019s waiting, and what\u2019s next.",
       actions: [
         {
-          id: "empty-today-ask",
-          label: "Ask me anything",
-          payload: { intentContext: "today", action: "converse" },
+          id: "empty-today-briefing",
+          label: "Keep me on top of things",
+          payload: { intentContext: "today", action: "start-briefing" },
         },
       ],
     },
@@ -79,21 +79,21 @@ export function emptyInbox(): ContentBlock[] {
   return [
     {
       type: "text",
-      text: "Nothing needs your attention right now.",
+      text: "All clear. Nothing needs your review.",
     },
     {
       type: "text",
-      text: "When processes need your review or input, they'll appear here.",
+      text: "When Alex has outreach drafts, intros, or briefings ready for you, they\u2019ll appear here.",
     },
     {
       type: "suggestion",
-      content: "Set up a routine to start receiving items here.",
-      reasoning: "Inbox items come from processes that need human review or input.",
+      content: "Tell Alex what you do to get started.",
+      reasoning: "Once Alex is working for you, anything that needs your approval shows up here.",
       actions: [
         {
-          id: "empty-inbox-create-routine",
-          label: "Create a routine",
-          payload: { intentContext: "inbox", action: "start-routine" },
+          id: "empty-inbox-get-started",
+          label: "Get started",
+          payload: { intentContext: "inbox", action: "get-started" },
         },
       ],
     },
@@ -194,14 +194,14 @@ export function emptyRoutines(): ContentBlock[] {
   return [
     {
       type: "text",
-      text: "No routines yet.",
+      text: "Alex isn\u2019t running anything for you yet.",
     },
     {
       type: "actions",
       actions: [
         {
           id: "empty-routines-create",
-          label: "Create a routine",
+          label: "Get Alex working",
           style: "primary",
           payload: { intentContext: "routines" },
         },
@@ -209,17 +209,79 @@ export function emptyRoutines(): ContentBlock[] {
     },
     {
       type: "text",
-      text: "Routines are recurring processes that run on a schedule.",
+      text: "When Alex is working for you, his ongoing tasks show up here \u2014 outreach, intros, follow-ups, briefings.",
     },
     {
       type: "suggestion",
-      content: "Try describing a task you do regularly — Ditto can help turn it into a routine.",
-      reasoning: "Routines are recurring processes that Ditto runs for you with appropriate oversight.",
+      content: "Tell Alex what you do and who you need to reach. He\u2019ll figure out the rest.",
+      reasoning: "Alex handles the legwork \u2014 finding people, drafting messages, following up. You approve everything at first.",
       actions: [
         {
           id: "empty-routines-describe",
-          label: "Create a routine",
-          payload: { intentContext: "routines", action: "create-routine" },
+          label: "Get started",
+          payload: { intentContext: "routines", action: "get-started" },
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * Growth empty state — "No growth plans yet" + suggest creating via conversation (Brief 140).
+ */
+export function emptyGrowth(): ContentBlock[] {
+  return [
+    {
+      type: "text",
+      text: "Alex isn\u2019t finding you clients yet.",
+    },
+    {
+      type: "suggestion",
+      content: "Tell me what you do and who your ideal client is.",
+      reasoning: "Alex will find prospects, draft outreach in your voice, and handle follow-ups. You approve everything before it goes out.",
+      actions: [
+        {
+          id: "empty-growth-start",
+          label: "Find me clients",
+          style: "primary",
+          payload: { intentContext: "growth", action: "start-growth" },
+        },
+      ],
+    },
+    {
+      type: "suggestion",
+      content: "Describe the kind of customer you want more of.",
+      reasoning: "Alex will find people like your best customers and reach out on your behalf. Nothing goes out without your sign-off.",
+      actions: [
+        {
+          id: "empty-growth-describe",
+          label: "Describe my ideal client",
+          payload: { intentContext: "growth", action: "describe-product" },
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * Library empty state — loading or no templates found.
+ */
+export function emptyLibrary(): ContentBlock[] {
+  return [
+    {
+      type: "text",
+      text: "Here\u2019s what Alex can do for you.",
+    },
+    {
+      type: "suggestion",
+      content: "Ask me what I can help with.",
+      reasoning: "Alex finds clients, makes introductions, handles follow-ups, and sends you daily briefings \u2014 all customised to your business.",
+      actions: [
+        {
+          id: "empty-library-ask",
+          label: "What can you do?",
+          style: "primary",
+          payload: { intentContext: "library", action: "ask-capabilities" },
         },
       ],
     },

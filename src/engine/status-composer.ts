@@ -147,16 +147,32 @@ async function gatherStatusData(
         )
     : [];
 
-  // Build highlights
+  // Build highlights with actual detail — names, summaries, not just counts
   const highlights: string[] = [];
   const replies = recentInteractions.filter((i) => i.type === "reply_received");
   if (replies.length > 0) {
-    highlights.push(`${replies.length} new ${replies.length === 1 ? "reply" : "replies"} received`);
+    const replyDetails = replies
+      .filter((r) => r.summary)
+      .slice(0, 3)
+      .map((r) => r.summary);
+    if (replyDetails.length > 0) {
+      highlights.push(`${replies.length} new ${replies.length === 1 ? "reply" : "replies"}: ${replyDetails.join("; ")}`);
+    } else {
+      highlights.push(`${replies.length} new ${replies.length === 1 ? "reply" : "replies"} received`);
+    }
   }
 
   const outreach = recentInteractions.filter((i) => i.type === "outreach_sent");
   if (outreach.length > 0) {
-    highlights.push(`${outreach.length} outreach ${outreach.length === 1 ? "message" : "messages"} sent`);
+    const outreachDetails = outreach
+      .filter((o) => o.summary)
+      .slice(0, 3)
+      .map((o) => o.summary);
+    if (outreachDetails.length > 0) {
+      highlights.push(`Reached out to: ${outreachDetails.join(", ")}`);
+    } else {
+      highlights.push(`${outreach.length} outreach ${outreach.length === 1 ? "message" : "messages"} sent`);
+    }
   }
 
   if (completedRuns.length > 0) {
@@ -164,7 +180,7 @@ async function gatherStatusData(
   }
 
   if (pendingRuns.length > 0) {
-    highlights.push(`${pendingRuns.length} pending ${pendingRuns.length === 1 ? "approval" : "approvals"}`);
+    highlights.push(`${pendingRuns.length} item${pendingRuns.length === 1 ? "" : "s"} waiting for your review`);
   }
 
   return {
@@ -295,7 +311,17 @@ export async function runStatusComposition(): Promise<StatusCheckResult> {
 
   if (users.length === 0) return result;
 
-  for (const user of users) {
+  // Deduplicate by email — multiple user records for the same email
+  // can exist across test sessions. Only process the most recent one.
+  const seenEmails = new Set<string>();
+  const deduped = users.filter((u) => {
+    const email = u.email.toLowerCase();
+    if (seenEmails.has(email)) return false;
+    seenEmails.add(email);
+    return true;
+  });
+
+  for (const user of deduped) {
     result.checked++;
 
     // Brief 108 AC3: Skip paused users

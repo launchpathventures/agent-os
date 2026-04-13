@@ -52,6 +52,11 @@ export const ALEX_RESPONSE_TOOL: LlmToolDefinition = {
         description:
           "Set to true on your 1st or 2nd response to collect the visitor's name. A name input field appears below your text reply. You SHOULD still ask for their name naturally in your text — the input is just the collection mechanism, your text provides the conversational context.",
       },
+      requestLocation: {
+        type: "boolean",
+        description:
+          "Set to true when you need to collect the visitor's location (city/region). A location input field appears below your text reply. Ask about location naturally in your text — the input is the collection mechanism.",
+      },
       requestEmail: {
         type: "boolean",
         description:
@@ -101,6 +106,7 @@ export const ALEX_RESPONSE_TOOL: LlmToolDefinition = {
           target: { type: ["string", "null"], description: "Who they're trying to reach or serve." },
           problem: { type: ["string", "null"], description: "The core problem or goal — in their words." },
           channel: { type: ["string", "null"], description: "Preferred outreach channel (email, LinkedIn, etc.)." },
+          phone: { type: ["string", "null"], description: "Phone number — only captured if voluntarily offered during voice call." },
         },
       },
     },
@@ -317,7 +323,7 @@ The alex_response tool (MUST call after every reply):
 - done: true when you've confirmed the plan and gathered enough to begin (ACTIVATE stage)
 - resendEmail: true when the visitor says they didn't get the email
 - detectedMode: "connector" | "sales" | "cos" | "both" | null. Can change. If outreach mode is ambiguous, ask.
-- learned: REQUIRED EVERY turn. Cumulative — carry ALL facts forward. The visitor sees this live in the UI. Fields: name, business, role, industry, location, target, problem, channel.
+- learned: REQUIRED EVERY turn. Cumulative — carry all CONFIRMED facts forward. CRITICAL: Only include what the visitor has explicitly stated or confirmed. Never populate fields from your own questions, inferences, or suggestions. If you asked "do you want help with outreach?" and they haven't answered, do NOT put that in the problem field. The visitor sees this live in the UI — wrong entries destroy trust. Fields: name, business, role, industry, location, target, problem, channel.
 - searchQuery / fetchUrl: for web search or direct URL fetch. Use fetchUrl for URLs, not searchQuery.
 `.trim();
 
@@ -608,7 +614,7 @@ function formatTemporalContext(visitorTimezone?: string): string {
   return `\n## Current Time\n${fmt.format(now)} (${tz})`;
 }
 
-export function buildFrontDoorPrompt(context: ChatContext, visitorContext?: VisitorContext, conversationStage?: ConversationStage): string {
+export function buildFrontDoorPrompt(context: ChatContext, visitorContext?: VisitorContext, conversationStage?: ConversationStage, channel?: "text" | "voice"): string {
   const config: PersonaConfig = getPersonaConfig("alex");
   const core = getCognitiveCore();
 
@@ -646,6 +652,18 @@ export function buildFrontDoorPrompt(context: ChatContext, visitorContext?: Visi
     temporalBlock,
     // Layer 3: Dynamic visitor context
     contextBlock,
+    // Brief 142: voice channel overlay — conversational output style
+    ...(channel === "voice" ? [
+      "",
+      "## Voice Channel (active)",
+      "You are speaking to the user in a live voice call. Adapt your style:",
+      "- Keep sentences short and conversational — max 1-2 sentences per turn",
+      "- Never use markdown formatting, bullet lists, or structured text — this will be spoken aloud",
+      "- Use natural speech patterns: contractions, filler acknowledgments (\"right\", \"sure\", \"got it\")",
+      "- Ask for email naturally in conversation: \"I'll send you a summary — what's your best email?\"",
+      "- At the end of a good call, offer: \"Want me to be able to call you directly next time? What's your number?\"",
+      "- Never say \"click\" or reference visual UI elements — the user is listening, not reading",
+    ] : []),
   ].join("\n");
 }
 

@@ -93,8 +93,20 @@ steps:
     config:
       model_hint: capable
       cyclePhase: sense
+    harness:
+      perspectives:
+        enabled: true
+        trigger: always
+        peer_review: false
+        max_lenses: 5
+        model_tier: fast
+        composer_hints:
+          - "Consider the audience's platform behavior and language"
+          - "Evaluate signal quality — venting vs actively looking"
+          - "Check for channel-specific norms and timing"
     tools:
       - web-search
+      - social.get_post_metrics
     inputs: [gtmContext]
     outputs: [pain-signals]
     trustOverride: autonomous
@@ -127,6 +139,17 @@ steps:
     config:
       model_hint: capable
       cyclePhase: assess
+    harness:
+      perspectives:
+        enabled: true
+        trigger: always
+        peer_review: false
+        max_lenses: 4
+        model_tier: fast
+        composer_hints:
+          - "Evaluate experiment selection against audience channel preferences"
+          - "Challenge kill/continue/graduate decisions with evidence"
+          - "Consider resource allocation across the three tracks"
     inputs: [pain-signals, gtmContext]
     outputs: [experiments]
 
@@ -154,11 +177,21 @@ steps:
 
       Voice: technical, opinionated, specific. Code over claims.
       If a developer screenshots this and shares it, mission accomplished.
+
+      VISUALS — posts with media get 2-3x more engagement. Pick one:
+      - Generate an image via content.generate_image (quote cards, diagrams)
+      - Request a screen recording via content.request_screen_recording
+        when a product demo would be more compelling than a static image
+      - If user has uploaded an asset, use content.upload_asset to register it
+      Always include at least one visual. Include filePath in output for LAND.
     config:
       model_hint: capable
       cyclePhase: act
     tools:
       - web-search
+      - content.generate_image
+      - content.request_screen_recording
+      - content.upload_asset
     inputs: [experiments]
     outputs: [credibility-draft]
     depends_on: [assess]
@@ -183,12 +216,18 @@ steps:
       - Short video script (60 seconds, show-don't-tell)
       - Reply to someone else's viral post about AI frustration
 
+      VISUALS: Generate an image using content.generate_image.
+      Relatable illustrations of the pain, before/after comparisons, or
+      quote cards with the opening hook. Include filePath in output.
+
       Voice: empathetic, zero jargon, sounds like a person not a brand.
       Test: would a tradie forward this to their business partner?
       If the answer is no, rewrite.
     config:
       model_hint: capable
       cyclePhase: act
+    tools:
+      - content.generate_image
     inputs: [experiments]
     outputs: [pain-naming-draft]
     depends_on: [assess]
@@ -211,9 +250,9 @@ steps:
       5. Keep it under 100 words. Phone-readable.
 
       Channel selection per person:
-      - If they posted on X: reply or DM
-      - If they posted on LinkedIn: comment or DM
-      - If they have a public email: short email from Alex
+      - LinkedIn contact → LinkedIn DM via Unipile
+      - X contact → X DM via X API v2
+      - Public email → email via crm.send_email
       - If they were referred: warm intro format
 
       Every message Alex sends is a product demo.
@@ -259,8 +298,9 @@ steps:
     executor: ai-agent
     description: >
       Alex publishes approved credibility and pain-naming content:
-      - Posts X threads at optimal times (weekday mornings US/AU)
-      - Posts LinkedIn content
+      - LinkedIn posts via Unipile Posts API
+      - X posts/threads via X API v2
+      - Posts at optimal times (weekday mornings US/AU)
       - Submits to Hacker News if repo launch
       - Pushes code/README changes to repos if applicable
 
@@ -270,6 +310,7 @@ steps:
       cyclePhase: land
     tools:
       - web-search
+      - social.publish_post
     inputs: [approved-experiments]
     outputs: [content-results]
     depends_on: [gate]
@@ -279,9 +320,10 @@ steps:
     executor: ai-agent
     description: >
       Alex sends approved outreach messages:
-      - DMs on X or LinkedIn
+      - LinkedIn DMs via Unipile Messaging API
+      - X DMs via X API v2
+      - Emails via crm.send_email
       - Replies to public posts
-      - Emails via Alex's identity
       - Records each send and creates person records for tracking
 
       For each send, schedule a follow-up check in 3 days.
@@ -290,6 +332,7 @@ steps:
       cyclePhase: land
     tools:
       - crm.send_email
+      - crm.send_social_dm
       - crm.create_person
       - crm.record_interaction
     inputs: [approved-experiments]
@@ -305,15 +348,21 @@ steps:
       (this cycle's results need time to accumulate — check them
       next cycle).
 
+      PULL REAL METRICS — don't guess:
+      - Use social.get_post_metrics to get actual engagement numbers
+        for each published post (likes, comments, shares, impressions)
+      - Use crm.get_interactions to check outreach reply status
+      - Use crm.get_pipeline to see overall pipeline health
+
       For each previous experiment:
-      - Results: engagement, replies, clicks, sign-ups, stars
+      - Results: actual metrics from the platform (not estimates)
       - Verdict: KILL | CONTINUE | GRADUATE
       - Why: specific evidence, not vibes
       - Language captured: any new phrases from the audience
         that worked well (add to language bank)
 
       Cross-experiment patterns:
-      - Which hook got the strongest reaction?
+      - Which hook got the strongest reaction? (actual numbers)
       - Which channel delivered real engagement vs vanity metrics?
       - Did any outreach recipient engage with content too? (flywheel signal)
       - What did people say back? (exact quotes → language bank)
@@ -323,6 +372,11 @@ steps:
     config:
       model_hint: capable
       cyclePhase: learn
+    tools:
+      - social.get_post_metrics
+      - crm.get_interactions
+      - crm.get_pipeline
+      - web-search
     trustOverride: autonomous
     inputs: [content-results, outreach-results, gtmContext]
     outputs: [cycle-learnings]

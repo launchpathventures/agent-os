@@ -1,18 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Lightbulb, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp } from "lucide-react";
+import type { ContentBlock } from "@/lib/engine";
+import { BlockRenderer } from "@/components/blocks/block-registry";
 
 /**
  * Single message bubble for the front-door conversation.
  * Alex messages left-aligned, user messages right-aligned.
  *
- * When a `plan` prop is provided, Alex's reply text is split: any text
- * matching the plan renders in a distinct card, the rest renders as
- * normal conversation. The plan text comes from the LLM's tool call —
- * no heuristic detection needed.
+ * When `blocks` are provided, they render below the message text
+ * via the standard BlockRenderer (Brief 137, Insight-107).
  *
- * Provenance: Brief 094, DESIGN.md conversation patterns.
+ * Provenance: Brief 094, Brief 137, DESIGN.md conversation patterns.
  */
 
 /**
@@ -57,31 +57,20 @@ function formatText(text: string): React.ReactNode[] {
   });
 }
 
-/**
- * Split reply text around the plan. Returns the conversational text
- * before and after the plan, if any.
- */
-function splitAroundPlan(reply: string, plan: string): { before: string; after: string } {
-  const idx = reply.indexOf(plan);
-  if (idx === -1) return { before: reply, after: "" };
-  return {
-    before: reply.slice(0, idx).trim(),
-    after: reply.slice(idx + plan.length).trim(),
-  };
-}
-
 export function ChatMessage({
   role,
   text,
-  plan = null,
+  blocks,
   animate = false,
   variant = "body",
+  onAction,
 }: {
   role: "alex" | "user";
   text: string;
-  plan?: string | null;
+  blocks?: ContentBlock[];
   animate?: boolean;
   variant?: "hero-primary" | "hero-secondary" | "body";
+  onAction?: (actionId: string, payload?: Record<string, unknown>) => void;
 }) {
   const formatted = useMemo(() => {
     if (role !== "alex" || variant !== "body") return null;
@@ -97,38 +86,20 @@ export function ChatMessage({
       body: "text-base font-medium leading-relaxed text-text-primary md:text-[17px]",
     };
 
-    // Message with plan: split into before / plan card / after
-    if (plan && variant === "body") {
-      const { before, after } = splitAroundPlan(text, plan);
-      return (
-        <div className={`space-y-4 ${animate ? "animate-fade-in" : ""}`}>
-          {before && (
-            <div className={styles.body}>{formatText(before)}</div>
-          )}
-          <div className="rounded-2xl border border-vivid/20 bg-gradient-to-br from-vivid/[0.04] to-transparent px-5 py-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-vivid/10">
-                <Lightbulb size={14} className="text-vivid" />
-              </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-vivid">
-                Proposed approach
-              </span>
-            </div>
-            <div className={styles.body}>{formatText(plan)}</div>
-          </div>
-          {after && (
-            <div className={styles.body}>{formatText(after)}</div>
-          )}
-        </div>
-      );
-    }
-
     return (
       <div className={animate ? "animate-fade-in" : ""}>
         {variant === "body" ? (
           <div className={styles[variant]}>{formatted}</div>
         ) : (
           <p className={styles[variant]}>{text}</p>
+        )}
+        {/* Brief 137: render content blocks below message text */}
+        {blocks && blocks.length > 0 && (
+          <div className="mt-4 space-y-3 animate-fade-in">
+            {blocks.map((block, idx) => (
+              <BlockRenderer key={idx} block={block} onAction={onAction} />
+            ))}
+          </div>
         )}
       </div>
     );

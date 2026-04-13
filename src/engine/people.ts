@@ -17,7 +17,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, desc, gte, count } from "drizzle-orm";
+import { eq, and, desc, gte, count, inArray } from "drizzle-orm";
 import type {
   PersonVisibility,
   JourneyLayer,
@@ -292,6 +292,52 @@ export async function listInteractionsByUser(userId: string) {
     .from(schema.interactions)
     .where(eq(schema.interactions.userId, userId))
     .orderBy(desc(schema.interactions.createdAt));
+}
+
+/**
+ * List all people with interaction stats for pipeline overview.
+ * Returns people + last interaction date + interaction count.
+ */
+export async function listPeopleWithStats(userId: string) {
+  const people = await db
+    .select()
+    .from(schema.people)
+    .where(eq(schema.people.userId, userId))
+    .orderBy(desc(schema.people.createdAt));
+
+  if (people.length === 0) return [];
+
+  const personIds = people.map((p) => p.id);
+  const interactions = await db
+    .select()
+    .from(schema.interactions)
+    .where(inArray(schema.interactions.personId, personIds))
+    .orderBy(desc(schema.interactions.createdAt));
+
+  // Group interactions by personId
+  const interactionsByPerson = new Map<string, typeof interactions>();
+  for (const i of interactions) {
+    const existing = interactionsByPerson.get(i.personId) ?? [];
+    existing.push(i);
+    interactionsByPerson.set(i.personId, existing);
+  }
+
+  return people.map((p) => {
+    const personInteractions = interactionsByPerson.get(p.id) ?? [];
+    const lastInteraction = personInteractions[0];
+    return {
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      organization: p.organization,
+      role: p.role,
+      source: p.source,
+      interactionCount: personInteractions.length,
+      lastInteractionDate: lastInteraction?.createdAt?.toISOString() ?? null,
+      lastInteractionType: lastInteraction?.type ?? null,
+      lastOutcome: lastInteraction?.outcome ?? null,
+    };
+  });
 }
 
 // ============================================================

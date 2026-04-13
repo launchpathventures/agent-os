@@ -8,7 +8,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, desc, and, or, inArray } from "drizzle-orm";
+import { eq, desc, and, or, inArray, like } from "drizzle-orm";
 import { computeTrustState, executeTierChange } from "./trust";
 import type { TrustTier } from "../db/schema";
 import type { ContentBlock } from "./content-blocks";
@@ -615,4 +615,360 @@ export async function getRunOutput(
     processName: proc[0]?.name ?? "Unknown",
     status: r.status,
   };
+}
+
+// ============================================================
+// Growth Plans (Brief 140) — GTM pipeline run summaries
+// ============================================================
+
+export interface GrowthPlanSummary {
+  planName: string;
+  runId: string;
+  processSlug: string;
+  status: string;
+  currentStep: string;
+  cycleNumber: number;
+  startedAt: string;
+  gtmContext: {
+    audience?: string;
+    channels?: string[];
+    goals?: string[];
+  };
+  experiments: Array<{
+    track: string;
+    description: string;
+    verdict?: string;
+  }>;
+  publishedContent: Array<{
+    platform: string;
+    postId?: string;
+    postUrl?: string;
+    publishedAt?: string;
+    content?: string;
+  }>;
+  lastBrief?: string;
+}
+
+/**
+ * Get growth plan summaries from active GTM pipeline runs.
+ * Queries runs with slug matching "gtm-pipeline*", enriches with
+ * step outputs for experiments, published content, and briefs.
+ *
+ * Brief 140: Growth composition intent data.
+ */
+export async function getGrowthPlans(): Promise<GrowthPlanSummary[]> {
+  // Find GTM pipeline processes
+  const gtmProcesses = await db
+    .select({ id: schema.processes.id, slug: schema.processes.slug, name: schema.processes.name })
+    .from(schema.processes)
+    .where(like(schema.processes.slug, "gtm-pipeline%"));
+
+  if (gtmProcesses.length === 0) return [];
+
+  const processIds = gtmProcesses.map((p) => p.id);
+  const processMap = new Map(gtmProcesses.map((p) => [p.id, p]));
+
+  // Get active + recent runs for these processes
+  const runs = await db
+    .select()
+    .from(schema.processRuns)
+    .where(
+      and(
+        inArray(schema.processRuns.processId, processIds),
+        or(
+          eq(schema.processRuns.status, "running"),
+          eq(schema.processRuns.status, "waiting_review"),
+          eq(schema.processRuns.status, "approved"),
+        ),
+      ),
+    )
+    .orderBy(desc(schema.processRuns.createdAt));
+
+  if (runs.length === 0) return [];
+
+  // Batch fetch step runs for all GTM runs
+  const runIds = runs.map((r) => r.id);
+  const allStepRuns = await db
+    .select({
+      processRunId: schema.stepRuns.processRunId,
+      stepId: schema.stepRuns.stepId,
+      status: schema.stepRuns.status,
+      outputs: schema.stepRuns.outputs,
+    })
+    .from(schema.stepRuns)
+    .where(inArray(schema.stepRuns.processRunId, runIds))
+    .orderBy(schema.stepRuns.createdAt);
+
+  // Group step runs by processRunId
+  const stepRunsByRun = new Map<string, typeof allStepRuns>();
+  for (const sr of allStepRuns) {
+    const existing = stepRunsByRun.get(sr.processRunId) ?? [];
+    existing.push(sr);
+    stepRunsByRun.set(sr.processRunId, existing);
+  }
+
+  // Count runs per process for cycle numbering
+  const cycleCountByProcess = new Map<string, number>();
+
+  const summaries: GrowthPlanSummary[] = [];
+
+  for (const run of runs) {
+    const proc = processMap.get(run.processId);
+    if (!proc) continue;
+
+    const stepRuns = stepRunsByRun.get(run.id) ?? [];
+
+    // Cycle number: count of runs for this process up to this one
+    const count = (cycleCountByProcess.get(run.processId) ?? 0) + 1;
+    cycleCountByProcess.set(run.processId, count);
+
+    // Extract gtmContext from run inputs
+    const inputs = (run.inputs ?? {}) as Record<string, unknown>;
+    const rawGtm = (inputs.gtmContext ?? {}) as Record<string, unknown>;
+    const gtmContext = {
+      audience: typeof rawGtm.audience === "string" ? rawGtm.audience : undefined,
+      channels: Array.isArray(rawGtm.channels) ? rawGtm.channels as string[] : undefined,
+      goals: Array.isArray(rawGtm.goals) ? rawGtm.goals as string[] : undefined,
+    };
+
+    // Extract experiments from "assess" step outputs
+    const assessStep = stepRuns.find((s) => s.stepId === "assess");
+    const experiments: GrowthPlanSummary["experiments"] = [];
+    if (assessStep?.outputs) {
+      const assessOutputs = assessStep.outputs as Record<string, unknown>;
+      const rawExperiments = assessOutputs.experiments;
+      if (Array.isArray(rawExperiments)) {
+        for (const exp of rawExperiments) {
+          if (exp && typeof exp === "object") {
+            const e = exp as Record<string, unknown>;
+            experiments.push({
+              track: typeof e.track === "string" ? e.track : "unknown",
+              description: typeof e.description === "string" ? e.description : String(e.what ?? ""),
+              verdict: typeof e.verdict === "string" ? e.verdict : undefined,
+            });
+          }
+        }
+      }
+    }
+
+    // Extract published content from land-content step outputs
+    const publishedContent: GrowthPlanSummary["publishedContent"] = [];
+    const landStep = stepRuns.find((s) => s.stepId === "land-content");
+    if (landStep?.outputs) {
+      const landOutputs = landStep.outputs as Record<string, unknown>;
+      const rawResults = landOutputs["content-results"];
+      if (Array.isArray(rawResults)) {
+        for (const post of rawResults) {
+          if (post && typeof post === "object") {
+            const p = post as Record<string, unknown>;
+            publishedContent.push({
+              platform: typeof p.platform === "string" ? p.platform : "unknown",
+              postId: typeof p.postId === "string" ? p.postId : undefined,
+              postUrl: typeof p.postUrl === "string" ? p.postUrl : undefined,
+              publishedAt: typeof p.publishedAt === "string" ? p.publishedAt : undefined,
+              content: typeof p.content === "string" ? p.content : undefined,
+            });
+          }
+        }
+      }
+    }
+
+    // Extract last brief from "brief" step outputs
+    const briefStep = stepRuns.find((s) => s.stepId === "brief");
+    let lastBrief: string | undefined;
+    if (briefStep?.outputs) {
+      const briefOutputs = briefStep.outputs as Record<string, unknown>;
+      const rawBrief = briefOutputs["gtm-brief"];
+      if (typeof rawBrief === "string") {
+        lastBrief = rawBrief;
+      } else if (rawBrief && typeof rawBrief === "object") {
+        const b = rawBrief as Record<string, unknown>;
+        lastBrief = typeof b.summary === "string" ? b.summary : JSON.stringify(rawBrief);
+      }
+    }
+
+    // Current step name
+    const currentStepRun = stepRuns.find(
+      (s) => s.status === "running" || s.status === "waiting_review",
+    );
+    const currentStep = currentStepRun?.stepId ?? (run.status === "approved" ? "Complete" : "Queued");
+
+    // Plan name: use audience from gtmContext or process name
+    const planName = gtmContext.audience
+      ? `${proc.name}: ${gtmContext.audience}`
+      : proc.name;
+
+    summaries.push({
+      planName,
+      runId: run.id,
+      processSlug: proc.slug,
+      status: run.status,
+      currentStep,
+      cycleNumber: count,
+      startedAt: run.startedAt?.toISOString() ?? run.createdAt?.toISOString() ?? new Date().toISOString(),
+      gtmContext,
+      experiments,
+      publishedContent,
+      lastBrief,
+    });
+  }
+
+  return summaries;
+}
+
+// ============================================================
+// Process Capabilities (Library view)
+// ============================================================
+
+import fs from "fs";
+import path from "path";
+import YAML from "yaml";
+
+export interface ProcessCapability {
+  slug: string;
+  name: string;
+  description: string;
+  category: "growth" | "sales" | "relationships" | "operations" | "admin";
+  type: "cycle" | "template";
+  active: boolean;
+  activeCount: number;
+  operator?: string;
+}
+
+/**
+ * Category classification based on template metadata.
+ */
+function classifyCategory(parsed: Record<string, unknown>): ProcessCapability["category"] {
+  const slug = (parsed.id as string) || "";
+  const gear = (parsed.gear as string) || "";
+  const description = ((parsed.description as string) || "").toLowerCase();
+
+  if (slug.includes("gtm") || slug.includes("content") || slug.includes("social") || gear === "digital-acquisition") {
+    return "growth";
+  }
+  if (slug.includes("selling") || slug.includes("outreach") || slug.includes("pipeline") || slug.includes("objection") || gear === "direct-outreach") {
+    return "sales";
+  }
+  if (slug.includes("connect") || slug.includes("network") || slug.includes("nurture") || slug.includes("relationship") || slug.includes("warm-path") || slug.includes("ghost")) {
+    return "relationships";
+  }
+  if (slug.includes("inbox") || slug.includes("meeting") || slug.includes("briefing") || slug.includes("follow-up") || description.includes("triage") || description.includes("weekly")) {
+    return "operations";
+  }
+  return "admin";
+}
+
+/** Internal sub-processes excluded from user-facing catalog */
+const INTERNAL_SLUGS = new Set([
+  "channel-router",
+  "quality-gate",
+  "relationship-scoring",
+  "opt-out-management",
+  "smoke-test-runner",
+  "library-curation",
+  "front-door-conversation",
+  "front-door-intake",
+  "front-door-cos-intake",
+  "user-nurture-first-week",
+  "user-reengagement",
+  "person-research",
+  "outreach-quality-review",
+]);
+
+/**
+ * Get process capabilities for the Library view.
+ * Reads templates + cycles from filesystem, cross-references with active runs.
+ */
+export async function getProcessCapabilities(): Promise<ProcessCapability[]> {
+  const capabilities: ProcessCapability[] = [];
+
+  const loadFromDir = (dir: string, type: ProcessCapability["type"]) => {
+    if (!fs.existsSync(dir)) return;
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+
+    for (const file of files) {
+      if (file === "README.md") continue;
+      try {
+        const content = fs.readFileSync(path.join(dir, file), "utf-8");
+        const parsed = YAML.parse(content) as Record<string, unknown> | null;
+        if (!parsed) continue;
+
+        const slug = (parsed.id as string) || file.replace(/\.ya?ml$/, "");
+        if (INTERNAL_SLUGS.has(slug)) continue;
+
+        const name = (parsed.name as string) || slug;
+        const rawDesc = (parsed.description as string) || "";
+        const description = rawDesc.split(/\.\s/)[0].trim().replace(/\n/g, " ").slice(0, 200);
+        const operator = (parsed.operator as string) || undefined;
+
+        capabilities.push({
+          slug,
+          name,
+          description: description + (description.endsWith(".") ? "" : "."),
+          category: classifyCategory(parsed),
+          type,
+          active: false,
+          activeCount: 0,
+          operator,
+        });
+      } catch {
+        continue;
+      }
+    }
+  };
+
+  const templateDir = path.resolve(process.cwd(), "processes/templates");
+  const cycleDir = path.resolve(process.cwd(), "processes/cycles");
+  loadFromDir(templateDir, "template");
+  loadFromDir(cycleDir, "cycle");
+
+  // Cross-reference with active process runs
+  const activeRuns = await db
+    .select({
+      processId: schema.processRuns.processId,
+      status: schema.processRuns.status,
+    })
+    .from(schema.processRuns)
+    .where(
+      or(
+        eq(schema.processRuns.status, "running"),
+        eq(schema.processRuns.status, "waiting_review"),
+        eq(schema.processRuns.status, "queued"),
+      ),
+    );
+
+  const processIds = [...new Set(activeRuns.map((r) => r.processId))];
+  if (processIds.length > 0) {
+    const processes = await db
+      .select({ id: schema.processes.id, slug: schema.processes.slug })
+      .from(schema.processes)
+      .where(inArray(schema.processes.id, processIds));
+
+    const slugToCount = new Map<string, number>();
+    for (const run of activeRuns) {
+      const proc = processes.find((p) => p.id === run.processId);
+      if (proc) {
+        slugToCount.set(proc.slug, (slugToCount.get(proc.slug) || 0) + 1);
+      }
+    }
+
+    for (const cap of capabilities) {
+      const count = slugToCount.get(cap.slug) || 0;
+      const cycleCount = slugToCount.get(`${cap.slug}-cycle`) || 0;
+      const total = count + cycleCount;
+      if (total > 0) {
+        cap.active = true;
+        cap.activeCount = total;
+      }
+    }
+  }
+
+  // Sort: active first, then by category, then by name
+  capabilities.sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return a.name.localeCompare(b.name);
+  });
+
+  return capabilities;
 }

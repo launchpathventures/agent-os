@@ -257,16 +257,29 @@ async function assembleReviewItems(): Promise<ReviewItem[]> {
         ),
       );
 
-    const outputText = outputs
-      .map((o) => {
-        const content = o.content;
-        if (typeof content === "string") return content;
-        if (content && typeof content === "object" && "text" in content) {
-          return (content as Record<string, string>).text;
-        }
-        return JSON.stringify(content, null, 2);
-      })
-      .join("\n\n---\n\n");
+    // Check if this is a GTM pipeline GATE step
+    const isGtmGate =
+      (proc?.slug?.startsWith("gtm-pipeline") ?? false) &&
+      waitingStep?.stepId === "gate";
+
+    let outputText: string;
+
+    if (isGtmGate) {
+      // GTM pipeline: format ACT step outputs as structured experiment markdown
+      outputText = await formatGtmGateReview(run.id);
+    } else {
+      // Default: generic output text
+      outputText = outputs
+        .map((o) => {
+          const content = o.content;
+          if (typeof content === "string") return content;
+          if (content && typeof content === "object" && "text" in content) {
+            return (content as Record<string, string>).text;
+          }
+          return JSON.stringify(content, null, 2);
+        })
+        .join("\n\n---\n\n");
+    }
 
     // Get harness flags (from review details)
     const decisions = await db
@@ -555,6 +568,127 @@ async function assembleProcessOutputs(): Promise<ProcessOutputItem[]> {
   }
 
   return items;
+}
+
+// ============================================================
+// GTM Pipeline GATE Review Enrichment (Brief 141)
+// ============================================================
+
+/**
+ * Format GTM pipeline ACT step outputs as structured experiment markdown
+ * for the GATE review card. Groups experiments by track:
+ * Credibility, Pain-naming, Outreach.
+ */
+async function formatGtmGateReview(processRunId: string): Promise<string> {
+  // Get ACT step outputs for this run
+  const actSteps = await db
+    .select({
+      stepId: schema.stepRuns.stepId,
+      outputs: schema.stepRuns.outputs,
+    })
+    .from(schema.stepRuns)
+    .where(
+      and(
+        eq(schema.stepRuns.processRunId, processRunId),
+        or(
+          eq(schema.stepRuns.stepId, "act-credibility"),
+          eq(schema.stepRuns.stepId, "act-pain-naming"),
+          eq(schema.stepRuns.stepId, "act-outreach"),
+        ),
+      ),
+    );
+
+  if (actSteps.length === 0) {
+    return "(No experiment drafts found for this cycle)";
+  }
+
+  const sections: string[] = [];
+
+  // Track mapping: stepId → display name
+  const trackMap: Record<string, string> = {
+    "act-credibility": "Credibility",
+    "act-pain-naming": "Pain-naming",
+    "act-outreach": "Outreach",
+  };
+
+  // Process in consistent order
+  const orderedStepIds = ["act-credibility", "act-pain-naming", "act-outreach"];
+
+  for (const stepId of orderedStepIds) {
+    const step = actSteps.find((s) => s.stepId === stepId);
+    if (!step?.outputs) continue;
+
+    const trackName = trackMap[stepId];
+    const outputs = step.outputs as Record<string, unknown>;
+
+    // Each ACT step produces a draft in its output key
+    const outputKey = Object.keys(outputs)[0]; // credibility-draft, pain-naming-draft, outreach-drafts
+    const draft = outputs[outputKey];
+
+    if (!draft) continue;
+
+    sections.push(formatExperimentSection(trackName, draft));
+  }
+
+  if (sections.length === 0) {
+    return "(No experiment drafts found for this cycle)";
+  }
+
+  return sections.join("\n\n---\n\n");
+}
+
+/**
+ * Format a single experiment track section as markdown.
+ * Extracts: Hook, Target, Hypothesis, Kill criteria, Confidence, Full draft.
+ * Exported for testing (Brief 141).
+ */
+export function formatExperimentSection(trackName: string, draft: unknown): string {
+  const lines: string[] = [`## ${trackName}`];
+
+  if (typeof draft === "string") {
+    // Simple text draft — display as-is under the track header
+    lines.push("", draft);
+    return lines.join("\n");
+  }
+
+  if (draft && typeof draft === "object") {
+    const d = draft as Record<string, unknown>;
+
+    if (d.hook) lines.push(`**Hook:** ${d.hook}`);
+    if (d.target) lines.push(`**Target:** ${d.target}`);
+    if (d.channel) lines.push(`**Channel:** ${d.channel}`);
+    if (d.hypothesis) lines.push(`**Hypothesis:** ${d.hypothesis}`);
+    if (d.killCriteria) lines.push(`**Kill criteria:** ${d.killCriteria}`);
+    if (d.successCriteria) lines.push(`**Success criteria:** ${d.successCriteria}`);
+    if (d.confidence != null) lines.push(`**Confidence:** ${d.confidence}/5`);
+
+    // Full draft content
+    const draftText = d.draft ?? d.content ?? d.text ?? d.body;
+    if (typeof draftText === "string") {
+      lines.push("", "### Draft", "", draftText);
+    }
+
+    // Outreach track may have multiple recipients
+    if (Array.isArray(d.recipients ?? d.drafts ?? d.messages)) {
+      const items = (d.recipients ?? d.drafts ?? d.messages) as Array<Record<string, unknown>>;
+      for (const item of items) {
+        lines.push("");
+        if (item.to ?? item.name ?? item.handle) {
+          lines.push(`**To:** ${item.to ?? item.name ?? item.handle}`);
+        }
+        if (item.channel ?? item.platform) {
+          lines.push(`**Channel:** ${item.channel ?? item.platform}`);
+        }
+        if (item.hook) lines.push(`**Hook:** ${item.hook}`);
+        const msgText = item.draft ?? item.body ?? item.message ?? item.text;
+        if (typeof msgText === "string") {
+          lines.push("", "> " + msgText.split("\n").join("\n> "));
+        }
+      }
+    }
+  }
+
+  return lines.join("\n");
 }
 
 // ============================================================

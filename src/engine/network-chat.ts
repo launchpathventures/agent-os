@@ -1075,6 +1075,17 @@ export async function handleChatTurn(
     } catch { /* non-fatal */ }
   }
 
+  // Deduplicate: skip fetchUrl if the URL was already fetched in this conversation
+  if (fetchUrl) {
+    const alreadyFetched = session.messages.some((m) =>
+      m.content.includes(`[PAGE_CONTENT from ${fetchUrl}]`) || m.content.includes(`[PAGE_FETCH_FAILED for ${fetchUrl}]`)
+    );
+    if (alreadyFetched) {
+      console.log(`[network-chat] Skipping duplicate fetchUrl: ${fetchUrl}`);
+      fetchUrl = null;
+    }
+  }
+
   // Enrichment loop — search or fetch, then re-prompt. Max 2 rounds to prevent runaway.
   for (let enrichRound = 0; enrichRound < 2; enrichRound++) {
     let enrichContent: string | null = null;
@@ -1346,10 +1357,10 @@ export async function* handleChatTurnStreaming(
     return;
   }
 
-  // Record chat message event
-  await recordFunnelEvent(session.sessionId, "chat_message", context, { ipHash });
+  // Record chat message events (fire-and-forget — don't block the response)
+  recordFunnelEvent(session.sessionId, "chat_message", context, { ipHash }).catch(() => {});
   if (session.messageCount === 0) {
-    await recordFunnelEvent(session.sessionId, "conversation_started", context);
+    recordFunnelEvent(session.sessionId, "conversation_started", context).catch(() => {});
   }
 
   const trimmedMessage = message.trim();
@@ -1377,19 +1388,15 @@ export async function* handleChatTurnStreaming(
 
   session.messageCount += 1;
 
-  // Visitor context + geolocation — skip person lookup in test mode
+  // Visitor context + geolocation — run in parallel, skip person lookup in test mode
   let visitorContext: VisitorContext | undefined;
   const geoPromise = geolocateIp(ip, ipHash);
+  const visitorPromise = (knownEmail && !isTestMode())
+    ? assembleVisitorContext(knownEmail).catch(() => ({ email: knownEmail, isReturning: !!returningEmail } as VisitorContext))
+    : Promise.resolve(undefined);
 
-  if (knownEmail && !isTestMode()) {
-    try {
-      visitorContext = await assembleVisitorContext(knownEmail);
-    } catch {
-      visitorContext = { email: knownEmail, isReturning: !!returningEmail };
-    }
-  }
-
-  const geo = await geoPromise;
+  const [geo, resolvedVisitor] = await Promise.all([geoPromise, visitorPromise]);
+  visitorContext = resolvedVisitor;
   if (geo) {
     if (!visitorContext) visitorContext = {};
     visitorContext.location = geo;
@@ -1423,14 +1430,30 @@ export async function* handleChatTurnStreaming(
     ...(model ? { model } : {}),
   };
 
-  // Phase 1: Think — get the full response including enrichment signals.
-  // No text is streamed yet. The user sees "Considering…" from the flow checker above.
-  const thinkResponse = await createCompletion(llmRequest);
-  recordFrontDoorSpend(thinkResponse.costCents);
+  // Phase 1: Stream text directly from LLM to user for instant feedback.
+  // Text blocks stream as text-deltas. Tool call (alex_response) is captured
+  // at the end for metadata. If enrichment is needed (search/fetch), a
+  // follow-up non-streaming call replaces the text.
+  yield { type: "status", message: "Thinking…" };
 
-  // Phase 1: Think
-  yield { type: "status", message: "Considering…" };
-  const streamRawExtracted = extractAlexResponse(thinkResponse.content);
+  let streamedText = "";
+  let thinkContent: import("./llm").LlmContentBlock[] = [];
+  let thinkCost = 0;
+  let needsEnrichment = false;
+
+  for await (const event of createStreamingCompletion(llmRequest)) {
+    if (event.type === "text-delta") {
+      // Stream text directly to the user — instant feedback
+      yield { type: "text-delta" as const, text: event.text };
+      streamedText += event.text;
+    } else if (event.type === "content-complete") {
+      thinkContent = event.content;
+      thinkCost = event.costCents;
+    }
+  }
+  recordFrontDoorSpend(thinkCost);
+
+  const streamRawExtracted = extractAlexResponse(thinkContent);
   // Update session.learned BEFORE gate enforcement so gates see this turn's context
   if (streamRawExtracted.learned) {
     session.learned = { ...(session.learned || {}), ...streamRawExtracted.learned };
@@ -1440,10 +1463,10 @@ export async function* handleChatTurnStreaming(
 
   // Mode detection funnel event
   if (detectedMode) {
-    await recordFunnelEvent(session.sessionId, "mode_detected", context, {
+    recordFunnelEvent(session.sessionId, "mode_detected", context, {
       mode: detectedMode,
       messageCount: session.messageCount,
-    });
+    }).catch(() => {});
   }
 
   if (requestEmail) {
@@ -1457,108 +1480,110 @@ export async function* handleChatTurnStreaming(
     } catch { /* non-fatal */ }
   }
 
-  // Phase 2: Enrichment loop — fetch/search in background, re-prompt.
-  // The user sees status messages ("Reading that page…") while this runs.
-  // No text has been streamed yet, so there's nothing to contradict.
-  // Brief 142: skip enrichment for voice channel — saves 2-5s latency.
-  let lastEnrichmentText: string | null = null; // Brief 137: track for block construction
-  for (let enrichRound = 0; enrichRound < (options?.skipEnrichment ? 0 : 2); enrichRound++) {
-    let enrichContent: string | null = null;
-    let enrichLabel = "";
-
-    if (searchQuery) {
-      // Brief 142: notify voice endpoint before enrichment starts (filler phrase)
-      if (enrichRound === 0) options?.onEnrichmentStart?.();
-      yield { type: "status", message: "Searching…" };
-      enrichContent = await webSearch(searchQuery);
-      enrichLabel = `[SEARCH_RESULTS for "${searchQuery}"]`;
-    } else if (fetchUrl) {
-      // Brief 142: notify voice endpoint before enrichment starts (filler phrase)
-      if (enrichRound === 0) options?.onEnrichmentStart?.();
-      yield { type: "status", message: "Reading that page…" };
-      const result: FetchResult = await fetchUrlContent(fetchUrl);
-      if (result.content) {
-        enrichContent = result.content;
-        enrichLabel = `[PAGE_CONTENT from ${fetchUrl}]`;
-      } else if (result.error) {
-        enrichContent = result.error;
-        enrichLabel = `[PAGE_FETCH_FAILED for ${fetchUrl}]`;
-      }
-    } else {
-      break;
-    }
-
-    if (!enrichContent) break;
-    lastEnrichmentText = enrichContent; // Brief 137: capture for block construction
-
-    session.messages.push({ role: "assistant", content: reply });
-    session.messages.push({ role: "user", content: `${enrichLabel}\n${enrichContent}` });
-
-    const followUpRequest = {
-      system: systemPrompt,
-      messages: session.messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      tools: [ALEX_RESPONSE_TOOL],
-      maxTokens: 400,
-      ...(model ? { model } : {}),
-    };
-
-    try {
-      yield { type: "status" as const, message: "Putting it together…" };
-      const followUp = await createCompletion(followUpRequest);
-      recordFrontDoorSpend(followUp.costCents);
-      const followUpRaw = extractAlexResponse(followUp.content);
-      if (followUpRaw.learned) {
-        learned = followUpRaw.learned;
-        session.learned = { ...(session.learned || {}), ...learned };
-      }
-      const followUpGated = enforceStageGates(followUpRaw, session);
-      reply = followUpGated.reply;
-      streamDeclaredQuestion = followUpGated.question ?? streamDeclaredQuestion;
-      requestName = followUpGated.requestName;
-      requestLocation = followUpGated.requestLocation;
-      requestEmail = followUpGated.requestEmail;
-      done = followUpGated.done;
-      suggestions = followUpGated.suggestions;
-      extraQuestions = followUpGated.extraQuestions;
-      if (followUpGated.detectedMode) detectedMode = followUpGated.detectedMode;
-      if (followUpGated.plan) plan = followUpGated.plan;
-      session.messages.pop();
-      session.messages.pop();
-      searchQuery = followUpGated.searchQuery;
-      fetchUrl = followUpGated.fetchUrl;
-    } catch {
-      session.messages.pop();
-      session.messages.pop();
-      break;
+  // Deduplicate: skip fetchUrl if the URL was already fetched in this conversation
+  if (fetchUrl) {
+    const alreadyFetched = session.messages.some((m) =>
+      m.content.includes(`[PAGE_CONTENT from ${fetchUrl}]`) || m.content.includes(`[PAGE_FETCH_FAILED for ${fetchUrl}]`)
+    );
+    if (alreadyFetched) {
+      console.log(`[network-chat] Skipping duplicate fetchUrl: ${fetchUrl}`);
+      fetchUrl = null;
     }
   }
 
+  // Check if enrichment is needed (search/fetch triggered by alex_response)
+  needsEnrichment = !!(searchQuery || fetchUrl) && !options?.skipEnrichment;
+  let lastEnrichmentText: string | null = null;
+
+  // If enrichment is needed, the streamed text will be replaced.
+  // Send a text-replace event so the frontend knows to swap it.
+  if (needsEnrichment) {
+    for (let enrichRound = 0; enrichRound < 2; enrichRound++) {
+      let enrichContent: string | null = null;
+      let enrichLabel = "";
+
+      if (searchQuery) {
+        if (enrichRound === 0) options?.onEnrichmentStart?.();
+        yield { type: "status", message: "Searching…" };
+        enrichContent = await webSearch(searchQuery);
+        enrichLabel = `[SEARCH_RESULTS for "${searchQuery}"]`;
+      } else if (fetchUrl) {
+        if (enrichRound === 0) options?.onEnrichmentStart?.();
+        yield { type: "status", message: "Reading that page…" };
+        const result: FetchResult = await fetchUrlContent(fetchUrl);
+        if (result.content) {
+          enrichContent = result.content;
+          enrichLabel = `[PAGE_CONTENT from ${fetchUrl}]`;
+        } else if (result.error) {
+          enrichContent = result.error;
+          enrichLabel = `[PAGE_FETCH_FAILED for ${fetchUrl}]`;
+        }
+      } else {
+        break;
+      }
+
+      if (!enrichContent) break;
+      lastEnrichmentText = enrichContent;
+
+      session.messages.push({ role: "assistant", content: reply });
+      session.messages.push({ role: "user", content: `${enrichLabel}\n${enrichContent}` });
+
+      const followUpRequest = {
+        system: systemPrompt,
+        messages: session.messages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+        tools: [ALEX_RESPONSE_TOOL],
+        maxTokens: 400,
+        ...(model ? { model } : {}),
+      };
+
+      try {
+        yield { type: "status" as const, message: "Putting it together…" };
+        const followUp = await createCompletion(followUpRequest);
+        recordFrontDoorSpend(followUp.costCents);
+        const followUpRaw = extractAlexResponse(followUp.content);
+        if (followUpRaw.learned) {
+          learned = followUpRaw.learned;
+          session.learned = { ...(session.learned || {}), ...learned };
+        }
+        const followUpGated = enforceStageGates(followUpRaw, session);
+        reply = followUpGated.reply;
+        streamDeclaredQuestion = followUpGated.question ?? streamDeclaredQuestion;
+        requestName = followUpGated.requestName;
+        requestLocation = followUpGated.requestLocation;
+        requestEmail = followUpGated.requestEmail;
+        done = followUpGated.done;
+        suggestions = followUpGated.suggestions;
+        extraQuestions = followUpGated.extraQuestions;
+        if (followUpGated.detectedMode) detectedMode = followUpGated.detectedMode;
+        if (followUpGated.plan) plan = followUpGated.plan;
+        session.messages.pop();
+        session.messages.pop();
+        searchQuery = followUpGated.searchQuery;
+        fetchUrl = followUpGated.fetchUrl;
+      } catch {
+        session.messages.pop();
+        session.messages.pop();
+        break;
+      }
+    }
+
+    // Replace the streamed text with the enriched reply
+    yield { type: "text-replace" as const, text: reply };
+  }
+
   // ── Secondary LLM validation (Haiku) ──
-  // Runs BEFORE text emission so the user only sees the cleaned version.
+  // Skip on first message — perceived latency matters most on the first turn.
+  // Skip if text was already streamed without enrichment (can't un-stream it).
   // Brief 142: skip for voice channel — saves ~100-200ms latency
-  if (!options?.skipValidation) {
+  if (!options?.skipValidation && session.messageCount > 1 && needsEnrichment) {
     yield { type: "status", message: "Checking…" };
     const streamValidated = await validateAndCleanResponse(reply, streamDeclaredQuestion);
     reply = streamValidated.cleanedReply;
     extraQuestions = streamValidated.extraQuestions;
-  }
-
-  // Phase 3: Emit the final reply. All thinking and enrichment is done —
-  // this is the one and only response the user sees.
-  // Drip-feed in small chunks for a natural typing feel.
-  // Drip-feed text in small chunks with a delay for natural typing feel.
-  // Without the delay, the generator yields all chunks synchronously and
-  // the browser receives them in a single flush — appearing as a block.
-  const CHUNK_SIZE = 12; // ~2-3 words per chunk
-  const CHUNK_DELAY_MS = 20; // typing speed
-  for (let i = 0; i < reply.length; i += CHUNK_SIZE) {
-    yield { type: "text-delta", text: reply.slice(i, i + CHUNK_SIZE) };
-    if (i + CHUNK_SIZE < reply.length) {
-      await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY_MS));
-    }
+    yield { type: "text-replace" as const, text: reply };
   }
 
   // Brief 137: Emit content blocks after text, before metadata (Insight-110 boundary)

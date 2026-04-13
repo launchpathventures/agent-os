@@ -25,7 +25,7 @@ import { startProcessRun } from "../heartbeat";
 // ============================================================
 
 /** Valid cycle types that map to cycle YAML definitions in processes/cycles/ */
-const CYCLE_TYPES = ["sales-marketing", "network-connecting", "relationship-nurture"] as const;
+const CYCLE_TYPES = ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"] as const;
 export type CycleType = (typeof CYCLE_TYPES)[number];
 
 /** Cycle slug mapping: cycle type → process slug (from processes/cycles/*.yaml) */
@@ -33,7 +33,11 @@ const CYCLE_SLUG_MAP: Record<CycleType, string> = {
   "sales-marketing": "sales-marketing-cycle",
   "network-connecting": "network-connecting-cycle",
   "relationship-nurture": "relationship-nurture-cycle",
+  "gtm-pipeline": "gtm-pipeline-cycle",
 };
+
+/** Cycle types that support multiple concurrent plans (differentiated by planName) */
+const MULTI_PLAN_TYPES: CycleType[] = ["gtm-pipeline"];
 
 /** Terminal statuses — a run in one of these is no longer active */
 const TERMINAL_STATUSES: RunStatus[] = ["approved", "rejected", "failed", "cancelled", "skipped"];
@@ -41,6 +45,15 @@ const TERMINAL_STATUSES: RunStatus[] = ["approved", "rejected", "failed", "cance
 // ============================================================
 // activate_cycle
 // ============================================================
+
+export interface GtmContext {
+  planName: string;
+  product?: string;
+  audience?: string;
+  differentiator?: string;
+  channels?: string;
+  [key: string]: unknown;
+}
 
 export interface ActivateCycleInput {
   cycleType: string;
@@ -51,6 +64,7 @@ export interface ActivateCycleInput {
   boundaries?: string;
   cadence?: string;
   continuous?: boolean;
+  gtmContext?: GtmContext;
 }
 
 export async function handleActivateCycle(
@@ -66,7 +80,9 @@ export async function handleActivateCycle(
     };
   }
 
-  if (!input.goals && !input.icp) {
+  const isMultiPlan = MULTI_PLAN_TYPES.includes(cycleType);
+
+  if (!isMultiPlan && !input.goals && !input.icp) {
     return {
       toolName: "activate_cycle",
       success: false,
@@ -74,16 +90,42 @@ export async function handleActivateCycle(
     };
   }
 
-  const processSlug = CYCLE_SLUG_MAP[cycleType];
-
-  // Check for existing active cycle of this type
-  const existingActive = await findActiveCycleRun(cycleType);
-  if (existingActive) {
+  // GTM pipeline requires gtmContext with planName
+  if (isMultiPlan && !input.gtmContext?.planName) {
     return {
       toolName: "activate_cycle",
       success: false,
-      output: `A ${cycleType} cycle is already running (run ${existingActive.id.slice(0, 8)}). Pause it first if you want to start a new one.`,
+      output: "GTM pipeline requires a planName in gtmContext. What should we call this growth plan?",
     };
+  }
+
+  const processSlug = CYCLE_SLUG_MAP[cycleType];
+
+  // Overlap prevention: multi-plan types allow concurrency with different planNames
+  if (isMultiPlan) {
+    const activeRuns = await findActiveCycleRuns(cycleType);
+    const planName = input.gtmContext!.planName;
+    const duplicate = activeRuns.find((r) => {
+      const config = r.cycleConfig as Record<string, unknown> | null;
+      const ctx = config?.gtmContext as Record<string, unknown> | undefined;
+      return ctx?.planName === planName;
+    });
+    if (duplicate) {
+      return {
+        toolName: "activate_cycle",
+        success: false,
+        output: `A GTM pipeline with plan "${planName}" is already running (run ${duplicate.id.slice(0, 8)}). Pause it first or use a different plan name.`,
+      };
+    }
+  } else {
+    const existingActive = await findActiveCycleRun(cycleType);
+    if (existingActive) {
+      return {
+        toolName: "activate_cycle",
+        success: false,
+        output: `A ${cycleType} cycle is already running (run ${existingActive.id.slice(0, 8)}). Pause it first if you want to start a new one.`,
+      };
+    }
   }
 
   // Truncate user-provided strings to prevent DB bloat
@@ -99,6 +141,11 @@ export async function handleActivateCycle(
     continuous: input.continuous !== false, // default to continuous
   };
 
+  // Attach gtmContext for GTM pipeline cycles
+  if (isMultiPlan && input.gtmContext) {
+    cycleConfig.gtmContext = input.gtmContext;
+  }
+
   try {
     // Pass cycleType/cycleConfig into startProcessRun for atomic INSERT —
     // eliminates the TOCTOU race where a concurrent activate_cycle could
@@ -108,6 +155,7 @@ export async function handleActivateCycle(
       {
         userId: input.userId || "default",
         cycleConfig,
+        ...(input.gtmContext ? { gtmContext: input.gtmContext } : {}),
       },
       "self:activate_cycle",
       { cycleType, cycleConfig },
@@ -117,17 +165,21 @@ export async function handleActivateCycle(
       ? "sales pipeline"
       : cycleType === "network-connecting"
         ? "connection building"
-        : "relationship nurturing";
+        : cycleType === "relationship-nurture"
+          ? "relationship nurturing"
+          : "growth plan";
+
+    const planSuffix = input.gtmContext?.planName ? ` — "${input.gtmContext.planName}"` : "";
 
     return {
       toolName: "activate_cycle",
       success: true,
       output: [
-        `I'll start working on your ${cycleLabel}. This is a continuous operation — I'll keep at it every day, not just a one-time task.`,
+        `I'll start working on your ${cycleLabel}${planSuffix}. This is a continuous operation — I'll keep at it every day, not just a one-time task.`,
         ``,
         input.icp ? `**Targeting:** ${input.icp}` : "",
         input.goals ? `**Goal:** ${input.goals}` : "",
-        input.channels ? `**Channels:** ${input.channels}` : "",
+        input.channels || input.gtmContext?.channels ? `**Channels:** ${input.channels || input.gtmContext?.channels}` : "",
         input.boundaries ? `**Boundaries:** ${input.boundaries}` : "",
         `**Cadence:** ${cycleConfig.cadence}`,
         ``,
@@ -150,6 +202,7 @@ export async function handleActivateCycle(
 
 export interface PauseCycleInput {
   cycleType: string;
+  planName?: string;
 }
 
 export async function handlePauseCycle(
@@ -165,26 +218,43 @@ export async function handlePauseCycle(
     };
   }
 
+  const isMultiPlan = MULTI_PLAN_TYPES.includes(cycleType);
+
   try {
-    const activeRun = await findActiveCycleRun(cycleType);
-    if (!activeRun) {
+    let targetRun: { id: string } | null;
+
+    if (isMultiPlan && input.planName) {
+      const activeRuns = await findActiveCycleRuns(cycleType);
+      const match = activeRuns.find((r) => {
+        const config = r.cycleConfig as Record<string, unknown> | null;
+        const ctx = config?.gtmContext as Record<string, unknown> | undefined;
+        return ctx?.planName === input.planName;
+      });
+      targetRun = match ?? null;
+    } else {
+      targetRun = await findActiveCycleRun(cycleType);
+    }
+
+    if (!targetRun) {
+      const suffix = input.planName ? ` with plan "${input.planName}"` : "";
       return {
         toolName: "pause_cycle",
         success: false,
-        output: `No active ${cycleType} cycle to pause.`,
+        output: `No active ${cycleType} cycle${suffix} to pause.`,
       };
     }
 
     await db
       .update(schema.processRuns)
       .set({ status: "paused" })
-      .where(eq(schema.processRuns.id, activeRun.id));
+      .where(eq(schema.processRuns.id, targetRun.id));
 
+    const planSuffix = input.planName ? ` ("${input.planName}")` : "";
     return {
       toolName: "pause_cycle",
       success: true,
-      output: `${cycleType} cycle paused. I'll stop operating until you resume it.`,
-      metadata: { runId: activeRun.id, cycleType },
+      output: `${cycleType} cycle${planSuffix} paused. I'll stop operating until you resume it.`,
+      metadata: { runId: targetRun.id, cycleType },
     };
   } catch (err) {
     return {
@@ -201,6 +271,7 @@ export async function handlePauseCycle(
 
 export interface ResumeCycleInput {
   cycleType: string;
+  planName?: string;
 }
 
 export async function handleResumeCycle(
@@ -216,10 +287,12 @@ export async function handleResumeCycle(
     };
   }
 
+  const isMultiPlan = MULTI_PLAN_TYPES.includes(cycleType);
+
   try {
     // Find a paused cycle run
-    const pausedRun = await db
-      .select({ id: schema.processRuns.id })
+    const pausedRuns = await db
+      .select({ id: schema.processRuns.id, cycleConfig: schema.processRuns.cycleConfig })
       .from(schema.processRuns)
       .where(
         and(
@@ -227,27 +300,40 @@ export async function handleResumeCycle(
           eq(schema.processRuns.status, "paused"),
         ),
       )
-      .orderBy(desc(schema.processRuns.createdAt))
-      .limit(1);
+      .orderBy(desc(schema.processRuns.createdAt));
 
-    if (pausedRun.length === 0) {
+    let targetRun: { id: string } | undefined;
+
+    if (isMultiPlan && input.planName) {
+      targetRun = pausedRuns.find((r) => {
+        const config = r.cycleConfig as Record<string, unknown> | null;
+        const ctx = config?.gtmContext as Record<string, unknown> | undefined;
+        return ctx?.planName === input.planName;
+      });
+    } else {
+      targetRun = pausedRuns[0];
+    }
+
+    if (!targetRun) {
+      const suffix = input.planName ? ` with plan "${input.planName}"` : "";
       return {
         toolName: "resume_cycle",
         success: false,
-        output: `No paused ${cycleType} cycle to resume.`,
+        output: `No paused ${cycleType} cycle${suffix} to resume.`,
       };
     }
 
     await db
       .update(schema.processRuns)
       .set({ status: "running" })
-      .where(eq(schema.processRuns.id, pausedRun[0].id));
+      .where(eq(schema.processRuns.id, targetRun.id));
 
+    const planSuffix = input.planName ? ` ("${input.planName}")` : "";
     return {
       toolName: "resume_cycle",
       success: true,
-      output: `${cycleType} cycle resumed. I'm back on it.`,
-      metadata: { runId: pausedRun[0].id, cycleType },
+      output: `${cycleType} cycle${planSuffix} resumed. I'm back on it.`,
+      metadata: { runId: targetRun.id, cycleType },
     };
   } catch (err) {
     return {
@@ -264,6 +350,7 @@ export async function handleResumeCycle(
 
 export interface CycleBriefingInput {
   cycleType: string;
+  planName?: string;
 }
 
 export async function handleCycleBriefing(
@@ -279,9 +366,11 @@ export async function handleCycleBriefing(
     };
   }
 
+  const isMultiPlan = MULTI_PLAN_TYPES.includes(cycleType);
+
   try {
     // Find the most recent cycle run (narrow select — avoid large JSON blobs)
-    const recentRun = await db
+    const recentRuns = await db
       .select({
         id: schema.processRuns.id,
         status: schema.processRuns.status,
@@ -291,18 +380,28 @@ export async function handleCycleBriefing(
       })
       .from(schema.processRuns)
       .where(eq(schema.processRuns.cycleType, cycleType))
-      .orderBy(desc(schema.processRuns.createdAt))
-      .limit(1);
+      .orderBy(desc(schema.processRuns.createdAt));
 
-    if (recentRun.length === 0) {
+    let run: (typeof recentRuns)[0] | undefined;
+
+    if (isMultiPlan && input.planName) {
+      run = recentRuns.find((r) => {
+        const config = r.cycleConfig as Record<string, unknown> | null;
+        const ctx = config?.gtmContext as Record<string, unknown> | undefined;
+        return ctx?.planName === input.planName;
+      });
+    } else {
+      run = recentRuns[0];
+    }
+
+    if (!run) {
+      const suffix = input.planName ? ` with plan "${input.planName}"` : "";
       return {
         toolName: "cycle_briefing",
         success: false,
-        output: `No ${cycleType} cycle runs found. Activate one first.`,
+        output: `No ${cycleType} cycle runs${suffix} found. Activate one first.`,
       };
     }
-
-    const run = recentRun[0];
 
     // Get step runs for this cycle (narrow select — only need status and stepId)
     const stepRuns = await db
@@ -386,7 +485,7 @@ export async function handleCycleStatus(
   _input: CycleStatusInput,
 ): Promise<DelegationResult> {
   try {
-    // Narrow select: only the columns we need (avoid pulling large JSON blobs)
+    // Narrow select: columns we need (cycleConfig needed for multi-plan plan names)
     const allCycleRuns = await db
       .select({
         id: schema.processRuns.id,
@@ -395,6 +494,7 @@ export async function handleCycleStatus(
         currentStepId: schema.processRuns.currentStepId,
         processId: schema.processRuns.processId,
         createdAt: schema.processRuns.createdAt,
+        cycleConfig: schema.processRuns.cycleConfig,
       })
       .from(schema.processRuns)
       .where(sql`${schema.processRuns.cycleType} IS NOT NULL`)
@@ -409,15 +509,26 @@ export async function handleCycleStatus(
     }
 
     // Group by cycle type, take most recent per type
+    // For multi-plan types, collect all active runs (each plan is separate)
     const latestByType = new Map<string, typeof allCycleRuns[0]>();
+    const multiPlanRuns: (typeof allCycleRuns[0])[] = [];
     for (const run of allCycleRuns) {
-      if (run.cycleType && !latestByType.has(run.cycleType)) {
+      if (!run.cycleType) continue;
+      if (MULTI_PLAN_TYPES.includes(run.cycleType as CycleType)) {
+        if (!TERMINAL_STATUSES.includes(run.status as RunStatus)) {
+          multiPlanRuns.push(run);
+        } else if (!latestByType.has(run.cycleType) && multiPlanRuns.filter(r => r.cycleType === run.cycleType).length === 0) {
+          // Only show terminal if no active runs exist for this type
+          latestByType.set(run.cycleType, run);
+        }
+      } else if (!latestByType.has(run.cycleType)) {
         latestByType.set(run.cycleType, run);
       }
     }
 
     // Batch: get pending review counts for all active runs in one query
-    const activeRunIds = [...latestByType.values()]
+    const allDisplayRuns = [...latestByType.values(), ...multiPlanRuns];
+    const activeRunIds = allDisplayRuns
       .filter((r) => !TERMINAL_STATUSES.includes(r.status as RunStatus))
       .map((r) => r.id);
 
@@ -480,6 +591,7 @@ export async function handleCycleStatus(
     // Build output
     const lines: string[] = ["**Operating Cycles**", ""];
 
+    // Render standard (single-per-type) cycles
     for (const [cycleType, run] of latestByType) {
       const isActive = !TERMINAL_STATUSES.includes(run.status as RunStatus);
       const statusEmoji = isActive ? "●" : "○";
@@ -500,15 +612,35 @@ export async function handleCycleStatus(
       lines.push("");
     }
 
+    // Render multi-plan runs (each plan gets its own line)
+    for (const run of multiPlanRuns) {
+      const statusEmoji = "●";
+      const reviewCount = reviewCounts.get(run.id) ?? 0;
+      const config = (run as { cycleConfig?: unknown }).cycleConfig as Record<string, unknown> | null;
+      const ctx = config?.gtmContext as Record<string, unknown> | undefined;
+      const planLabel = ctx?.planName ? ` "${ctx.planName}"` : "";
+
+      lines.push(
+        `${statusEmoji} **${run.cycleType}**${planLabel} — ${run.status}${run.currentStepId ? ` (phase: ${run.currentStepId})` : ""}`,
+      );
+      if (reviewCount > 0) {
+        lines.push(`  ${reviewCount} item(s) pending review`);
+      }
+      lines.push("");
+    }
+
+    const activeCycles = [
+      ...([...latestByType.entries()]
+        .filter(([, run]) => !TERMINAL_STATUSES.includes(run.status as RunStatus))
+        .map(([type]) => type)),
+      ...multiPlanRuns.map((r) => r.cycleType),
+    ];
+
     return {
       toolName: "cycle_status",
       success: true,
       output: lines.join("\n").trim(),
-      metadata: {
-        activeCycles: [...latestByType.entries()]
-          .filter(([, run]) => !TERMINAL_STATUSES.includes(run.status as RunStatus))
-          .map(([type]) => type),
-      },
+      metadata: { activeCycles },
     };
   } catch (err) {
     return {
@@ -540,4 +672,20 @@ async function findActiveCycleRun(
     .limit(1);
 
   return run ?? null;
+}
+
+/** Find ALL active (non-terminal) runs for a cycle type — used by multi-plan types */
+async function findActiveCycleRuns(
+  cycleType: CycleType,
+): Promise<{ id: string; cycleConfig: unknown }[]> {
+  return db
+    .select({ id: schema.processRuns.id, cycleConfig: schema.processRuns.cycleConfig })
+    .from(schema.processRuns)
+    .where(
+      and(
+        eq(schema.processRuns.cycleType, cycleType),
+        notInArray(schema.processRuns.status, TERMINAL_STATUSES),
+      ),
+    )
+    .orderBy(desc(schema.processRuns.createdAt));
 }

@@ -64,7 +64,7 @@ Alex can browse the web to research prospects, read LinkedIn profiles, extract r
 |------|--------|
 | `src/engine/self-tools/browser-tools.ts` | Create: `browse_web` self-tool. Input: URL or search query + extraction instructions. Output: structured extracted data. Uses Stagehand `extract` and `observe` primitives. |
 | `src/engine/self-tools/browser-tools.test.ts` | Create: tests for browser tool — URL validation, extraction formatting, error handling, token budget enforcement |
-| `src/engine/self.ts` | Modify: register `browse_web` tool in Self's tool set |
+| `src/engine/self-delegation.ts` | Modify: register `browse_web` tool definition in `selfTools` array + handler case in `executeDelegation` |
 | `src/engine/tool-resolver.ts` | Modify: add `browse_web` to built-in tools registry |
 | `package.json` | Modify: add `@browserbasehq/stagehand` dependency |
 

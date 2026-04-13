@@ -28,6 +28,7 @@ import { ComposedCanvas } from "./composed-canvas";
 import { ArtifactLayout } from "./artifact-layout";
 import { ArtifactSheet, FullArtifactSheet } from "./artifact-sheet";
 import { PromptInput } from "@/components/self/prompt-input";
+import { ConnectionsPanel } from "@/components/settings/connections-panel";
 import { ConversationMessage } from "@/components/self/message";
 import { TypingIndicator } from "@/components/self/typing-indicator";
 import { useChat } from "@ai-sdk/react";
@@ -444,12 +445,10 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
                 onBack={handleBack}
               />
             ) : centerView.type === "settings" ? (
-              /* Scaffold — Settings page */
+              /* Settings page — connections, integrations, preferences */
               <div className="p-6 max-w-2xl mx-auto">
-                <h2 className="text-lg font-semibold text-text-primary mb-4">Settings</h2>
-                <p className="text-sm text-text-secondary">
-                  Settings page — AI connection, integrations, preferences.
-                </p>
+                <h2 className="text-lg font-semibold text-text-primary mb-6">Settings</h2>
+                <ConnectionsPanel />
               </div>
             ) : centerView.type === "canvas" ? (
               /* Canvas — composed blocks (P00: 720px centred, generous padding) */

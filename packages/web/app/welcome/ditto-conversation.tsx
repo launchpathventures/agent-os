@@ -39,13 +39,15 @@ interface Message {
 
 const INTRO_MESSAGES: Message[] = [
   { role: "alex", text: "Hey, I\u2019m Alex." },
-  { role: "alex", text: "I\u2019m an AI advisor \u2014 I help people get unstuck, stay on top of things, and find the right opportunities. What are you working on?" },
+  { role: "alex", text: "Tell me what you do and I\u2019ll get to work \u2014 finding clients, making introductions, running your operations, or all three. You approve everything until you trust me." },
 ];
 
 const FRONT_DOOR_PILLS = [
-  "I\u2019m drowning in priorities",
-  "I need to find the right people",
-  "I\u2019m stuck on a problem",
+  "I run a small business",
+  "I\u2019m in sales",
+  "I\u2019m a consultant",
+  "I manage a team",
+  "I\u2019m an entrepreneur",
 ];
 
 const SESSION_KEY = "ditto-chat-session";
@@ -59,6 +61,9 @@ export function DittoConversation() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [introCount, setIntroCount] = useState(1);
   const [showIntro, setShowIntro] = useState(true);
+  // Preamble: pain-point lines before Alex intro
+  // 0=cursor+dots, 1=line1, 2=line2, 3=line3, 4=fading out, 5=done (show Alex)
+  const [preamble, setPreamble] = useState(0);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -174,7 +179,7 @@ export function DittoConversation() {
           if (savedSession) setSessionId(savedSession);
           setMessages([
             { role: "alex", text: "Hey again." },
-            { role: "alex", text: "Check your inbox \u2014 that\u2019s where I work. Need anything else? I\u2019m here." },
+            { role: "alex", text: "I\u2019m still working for you \u2014 check your inbox for anything that needs your sign-off. Want to change anything?" },
           ]);
           return;
         }
@@ -192,7 +197,7 @@ export function DittoConversation() {
           if (savedSession) setSessionId(savedSession);
           setMessages([
             { role: "alex", text: "Hey again." },
-            { role: "alex", text: "Check your inbox \u2014 that\u2019s where I work. Need anything else? I\u2019m here." },
+            { role: "alex", text: "I\u2019m still working for you \u2014 check your inbox for anything that needs your sign-off. Want to change anything?" },
           ]);
           return;
         }
@@ -202,15 +207,19 @@ export function DittoConversation() {
       });
   }, []);
 
-  // Staged intro: hero title + cursor → body text → input
-  // introCount: 0=nothing, 1=title+cursor, 2=title+body, 3=title+body+input
-  // The intro div stays mounted until the user sends their first message,
-  // avoiding a DOM swap flash.
+  // Staged intro: preamble pain points → Alex intro → input
+  // Preamble: 0→1→2→3 (lines fade in) → 4 (fade out) → 5 (done, show Alex)
+  // Then introCount: 1=title → 2=body → 3=input+pills+cards
   useEffect(() => {
     if (!showIntro) return;
     const timers = [
-      setTimeout(() => setIntroCount(2), 500),      // Body text
-      setTimeout(() => setIntroCount(3), 1500),     // Input appears
+      setTimeout(() => setPreamble(1), 1600),       // "AI can do more for you and your business than it currently does."
+      setTimeout(() => setPreamble(2), 5200),       // "You know it. You just don't have time to figure it out."
+      setTimeout(() => setPreamble(3), 8000),       // "What if AI just worked?"
+      setTimeout(() => setPreamble(4), 11400),      // Fade out all
+      setTimeout(() => setPreamble(5), 12200),      // Show Alex
+      setTimeout(() => setIntroCount(2), 13000),    // Body text
+      setTimeout(() => setIntroCount(3), 14200),    // Input appears
     ];
     return () => timers.forEach(clearTimeout);
   }, [showIntro]);
@@ -726,68 +735,106 @@ export function DittoConversation() {
 
         {/* Center chat column — 50% on desktop, full width on mobile */}
         <div className="flex min-h-0 w-full flex-1 flex-col py-4 md:w-1/2 md:flex-none md:py-0">
-          {/* Intro phase — staggered messages */}
+          {/* Intro phase — preamble pain points → Alex intro */}
           {showIntro && (
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hidden">
-              <div className="flex-1 space-y-5 md:space-y-6">
-                {introCount >= 1 && (
-                  <p className="animate-fade-in-slow text-2xl font-bold tracking-tight text-text-primary md:text-3xl md:leading-[1.15]">
-                    {INTRO_MESSAGES[0].text}
-                  </p>
-                )}
-                {introCount === 1 && (
-                  <TypingIndicator />
-                )}
-                {introCount >= 2 && (
-                  <p className="animate-fade-in-slow text-xl font-semibold tracking-tight text-text-primary md:text-2xl md:leading-[1.2]">
-                    {INTRO_MESSAGES[1].text}
-                  </p>
-                )}
-              </div>
-              {introCount >= 3 && (
-                <div className="animate-fade-in-slow shrink-0 space-y-3 pb-4 pt-3">
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const trimmed = input.trim();
-                    if (!trimmed) return;
-                    setMessages(INTRO_MESSAGES);
-                    setShowIntro(false);
-                    // Small delay so conversation view mounts before sending
-                    setTimeout(() => sendMessage(trimmed), 50);
-                  }} className="flex gap-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      placeholder="Ask me anything, or tell me what you need"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      className="flex-1 rounded-2xl border-2 border-border bg-white px-5 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!input.trim()}
-                      aria-label="Send message"
-                      className="inline-flex items-center rounded-2xl bg-vivid px-4 py-3 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-                    >
-                      <ArrowRight size={18} />
-                    </button>
-                  </form>
-                  <QuickReplyPills
-                    pills={FRONT_DOOR_PILLS}
-                    onSelect={(pill) => {
-                      setMessages(INTRO_MESSAGES);
-                      setShowIntro(false);
-                      setTimeout(() => sendMessage(pill), 50);
-                    }}
-                    disabled={false}
-                  />
+              {/* Blinking cursor + thinking dots before preamble */}
+              {preamble === 0 && (
+                <div className="flex flex-1 flex-col justify-center">
+                  <div className="flex items-end gap-3">
+                    <span className="inline-block h-8 w-[3px] animate-cursor-blink bg-text-primary md:h-10" />
+                    <div className="flex items-end gap-1.5 pb-1">
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
                 </div>
               )}
-              {introCount >= 3 && (
-                <div className="animate-fade-in-slow space-y-10 pb-16 pt-8">
-                  <ValueCards />
-                  <TrustRow />
+
+              {/* Preamble — pain point lines that fade in then out */}
+              {preamble >= 1 && preamble <= 4 && (
+                <div className={`flex flex-1 flex-col justify-center space-y-4 md:space-y-5 ${preamble === 4 ? "animate-fade-out" : ""}`}>
+                  {preamble >= 1 && (
+                    <p className="animate-reveal-ltr text-xl font-medium text-text-muted md:text-2xl">
+                      AI can do <strong className="font-semibold text-text-primary">more for you and your business</strong> than it currently does.
+                    </p>
+                  )}
+                  {preamble >= 2 && (
+                    <p className="animate-reveal-ltr text-xl font-medium text-text-muted md:text-2xl">
+                      You know it. You just don&apos;t have <strong className="font-semibold text-text-primary">time to figure it out</strong>.
+                    </p>
+                  )}
+                  {preamble >= 3 && (
+                    <p className="animate-reveal-ltr text-xl font-semibold text-text-primary md:text-2xl">
+                      What if AI <strong className="font-bold">just worked</strong>?
+                    </p>
+                  )}
                 </div>
+              )}
+
+              {/* Alex intro — appears after preamble exits */}
+              {preamble >= 5 && (
+                <>
+                  <div className="flex-1 space-y-5 md:space-y-6">
+                    {introCount >= 1 && (
+                      <p className="animate-fade-in-slow text-2xl font-bold tracking-tight text-text-primary md:text-3xl md:leading-[1.15]">
+                        {INTRO_MESSAGES[0].text}
+                      </p>
+                    )}
+                    {introCount === 1 && (
+                      <TypingIndicator />
+                    )}
+                    {introCount >= 2 && (
+                      <p className="animate-fade-in-slow text-xl font-semibold tracking-tight text-text-primary md:text-2xl md:leading-[1.2]">
+                        {INTRO_MESSAGES[1].text}
+                      </p>
+                    )}
+                  </div>
+                  {introCount >= 3 && (
+                    <div className="animate-fade-in-slow shrink-0 space-y-3 pb-4 pt-3">
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const trimmed = input.trim();
+                        if (!trimmed) return;
+                        setMessages(INTRO_MESSAGES);
+                        setShowIntro(false);
+                        setTimeout(() => sendMessage(trimmed), 50);
+                      }} className="flex gap-2">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          placeholder="I'm a mortgage broker in Sydney..."
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          className="flex-1 rounded-2xl border-2 border-border bg-white px-5 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!input.trim()}
+                          aria-label="Send message"
+                          className="inline-flex items-center rounded-2xl bg-vivid px-4 py-3 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                        >
+                          <ArrowRight size={18} />
+                        </button>
+                      </form>
+                      <QuickReplyPills
+                        pills={FRONT_DOOR_PILLS}
+                        onSelect={(pill) => {
+                          setMessages(INTRO_MESSAGES);
+                          setShowIntro(false);
+                          setTimeout(() => sendMessage(pill), 50);
+                        }}
+                        disabled={false}
+                      />
+                    </div>
+                  )}
+                  {introCount >= 3 && (
+                    <div className="animate-fade-in-slow space-y-10 pb-16 pt-8">
+                      <ValueCards />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -821,23 +868,30 @@ export function DittoConversation() {
                           ? "hero-secondary"
                           : "body"
                     }
+                    onAction={(actionId) => {
+                      if (actionId === "proposal-approve") {
+                        sendMessage("Looks good — let's try it");
+                      } else if (actionId === "proposal-adjust") {
+                        sendMessage("I'd like to change something");
+                      }
+                    }}
                   />
                   </div>
                 ))}
                 {(loading || statusMessage) && <TypingIndicator status={statusMessage} />}
                 <div ref={messagesEndRef} />
 
-                {/* Timeline — shown after conversation is complete */}
-                {done && emailCaptured && (
+                {/* Timeline — shown after conversation is complete, but not while a proposal is pending */}
+                {done && emailCaptured && !messages.some((m) => m.blocks?.some((b) => b.type === "process_proposal")) && (
                   <div className="mt-6 animate-fade-in rounded-xl border border-border bg-white p-6">
                     <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">
                       What happens next
                     </p>
                     <div className="space-y-4">
                       {[
-                        "Check your inbox — Alex is putting together a plan",
-                        "You review everything before anything goes out",
-                        "Nothing happens without your approval",
+                        "Check your inbox \u2014 Alex is already getting started",
+                        "You\u2019ll hear from Alex a few times a week with updates and things that need your sign-off",
+                        "Want more? Set up a workspace to see everything Alex is doing and manage it yourself",
                       ].map((step, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-vivid-subtle text-xs font-semibold text-vivid">
@@ -848,7 +902,7 @@ export function DittoConversation() {
                       ))}
                     </div>
                     <p className="mt-4 text-sm text-text-muted">
-                      You&apos;re in control. Alex does the legwork.
+                      Nothing goes out without your approval.
                     </p>
                   </div>
                 )}
@@ -964,8 +1018,8 @@ export function DittoConversation() {
                       </button>
                     </div>
                   )}
-                  {/* Brief 142b: Voice call card — ElevenLabs, persistent once voiceReady */}
-                  {voiceReady && !done && sessionId && voiceToken && (
+                  {/* Brief 142b: Voice call card — hide when email verification is showing (unless call active) */}
+                  {voiceReady && !done && sessionId && voiceToken && (!requestEmail || callActive) && (
                     <div className="shrink-0 bg-white pb-1 pt-2 md:pb-2 md:pt-3">
                       <div className={`rounded-xl md:rounded-2xl border-2 px-3 py-2.5 md:p-4 flex items-center justify-between ${
                         callActive
@@ -1026,7 +1080,7 @@ export function DittoConversation() {
                           ? "Type while talking..."
                           : done
                             ? "Ask a question or share a link"
-                            : "Ask me anything..."
+                            : "Tell me what you do..."
                       }
                       value={input}
                       onChange={handleTextareaChange}
