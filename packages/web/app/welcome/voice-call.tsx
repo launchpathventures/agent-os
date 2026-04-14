@@ -88,6 +88,41 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
   const authRef = useRef<{ signedUrl?: string; agentId?: string } | null>(null);
   const messageCountRef = useRef(0); // Track messages to skip first greeting
 
+  // Harness guidance cache — populated eagerly on user speech, consumed by client tool
+  const pendingGuidanceRef = useRef<{ guidance: string; stage: string } | null>(null);
+  const guidanceAbortRef = useRef<AbortController | null>(null); // Cancel in-flight guidance fetches
+  const lastGuidanceFetchRef = useRef(0); // Throttle: min 4s between guidance fetches
+
+  // Transcript persistence buffer — debounced batch sends (Brief 150 AC 1)
+  const transcriptBufferRef = useRef<Array<{ role: "user" | "alex"; text: string }>>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushingRef = useRef(false); // Guard against double-flush
+
+  const flushTranscript = useCallback(() => {
+    const turns = transcriptBufferRef.current;
+    if (turns.length === 0 || flushingRef.current) return;
+    flushingRef.current = true;
+    transcriptBufferRef.current = [];
+    fetch("/api/v1/voice/transcript", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, voiceToken, turns }),
+    })
+      .catch((err) => console.warn("[voice-call] Transcript flush failed:", err))
+      .finally(() => { flushingRef.current = false; });
+  }, [sessionId, voiceToken]);
+
+  const bufferTranscriptTurn = useCallback((role: "user" | "alex", text: string) => {
+    transcriptBufferRef.current.push({ role, text });
+    // Debounce: flush after 3 seconds of quiet, or immediately if buffer is large
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    if (transcriptBufferRef.current.length >= 6) {
+      flushTranscript();
+    } else {
+      flushTimerRef.current = setTimeout(flushTranscript, 3000);
+    }
+  }, [flushTranscript]);
+
   const conversation = useConversation({
     onConnect: () => {
       setCallState("active");
@@ -97,6 +132,8 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
       console.log("[voice-call] Disconnected:", JSON.stringify(details));
       setCallState("ended");
       if (timerRef.current) clearInterval(timerRef.current);
+      // Flush any remaining transcript before notifying server
+      flushTranscript();
       authRef.current = null; // Clear cached signed URL (may have TTL)
       onCallEnd?.();
       // Notify server
@@ -110,6 +147,8 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
       console.warn("[voice-call] ElevenLabs error:", error);
       setCallState("ended");
       if (timerRef.current) clearInterval(timerRef.current);
+      // Flush partial transcript even on error (Brief 150: partial > none)
+      flushTranscript();
       onCallError?.("Call connection failed. Let's keep chatting here.");
     },
     onMessage: (event: { source: string; message: string }) => {
@@ -119,6 +158,46 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
         if (messageCountRef.current === 1 && event.source !== "user") return;
         const role = event.source === "user" ? "user" : "alex";
         onMessage?.(role, event.message);
+        // Buffer for transcript persistence (Brief 150 AC 1)
+        bufferTranscriptTurn(role, event.message);
+
+        // Eager guidance pre-computation: when user finishes speaking/typing,
+        // fetch harness guidance NOW (before the agent's reasoning cycle).
+        // The result is cached in pendingGuidanceRef for the client tool AND
+        // pushed via sendContextualUpdate as belt+suspenders.
+        //
+        // Throttled: max 1 guidance call per 4 seconds to control LLM costs.
+        // Cancels in-flight requests when new speech arrives (latest wins).
+        if (event.source === "user") {
+          // Flush transcript so DB has latest turn before guidance reads it
+          if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+          flushTranscript();
+
+          const now = Date.now();
+          if (now - lastGuidanceFetchRef.current >= 4000) {
+            lastGuidanceFetchRef.current = now;
+            // Cancel any in-flight guidance request (latest speech wins)
+            guidanceAbortRef.current?.abort();
+            const controller = new AbortController();
+            guidanceAbortRef.current = controller;
+
+            fetch("/api/v1/voice/guidance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId, voiceToken }),
+              signal: controller.signal,
+            })
+              .then((res) => res.ok ? res.json() : null)
+              .then((data) => {
+                if (data?.guidance) {
+                  pendingGuidanceRef.current = data;
+                  conversation.sendContextualUpdate(`SYSTEM INSTRUCTION: ${data.guidance}`);
+                  console.log(`[voice-call] Pushed guidance: ${data.guidance.slice(0, 80)}...`);
+                }
+              })
+              .catch(() => {});
+          }
+        }
       }
     },
   });
@@ -128,6 +207,29 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
     sendUserMessage: (text: string) => conversation.sendUserMessage(text),
     sendContextualUpdate: (text: string) => conversation.sendContextualUpdate(text),
   }), [conversation]);
+
+  // Cleanup: flush remaining transcript on unmount
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      // Final flush — use sendBeacon for reliability during unmount
+      const turns = transcriptBufferRef.current;
+      if (turns.length > 0) {
+        transcriptBufferRef.current = [];
+        const body = JSON.stringify({ sessionId, voiceToken, turns });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/v1/voice/transcript", new Blob([body], { type: "application/json" }));
+        } else {
+          fetch("/api/v1/voice/transcript", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      }
+    };
+  }, [sessionId, voiceToken]);
 
   // Duration timer
   useEffect(() => {
@@ -183,6 +285,15 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
         ? `${sessionContext}\n\nSYSTEM INSTRUCTION: ${harnessGuidance}`
         : sessionContext;
 
+      // Seed the guidance cache with the initial evaluation so the first
+      // get_context client tool call returns real guidance instantly.
+      if (harnessGuidance) {
+        pendingGuidanceRef.current = {
+          guidance: harnessGuidance,
+          stage: auth.evaluation?.stage || "gathering",
+        };
+      }
+
       const sessionConfig: Record<string, unknown> = {
         dynamicVariables: {
           session_context: fullContext,
@@ -192,6 +303,36 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
           target: learned?.target || "",
           session_id: sessionId,
           voice_token: voiceToken,
+        },
+        // Client tool: get_context — synchronous guidance gate.
+        // The ElevenLabs LLM calls this and BLOCKS until guidance returns.
+        // Fast path: returns pre-computed guidance from pendingGuidanceRef (<10ms).
+        // Slow path: fetches from /voice/guidance endpoint (rule-based ~500ms, LLM ~6s).
+        clientTools: {
+          get_context: async () => {
+            // Fast path: return pre-computed guidance from cache
+            if (pendingGuidanceRef.current) {
+              const cached = pendingGuidanceRef.current;
+              pendingGuidanceRef.current = null;
+              console.log("[voice-call] get_context: returning cached guidance");
+              return `SYSTEM INSTRUCTION: ${cached.guidance}`;
+            }
+            // Slow path: fetch synchronously (blocks agent until guidance arrives)
+            try {
+              const res = await fetch("/api/v1/voice/guidance", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId, voiceToken }),
+              });
+              if (!res.ok) throw new Error("Guidance fetch failed");
+              const data = await res.json();
+              console.log("[voice-call] get_context: fetched fresh guidance");
+              return `SYSTEM INSTRUCTION: ${data.guidance}`;
+            } catch {
+              console.warn("[voice-call] get_context: fallback — no guidance available");
+              return "SYSTEM INSTRUCTION: React with substance to what they said, then ask one natural follow-up question.";
+            }
+          },
         },
       };
 
@@ -210,7 +351,7 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
       setCallState("idle");
       onCallError?.("Couldn't start the call. Let's keep chatting here.");
     }
-  }, [sessionId, voiceToken, learned, visitorName, conversation, onCallError]);
+  }, [sessionId, voiceToken, learned, visitorName, recentMessages, conversation, onCallError]);
 
   const handleEndCall = useCallback(() => {
     conversation.endSession();

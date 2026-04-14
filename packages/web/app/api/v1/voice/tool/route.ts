@@ -1,14 +1,15 @@
 /**
  * POST /api/v1/voice/tool — ElevenLabs server tool webhook (Brief 142b)
  *
- * Single endpoint handling all server tools for the ElevenLabs voice agent.
+ * Single endpoint handling server tools for the ElevenLabs voice agent.
  * Each tool call includes a `tool` field identifying which tool to execute.
  *
  * Tools:
- * - get_context: Returns session state + process guidance
  * - update_learned: Records what the agent learned about the visitor
  * - fetch_url: Fetches a URL and returns a summary
- * - search: Searches for prospects/companies
+ *
+ * Note: get_context is now a client tool (handled in voice-call.tsx, not here).
+ * Transcript persistence uses dedicated /api/v1/voice/transcript endpoint (Brief 150).
  */
 
 import { NextResponse } from "next/server";
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing sessionId or voiceToken" }, { status: 400 });
     }
 
-    const { loadSessionForVoice, appendTextContext } = await import(
+    const { loadSessionForVoice, buildVoiceFallbackGuidance } = await import(
       "../../../../../../../src/engine/network-chat"
     );
 
@@ -48,10 +49,6 @@ export async function POST(request: Request) {
     }
 
     switch (tool) {
-      case "get_context": {
-        return handleGetContext(session);
-      }
-
       case "update_learned": {
         // Tool sends flat fields (name, business, target, etc.) directly on body
         const { name, business, target, location, problem, role, industry, channel } = body as Record<string, string | undefined>;
@@ -64,17 +61,12 @@ export async function POST(request: Request) {
         if (role) learned.role = role;
         if (industry) learned.industry = industry;
         if (channel) learned.channel = channel;
-        return handleUpdateLearned(session, Object.keys(learned).length > 0 ? learned : null);
+        return handleUpdateLearned(session, buildVoiceFallbackGuidance, Object.keys(learned).length > 0 ? learned : null);
       }
 
       case "fetch_url": {
         const { url } = body as { url?: string };
-        return handleFetchUrl(session, url);
-      }
-
-      case "search": {
-        const { query } = body as { query?: string };
-        return handleSearch(session, query);
+        return handleFetchUrl(session, buildVoiceFallbackGuidance, url);
       }
 
       default:
@@ -98,34 +90,11 @@ interface SessionLike {
   requestEmailFlagged: boolean;
 }
 
-// Guidance is now provided by AI evaluation (evaluateVoiceConversation)
-// These are only used as fallbacks for get_context tool calls
-function buildFallbackGuidance(session: SessionLike): string {
-  const l = session.learned;
-  if (!l?.name) return "Ask the visitor's name.";
-  if (!l?.business) return "Ask about their business.";
-  return "Continue the conversation. React with substance, ask one question.";
-}
-
-function handleGetContext(session: SessionLike) {
-  // Check for recent text input (messages from text chat during voice call)
-  const recentTextInput = session.messages
-    .slice(-3)
-    .filter((m) => m.role === "user" && !m.content.startsWith("["))
-    .map((m) => m.content)
-    .pop();
-
-  return NextResponse.json({
-    learned: session.learned || {},
-    stage: "gathering",
-    guidance: buildFallbackGuidance(session),
-    messageCount: session.messageCount,
-    recentTextInput: recentTextInput || null,
-  });
-}
+type FallbackGuidanceFn = (learned: Record<string, string | null> | null) => string;
 
 async function handleUpdateLearned(
   session: SessionLike,
+  fallbackGuidance: FallbackGuidanceFn,
   learned?: Record<string, string | null> | null,
 ) {
   if (!learned || Object.keys(learned).length === 0) {
@@ -146,15 +115,14 @@ async function handleUpdateLearned(
 
   console.log(`[voice/tool] update_learned: ${JSON.stringify(merged)}`);
 
-  const updatedSession = { ...session, learned: merged };
   return NextResponse.json({
     success: true,
     stage: "gathering",
-    next_instruction: buildFallbackGuidance(updatedSession),
+    next_instruction: fallbackGuidance(merged),
   });
 }
 
-async function handleFetchUrl(session: SessionLike, url?: string) {
+async function handleFetchUrl(session: SessionLike, fallbackGuidance: FallbackGuidanceFn, url?: string) {
   if (!url) {
     return NextResponse.json({ error: "Missing url" }, { status: 400 });
   }
@@ -189,26 +157,7 @@ async function handleFetchUrl(session: SessionLike, url?: string) {
   return NextResponse.json({
     content: summary,
     summary: `Here's the content from ${url}: ${summary.slice(0, 500)}`,
-    next_instruction: buildFallbackGuidance(session),
+    next_instruction: fallbackGuidance(session.learned),
   });
 }
 
-async function handleSearch(session: SessionLike, query?: string) {
-  if (!query) {
-    return NextResponse.json({ error: "Missing query" }, { status: 400 });
-  }
-
-  console.log(`[voice/tool] search: ${query}`);
-
-  const { webSearch } = await import("../../../../../../../src/engine/web-search");
-
-  const results = await webSearch(query);
-  if (!results) {
-    return NextResponse.json({ summary: "The search didn't return useful results. Try a different angle." });
-  }
-
-  return NextResponse.json({
-    results: results.slice(0, 1500),
-    summary: results.slice(0, 800),
-  });
-}

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Validate session
-    const { loadSessionForVoice, evaluateVoiceConversation } = await import(
+    const { loadSessionForVoice, evaluateVoiceConversationReadOnly } = await import(
       "../../../../../../../src/engine/network-chat"
     );
     const llm = await import("../../../../../../../src/engine/llm");
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     const agentId = await ensureAgent();
     const [signedUrl, evaluation] = await Promise.all([
       getSignedUrl(),
-      evaluateVoiceConversation(session.sessionId),
+      evaluateVoiceConversationReadOnly(session.sessionId),
     ]);
 
     console.log(`[voice/auth] agentId: ${agentId}, eval stage: ${evaluation?.stage || "none"}`);

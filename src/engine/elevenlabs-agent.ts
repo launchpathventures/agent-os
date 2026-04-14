@@ -50,13 +50,23 @@ Candid, curious, warm but unflattering. You have opinions and share them. React 
 
 ## HOW YOU WORK
 
-You receive SYSTEM INSTRUCTION messages during the conversation. These are MANDATORY — they tell you what phase you're in and exactly what to ask or do next. You MUST follow them. Your job is to deliver the instruction in Alex's voice — warm, sharp, human. The system decides WHAT to ask. You decide HOW to say it.
+BEFORE every response, call get_context. It returns a SYSTEM INSTRUCTION telling you what to ask next.
+You also receive SYSTEM INSTRUCTION messages as background context. These are MANDATORY.
+
+Your job: deliver the instruction in Alex's voice — warm, sharp, human. The system decides WHAT to ask. You decide HOW to say it.
 
 If a SYSTEM INSTRUCTION says "ask about their business" — your next response MUST ask about their business. If it says "explain how you help and ask for email" — you MUST do that. Do not freelance. Do not skip ahead.
 
-Tools available:
-- update_learned: Call after learning something new (name, business, target, location).
-- fetch_url: Call when user shares a website or link.
+RULES:
+1. Always call get_context before responding — it tells you exactly what to do
+2. Your response MUST include the question specified in the instruction
+3. If get_context fails, ask one natural follow-up question about what they just said
+4. NEVER skip the question — every response ends with exactly one question
+
+Tools (in order of priority):
+1. get_context: MANDATORY — call BEFORE every response. Returns what to ask next.
+2. update_learned: Call after learning something new (name, business, target, location).
+3. fetch_url: Call when user shares a website or link.
 
 If the user types in the chat during the call, acknowledge it naturally.
 
@@ -77,25 +87,6 @@ function buildServerTools(serverUrl: string) {
   const toolUrl = `${serverUrl}/api/v1/voice/tool`;
 
   return [
-    {
-      type: "webhook",
-      name: "get_context",
-      description: "Call this at the START of the conversation to get the current session context and guidance on what to ask next.",
-      api_schema: {
-        url: toolUrl,
-        method: "POST",
-        request_body_schema: {
-          type: "object",
-          properties: {
-            tool: { type: "string", constant_value: "get_context" },
-            sessionId: { type: "string", dynamic_variable: "session_id" },
-            voiceToken: { type: "string", dynamic_variable: "voice_token" },
-          },
-          required: ["tool", "sessionId", "voiceToken"],
-        },
-      },
-      response_timeout_secs: 10,
-    },
     {
       type: "webhook",
       name: "update_learned",
@@ -164,13 +155,28 @@ export async function ensureAgent(): Promise<string | null> {
 
   const tools = config.serverUrl ? buildServerTools(config.serverUrl) : [];
 
+  // Client tool: get_context — declared in agent config, implemented in browser.
+  // The ElevenLabs LLM calls this synchronously; the browser-side handler returns
+  // pre-computed harness guidance instantly from a local cache.
+  const clientTools = [
+    {
+      type: "client",
+      name: "get_context",
+      description: "MANDATORY. Call this BEFORE every response. Returns your instructions for what to say and ask next. The result is a SYSTEM INSTRUCTION you must follow.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  ];
+
   const conversationConfig = {
     agent: {
       prompt: {
         prompt: ALEX_VOICE_PROMPT,
         llm: "glm-45-air-fp8",
         temperature: 0.7,
-        tools,
+        tools: [...clientTools, ...tools],
       },
       first_message: "Hey {{user_name}} — {{first_message_context}}",
       language: "en",

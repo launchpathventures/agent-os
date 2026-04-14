@@ -139,6 +139,30 @@ function extractAlexResponse(content: import("./llm").LlmContentBlock[]): AlexTo
 }
 
 // ============================================================
+// Voice Fallback Guidance (exported for voice endpoints)
+// ============================================================
+
+/**
+ * Rule-based guidance for voice when LLM evaluation is too slow or fails.
+ * Mirrors the stage-gated logic of buildStateDirective but simplified for voice
+ * (no UI-specific instructions like "set requestName to true").
+ *
+ * Single source of truth — imported by /voice/guidance and /voice/tool endpoints.
+ */
+export function buildVoiceFallbackGuidance(learned: Record<string, string | null> | null): string {
+  const hasName = learned?.name != null && learned.name !== "";
+  const hasBusiness = learned?.business != null && learned.business !== "";
+  const hasTarget = (learned?.target != null && learned.target !== "") || (learned?.problem != null && learned.problem !== "");
+  const hasLocation = learned?.location != null && learned.location !== "";
+
+  if (!hasName) return "Ask the visitor's name — introduce yourself warmly first.";
+  if (!hasBusiness) return `You know their name is ${learned!.name}. Ask about their business.`;
+  if (!hasTarget) return `Ask ${learned!.name} who they're trying to reach or what problem they're solving.`;
+  if (!hasLocation) return "Ask where they're based so you can target the right market.";
+  return "Continue the conversation. React with substance, then ask one question.";
+}
+
+// ============================================================
 // State Directive (injected into system prompt before LLM call)
 // ============================================================
 
@@ -607,10 +631,17 @@ export interface VoiceEvaluation {
   stage: string;
 }
 
-export async function evaluateVoiceConversation(
+/**
+ * Core voice evaluation logic — runs the same LLM pipeline as text chat.
+ * Returns evaluation result + optionally persists learned context to DB.
+ *
+ * @param persistLearned - if true, writes learned context back to DB (webhook context).
+ *                         if false, read-only evaluation (auth context). (Brief 150 AC 5-6)
+ */
+async function evaluateVoiceCore(
   sessionId: string,
+  persistLearned: boolean,
 ): Promise<VoiceEvaluation | null> {
-  // Load the session directly — don't use handleChatTurn which has side effects
   const [existing] = await db
     .select()
     .from(schema.chatSessions)
@@ -643,10 +674,18 @@ export async function evaluateVoiceConversation(
       "voice",
     ) + buildStateDirective(session);
 
-    const llmMessages: LlmMessage[] = session.messages.map((m) => ({
+    let llmMessages: LlmMessage[] = session.messages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
+
+    // Claude does not support assistant message prefill — the conversation
+    // must end with a user message. If the last message is from the assistant
+    // (e.g. Alex's last response before the voice call), append a synthetic
+    // user prompt so the evaluation can run.
+    if (llmMessages.length > 0 && llmMessages[llmMessages.length - 1].role === "assistant") {
+      llmMessages = [...llmMessages, { role: "user", content: "[Voice call active — evaluate the conversation so far and produce guidance for the next turn.]" }];
+    }
 
     // Run the SAME LLM call as text chat — same model, same tool schema
     const response = await createCompletion({
@@ -667,11 +706,13 @@ export async function evaluateVoiceConversation(
     // Run stage gates — SAME as text chat
     const gated = enforceStageGates(rawExtracted, session);
 
-    // Save updated learned context
-    await db
-      .update(schema.chatSessions)
-      .set({ learned: session.learned, updatedAt: new Date() })
-      .where(eq(schema.chatSessions.sessionId, sessionId));
+    // Only persist learned context when called from webhook context (Brief 150 AC 5-6)
+    if (persistLearned) {
+      await db
+        .update(schema.chatSessions)
+        .set({ learned: session.learned, updatedAt: new Date() })
+        .where(eq(schema.chatSessions.sessionId, sessionId));
+    }
 
     // The harness reply IS the guidance
     const guidance = gated.reply || "Continue the conversation.";
@@ -681,7 +722,7 @@ export async function evaluateVoiceConversation(
     else if (gated.requestEmail) stage = "activating";
     else if (rawExtracted.detectedMode) stage = "proposing";
 
-    console.log(`[evaluateVoice] Stage: ${stage}, mode: ${rawExtracted.detectedMode || "?"}, learned: ${JSON.stringify(session.learned)}`);
+    console.log(`[evaluateVoice] Stage: ${stage}, mode: ${rawExtracted.detectedMode || "?"}, learned: ${JSON.stringify(session.learned)}, persist: ${persistLearned}`);
 
     return {
       learned: (session.learned as LearnedContext) || {},
@@ -692,6 +733,60 @@ export async function evaluateVoiceConversation(
     console.warn("[evaluateVoice] Failed:", (err as Error).message);
     return null;
   }
+}
+
+/**
+ * Evaluate voice conversation — writes learned context to DB.
+ * Use from webhook/tool context where writes are expected.
+ */
+export async function evaluateVoiceConversation(
+  sessionId: string,
+): Promise<VoiceEvaluation | null> {
+  return evaluateVoiceCore(sessionId, true);
+}
+
+/**
+ * Read-only voice evaluation — does NOT write to DB.
+ * Use from auth endpoint where only a read is expected. (Brief 150 AC 5)
+ */
+export async function evaluateVoiceConversationReadOnly(
+  sessionId: string,
+): Promise<VoiceEvaluation | null> {
+  return evaluateVoiceCore(sessionId, false);
+}
+
+/**
+ * Persist voice transcript turns to session messages. (Brief 150 AC 1-2)
+ * Merges voice turns into the existing messages array, avoiding duplicates.
+ * Each voice turn is prefixed with [voice] to distinguish from text chat.
+ */
+export async function saveVoiceTranscript(
+  sessionId: string,
+  voiceToken: string,
+  turns: Array<{ role: "user" | "alex"; text: string }>,
+): Promise<boolean> {
+  const session = await loadSessionForVoice(sessionId, voiceToken);
+  if (!session) return false;
+  if (turns.length === 0) return true;
+
+  // Append voice turns as messages with [voice] prefix for traceability
+  const newMessages = turns.map((t) => ({
+    role: t.role === "user" ? "user" : "assistant",
+    content: `[voice] ${t.text}`,
+  }));
+
+  const merged = [...session.messages, ...newMessages];
+
+  await db
+    .update(schema.chatSessions)
+    .set({
+      messages: merged,
+      messageCount: (session.messageCount || 0) + turns.length,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+
+  return true;
 }
 
 /**
@@ -1714,4 +1809,129 @@ export async function* handleChatTurnStreaming(
   // Send metadata and done
   yield { type: "metadata", requestName, requestLocation, requestEmail, done, suggestions, detectedMode, emailCaptured, plan, learned, extraQuestions, voiceReady, voiceToken: voiceTokenOut };
   yield { type: "done" };
+}
+
+// ============================================================
+// Frontdoor-to-Workspace Memory Bridge (Brief 148)
+// ============================================================
+
+/** Map learned field keys to human-readable labels for memory content */
+const LEARNED_FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  business: "Business",
+  role: "Role",
+  industry: "Industry",
+  location: "Location",
+  target: "Looking for",
+  problem: "Problem",
+  channel: "Preferred channel",
+  phone: "Phone",
+};
+
+/**
+ * Persist frontdoor learned context as person-scoped memories.
+ * Called once at magic link generation time — one write per transition.
+ *
+ * Each non-null learned field becomes a separate memory with:
+ * - scopeType: "person", scopeId: personId
+ * - type: "user_model", source: "conversation"
+ * - Human-readable content: "Business: Sarah's Plumbing"
+ *
+ * Deduplication: checks existing person memories by content prefix (e.g. "Business:").
+ * Updates if changed, skips if identical.
+ *
+ * Provenance: createMemoryFromFeedback() pattern from feedback-recorder.ts
+ */
+export async function persistLearnedContext(sessionId: string): Promise<void> {
+  // Load the chat session
+  const [session] = await db
+    .select({
+      learned: schema.chatSessions.learned,
+      authenticatedEmail: schema.chatSessions.authenticatedEmail,
+    })
+    .from(schema.chatSessions)
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+
+  if (!session) {
+    console.warn(`[memory-bridge] No chat session found for sessionId=${sessionId}`);
+    return;
+  }
+
+  const learned = session.learned as LearnedContext | null;
+  if (!learned) {
+    return; // No learned context to persist
+  }
+
+  const email = session.authenticatedEmail;
+  if (!email) {
+    console.warn(`[memory-bridge] No authenticated email on session ${sessionId}`);
+    return;
+  }
+
+  // Find the person record — use global lookup since we don't know the userId
+  const person = await findPersonByEmailGlobal(email);
+  if (!person) {
+    console.warn(`[memory-bridge] No person record for ${email} — skipping memory persistence`);
+    return;
+  }
+
+  // Load existing person-scoped user_model memories for dedup
+  const existingMemories = await db
+    .select({
+      id: schema.memories.id,
+      content: schema.memories.content,
+    })
+    .from(schema.memories)
+    .where(
+      and(
+        eq(schema.memories.scopeType, "person"),
+        eq(schema.memories.scopeId, person.id),
+        eq(schema.memories.type, "user_model"),
+        eq(schema.memories.source, "conversation"),
+        eq(schema.memories.active, true),
+      ),
+    );
+
+  // Index existing memories by their label prefix (e.g. "Business:")
+  const existingByPrefix = new Map<string, { id: string; content: string }>();
+  for (const mem of existingMemories) {
+    const colonIdx = mem.content.indexOf(":");
+    if (colonIdx > 0) {
+      const prefix = mem.content.slice(0, colonIdx + 1);
+      existingByPrefix.set(prefix, mem);
+    }
+  }
+
+  // Create or update a memory for each non-null learned field
+  for (const [field, value] of Object.entries(learned)) {
+    if (!value) continue;
+
+    const label = LEARNED_FIELD_LABELS[field] || field;
+    const content = `${label}: ${value}`;
+    const prefix = `${label}:`;
+
+    const existing = existingByPrefix.get(prefix);
+
+    if (existing) {
+      if (existing.content === content) {
+        continue; // Identical — skip
+      }
+      // Update existing memory with new content
+      await db
+        .update(schema.memories)
+        .set({ content, updatedAt: new Date() })
+        .where(eq(schema.memories.id, existing.id));
+    } else {
+      // Create new memory
+      await db.insert(schema.memories).values({
+        scopeType: "person",
+        scopeId: person.id,
+        type: "user_model",
+        content,
+        source: "conversation",
+        confidence: 0.7,
+        active: true,
+      });
+    }
+  }
 }

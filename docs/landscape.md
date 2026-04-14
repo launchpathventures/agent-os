@@ -266,6 +266,16 @@
 
 **Recommendation:** citty (command routing) + @clack/prompts (interactive UX).
 
+### Voice / Conversational AI
+
+**ElevenLabs Conversational AI** — elevenlabs.io
+- Industry-leading TTS quality. Conversational AI SDK supports sub-second voice interactions (~600ms total latency: STT ~200ms + LLM ~232ms + TTS ~200ms).
+- Server SDK (`elevenlabs` npm, depend level): programmatic agent creation/update, signed URL generation for private agents. React SDK (`@elevenlabs/react`, depend level): `useConversation` hook with `startSession`, `endSession`, `sendUserMessage`, `sendContextualUpdate`, `onMessage`.
+- Server tools (webhooks): agent calls back to your server during conversation. Supports `constant_value` and `dynamic_variable` in request schemas. Tool timeout configurable (default 10s).
+- LLM options: hosted fast models (GLM-4.5-Air, Qwen3) for speed, or custom LLM endpoint for intelligence. Fast models are unreliable at complex tool calling (Insight 178).
+- **Ditto relevance:** HIGH — adopted as voice transport layer. Harness owns intelligence via server tools (Insight 178: voice as transport, harness as brain). Used for front door voice channel (Brief 142b). SDK quality is excellent; API docs are clear.
+- **Limitation:** Fast LLM can't follow complex process instructions — intelligence must be pushed via contextual updates. No built-in transcript persistence. Agent config update via SDK is buggy (REST API used directly).
+
 ---
 
 ## Agent Harness Patterns (Landscape Insight)
@@ -525,6 +535,33 @@ New category for Insight-152 (Network Service is centralized). Full report: `doc
 - **Patterns to adopt:** (1) Memory versioning with `content_sha256` optimistic concurrency — solves concurrent write conflicts during parallel process runs. (2) Immutable version history with redaction — compliance/PII handling gap in Ditto's memory system. (3) Multi-agent thread isolation model — better maker-checker runtime than same-API-call or CLI subprocess.
 - **Watchpoint:** Monitor quarterly for upward feature creep into process orchestration, trust systems, or human-facing interfaces. Current trajectory is infrastructure, not product. If they ship workflow orchestration or earned trust, re-evaluate from complementary to competitive.
 - See `docs/research/claude-managed-agents-architectural-review.md` and Insight-165.
+
+---
+
+## Social Content Publishing APIs (2026-04-13)
+
+### Unipile Posts API (LinkedIn)
+
+- Part of the `unipile-node-sdk` already in use for social DMs (Brief 133). `UsersResource.createPost()` publishes feed posts with text and optional image attachments. Same connected account, same SDK, no additional auth.
+- **Classification:** DEPEND — already paying per connected account.
+- **Ditto relevance:** HIGH — publishes LinkedIn feed posts from GTM pipeline `land-content` step after GATE approval. No additional setup beyond existing Unipile connection.
+- **Limitation:** Feed posts only — no LinkedIn articles (long-form). TypeScript SDK types don't include the Posts API resource (requires type cast). No built-in scheduling.
+- See ADR-029 for adoption decision.
+
+### X API v2 (Tweets/Threads)
+
+- Official REST API at `api.x.com/2/tweets`. Pay-per-use since 2026: $0.01/tweet (~$1-2/month at GTM volume of ~20 tweets/week). OAuth 1.0a for single-user posting. Thread support via sequential tweets with `reply.in_reply_to_tweet_id`.
+- **Classification:** DEPEND — official API, no SDK (direct `fetch`), minimal surface.
+- **Ditto relevance:** HIGH — publishes X tweets and threads from GTM pipeline `land-content` step. `XApiClient` class in `channel.ts` handles OAuth 1.0a signing, single tweets, and thread posting with partial failure handling.
+- **Limitation:** Requires separate X developer account and API keys (one-time setup). OAuth 1.0a is single-user; multi-user would need OAuth 2.0 with PKCE. No free tier for new developers.
+- See ADR-029 for adoption decision.
+
+### Buffer API (not adopted)
+
+- Third-party scheduling/publishing service. Supports LinkedIn + X. $6/mo/channel. OAuth required.
+- **Classification:** NOT ADOPTED — adds a dependency for both channels when Unipile (already paying) covers LinkedIn and X API v2 is cheaper for X.
+- **Ditto relevance:** LOW for v1 — both channels publish natively. Could be reconsidered for scheduling/analytics if needed later.
+- See ADR-029 for evaluation rationale.
 
 ---
 
