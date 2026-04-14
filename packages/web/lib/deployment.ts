@@ -17,6 +17,23 @@
 
 export type DeploymentMode = "public" | "workspace";
 
+const VALID_MODES: ReadonlySet<string> = new Set(["public", "workspace"]);
+
+/**
+ * Boot-time warning for typos. Runs once per worker on module load. A typo
+ * like `DITTO_DEPLOYMENT=publik` silently falls back to `workspace` (safe
+ * default) which would otherwise leave an operator wondering why their
+ * marketing site won't render the front door.
+ */
+const _raw = process.env.DITTO_DEPLOYMENT?.trim().toLowerCase();
+if (_raw && !VALID_MODES.has(_raw)) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[ditto] DITTO_DEPLOYMENT="${process.env.DITTO_DEPLOYMENT}" is not a recognized value ` +
+      `(expected "public" or "workspace"). Falling back to "workspace".`,
+  );
+}
+
 export function getDeploymentMode(): DeploymentMode {
   const raw = process.env.DITTO_DEPLOYMENT?.trim().toLowerCase();
   return raw === "public" ? "public" : "workspace";

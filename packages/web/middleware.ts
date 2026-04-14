@@ -79,7 +79,10 @@ export async function middleware(request: NextRequest) {
   const mode = getDeploymentMode();
 
   // AC11: No WORKSPACE_OWNER_EMAIL = local dev, skip auth entirely.
-  // Deployment-mode blocking still applies so local runs match prod shape.
+  // Deployment-mode blocking still applies so local runs match prod shape:
+  // if you're running locally with DITTO_DEPLOYMENT=workspace (the default),
+  // /welcome and /admin will 404 even without WORKSPACE_OWNER_EMAIL set.
+  // To exercise those surfaces locally, set DITTO_DEPLOYMENT=public.
   if (!process.env.WORKSPACE_OWNER_EMAIL) {
     if (mode === "workspace" && isBlockedInWorkspaceMode(pathname)) {
       return new NextResponse("Not Found", { status: 404 });
