@@ -23,9 +23,13 @@ export async function GET() {
     return NextResponse.json({ authenticated: false });
   }
 
+  // Cookie value is "email|hmac_signature" — extract just the email
+  const sepIdx = session.value.lastIndexOf("|");
+  const email = sepIdx !== -1 ? session.value.substring(0, sepIdx) : session.value;
+
   return NextResponse.json({
     authenticated: true,
-    email: session.value,
+    email,
   });
 }
 
