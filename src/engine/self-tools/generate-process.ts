@@ -21,6 +21,7 @@ import {
   validateModelHints,
 } from "../process-loader";
 import type { DelegationResult } from "../self-delegation";
+import { findProcessModel } from "../system-agents/process-model-lookup";
 
 interface ProcessStep {
   id: string;
@@ -62,44 +63,84 @@ export async function handleGenerateProcess(
     };
   }
 
+  // MP-1.1: Template matching — check library before building from scratch
+  // Uses the same findProcessModel() scoring that orchestrator uses in Tier 1 routing
+  let templateMatch: Awaited<ReturnType<typeof findProcessModel>> = null;
+  let templateDefinition: Record<string, unknown> | null = null;
+  try {
+    templateMatch = await findProcessModel(description);
+    if (templateMatch && templateMatch.confidence >= 0.6 && templateMatch.templatePath) {
+      // Load the template YAML to use as structural base
+      const fs = await import("fs");
+      const templateContent = fs.readFileSync(templateMatch.templatePath, "utf-8");
+      templateDefinition = YAML.parse(templateContent) as Record<string, unknown>;
+    }
+  } catch {
+    // Template matching is best-effort — proceed from scratch on failure
+  }
+
   // Generate a slug from the name
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-  // Build the process definition
+  // Build the process definition — use template as base when confidence >= 0.6
+  const templateSteps = templateDefinition?.steps as Array<Record<string, unknown>> | undefined;
+  const useTemplateBase = templateMatch && templateMatch.confidence >= 0.6 && templateSteps && templateSteps.length > 0;
+
+  const finalSteps = useTemplateBase
+    ? templateSteps.map((ts) => {
+        // Preserve template structure (id, executor, tools, config) but allow
+        // user-provided steps to override descriptions via name matching
+        const userOverride = steps.find(
+          (us) => us.id === ts.id || us.name.toLowerCase() === String(ts.name ?? "").toLowerCase(),
+        );
+        const step: Record<string, unknown> = {
+          id: ts.id ?? (ts.name as string || "step").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          name: userOverride?.name ?? ts.name,
+          executor: ts.executor ?? "ai-agent",
+        };
+        if (userOverride?.description ?? ts.description) step.description = userOverride?.description ?? ts.description;
+        if (userOverride?.instructions ?? ts.instructions) step.instructions = userOverride?.instructions ?? ts.instructions;
+        if (ts.config || userOverride?.config) step.config = userOverride?.config ?? ts.config;
+        if (ts.tools || userOverride?.tools) step.tools = userOverride?.tools ?? ts.tools;
+        if (ts.input_fields || userOverride?.input_fields) step.input_fields = userOverride?.input_fields ?? ts.input_fields;
+        return step;
+      })
+    : steps.map((s) => {
+        const step: Record<string, unknown> = {
+          id: s.id,
+          name: s.name,
+          executor: s.executor,
+        };
+        if (s.description) step.description = s.description;
+        if (s.instructions) step.instructions = s.instructions;
+        if (s.config) step.config = s.config;
+        if (s.tools) step.tools = s.tools;
+        if (s.input_fields) step.input_fields = s.input_fields;
+        return step;
+      });
+
   const processDefinition = {
     name,
     id: slug,
     version: 1,
     status: "draft",
     description,
-    trigger: {
+    trigger: templateDefinition?.trigger ?? {
       type: "manual",
       description: `Run ${name}`,
     },
-    inputs: [
+    inputs: templateDefinition?.inputs ?? [
       { name: "task", type: "string", description: "What to do" },
     ],
     governance: {
-      trust_tier: trustTier || "supervised",
-      quality_criteria: "Output matches the task description",
+      trust_tier: trustTier || (templateDefinition?.governance as Record<string, unknown>)?.trust_tier || "supervised",
+      quality_criteria: (templateDefinition?.governance as Record<string, unknown>)?.quality_criteria || "Output matches the task description",
       feedback: "implicit",
     },
-    steps: steps.map((s) => {
-      const step: Record<string, unknown> = {
-        id: s.id,
-        name: s.name,
-        executor: s.executor,
-      };
-      if (s.description) step.description = s.description;
-      if (s.instructions) step.instructions = s.instructions;
-      if (s.config) step.config = s.config;
-      if (s.tools) step.tools = s.tools;
-      if (s.input_fields) step.input_fields = s.input_fields;
-      return step;
-    }),
+    steps: finalSteps,
   };
 
   // Validate the definition — basic checks + process-loader validators
@@ -134,8 +175,23 @@ export async function handleGenerateProcess(
 
   const yamlStr = YAML.stringify(processDefinition);
 
+  // Build template match info for the response
+  const templateInfo = templateMatch
+    ? templateMatch.confidence >= 0.6
+      ? { templateUsed: templateMatch.slug, templateName: templateMatch.name, confidence: templateMatch.confidence }
+      : templateMatch.confidence >= 0.3
+        ? { templateInspiration: templateMatch.slug, templateName: templateMatch.name, confidence: templateMatch.confidence }
+        : null
+    : null;
+
   if (!save) {
     // Preview mode — return YAML for user review
+    const previewMessage = templateInfo && "templateUsed" in templateInfo
+      ? `Process "${name}" (${finalSteps.length} steps) generated using "${templateInfo.templateName}" as a base. Review the definition and confirm to save.`
+      : templateInfo && "templateInspiration" in templateInfo
+        ? `Process "${name}" (${finalSteps.length} steps) generated. I found a similar template (${templateInfo.templateName}) — I used that as inspiration. Review the definition and confirm to save.`
+        : `Process "${name}" (${finalSteps.length} steps) generated. Review the definition and confirm to save.`;
+
     return {
       toolName: "generate_process",
       success: true,
@@ -143,8 +199,9 @@ export async function handleGenerateProcess(
         action: "preview",
         slug,
         yaml: yamlStr,
-        stepCount: steps.length,
-        message: `Process "${name}" (${steps.length} steps) generated. Review the definition and confirm to save.`,
+        stepCount: finalSteps.length,
+        message: previewMessage,
+        ...(templateInfo ?? {}),
       }),
     };
   }
@@ -187,9 +244,12 @@ export async function handleGenerateProcess(
         id: proc.id,
         slug,
         name,
-        stepCount: steps.length,
+        stepCount: finalSteps.length,
         status: "draft",
-        message: `Process "${name}" saved as draft with ${steps.length} steps. It's ready to activate when you're confident in the definition.`,
+        activationHint: true,
+        processSlug: slug,
+        message: `Process "${name}" saved as draft with ${finalSteps.length} steps. It's ready to activate when you're confident in the definition.`,
+        ...(templateInfo ?? {}),
       }),
     };
   } catch (err) {

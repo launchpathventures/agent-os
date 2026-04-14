@@ -19,6 +19,7 @@ Investigate what exists before we build. Find the gold standard. Answer "what ca
 - MUST capture any design discoveries or principles that emerge during research — or that the human shares during conversation — as insights in `docs/insights/` using the template at `docs/insights/000-template.md`
 - MUST update `docs/landscape.md` when findings contradict or supersede an existing evaluation (Insight-043: Researcher owns landscape accuracy)
 - MUST mark prior research reports as stale when new findings supersede them (add `**Superseded by:** [new report]` header, don't delete)
+- MUST add evaluations to `docs/landscape.md` for any new external API, SDK, or service discovered during research — do not defer this to the Documenter. Every external dependency the Architect might reference in a brief must have a landscape entry before the brief is written.
 
 ## Required Inputs
 

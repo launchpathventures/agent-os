@@ -1,20 +1,40 @@
 /**
  * @ditto/core — Process Models Schema (Brief 104)
  *
- * Re-exports process model types and table from the core schema.
- * The table definition lives in schema.ts (following the single-file pattern).
- * This file provides a convenient import path and houses the validation report types.
+ * Process models are a Ditto product feature (not an engine primitive).
+ * The table definition lives in src/db/schema/product.ts — not in core.
+ * This file exports only the type unions and validation report types
+ * needed by core consumers (process-validator, library-manager).
  */
 
-export {
-  processModels,
-  processModelStatusValues,
-  processModelComplexityValues,
-  processModelSourceValues,
-  type ProcessModelStatus,
-  type ProcessModelComplexity,
-  type ProcessModelSource,
-} from "./schema.js";
+// Re-export from core schema for backward compatibility.
+// Note: processModels table moved to product schema but these types
+// are still needed by core consumers (process-validator, library-manager).
+
+export const processModelStatusValues = [
+  "nominated",
+  "testing",
+  "standardised",
+  "review",
+  "published",
+  "archived",
+] as const;
+export type ProcessModelStatus = (typeof processModelStatusValues)[number];
+
+export const processModelComplexityValues = [
+  "simple",
+  "moderate",
+  "complex",
+] as const;
+export type ProcessModelComplexity =
+  (typeof processModelComplexityValues)[number];
+
+export const processModelSourceValues = [
+  "template",
+  "built",
+  "community",
+] as const;
+export type ProcessModelSource = (typeof processModelSourceValues)[number];
 
 // ============================================================
 // Validation report types (used by process-validator + library-manager)

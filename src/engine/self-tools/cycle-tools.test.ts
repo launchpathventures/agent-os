@@ -24,7 +24,7 @@ vi.mock("../../db", async () => {
 
 // Mock heartbeat to avoid actual process execution
 vi.mock("../heartbeat", () => ({
-  startProcessRun: vi.fn(async (slug: string, inputs: Record<string, unknown>, triggeredBy: string) => {
+  startProcessRun: vi.fn(async (slug: string, inputs: Record<string, unknown>, triggeredBy: string, options?: { cycleType?: string; cycleConfig?: Record<string, unknown> }) => {
     // Look up the real process ID from the test DB
     const [proc] = testDb
       .select({ id: schema.processes.id })
@@ -41,6 +41,8 @@ vi.mock("../heartbeat", () => ({
       status: "queued",
       triggeredBy,
       inputs: inputs as Record<string, unknown>,
+      cycleType: options?.cycleType ?? null,
+      cycleConfig: options?.cycleConfig ?? null,
     }).run();
 
     return runId;
@@ -90,6 +92,20 @@ const CONNECT_DEFINITION = {
   trust: { initial_tier: "supervised", upgrade_path: [], downgrade_triggers: [] },
 };
 
+const GTM_DEFINITION = {
+  name: "GTM Pipeline Cycle",
+  id: "gtm-pipeline-cycle",
+  version: 2,
+  status: "active",
+  trigger: { type: "schedule", cron: "0 8 * * 1,4" },
+  inputs: [],
+  steps: [],
+  outputs: [],
+  quality_criteria: [],
+  feedback: { metrics: [], capture: [] },
+  trust: { initial_tier: "supervised", upgrade_path: [], downgrade_triggers: [] },
+};
+
 beforeEach(() => {
   const result = createTestDb();
   testDb = result.db;
@@ -106,6 +122,12 @@ beforeEach(() => {
     name: "Network Connecting Cycle",
     slug: "network-connecting-cycle",
     definition: CONNECT_DEFINITION as unknown as Record<string, unknown>,
+  }).run();
+
+  testDb.insert(schema.processes).values({
+    name: "GTM Pipeline Cycle",
+    slug: "gtm-pipeline-cycle",
+    definition: GTM_DEFINITION as unknown as Record<string, unknown>,
   }).run();
 });
 
@@ -169,6 +191,23 @@ describe("activate_cycle", () => {
 
     expect(result.success).toBe(false);
     expect(result.output).toContain("goal or ICP");
+  });
+
+  it("triggers fullHeartbeat after activation (MP-1.3)", async () => {
+    const { fullHeartbeat: mockFullHeartbeat } = await import("../heartbeat");
+
+    const result = await handleActivateCycle({
+      cycleType: "sales-marketing",
+      goals: "Test heartbeat",
+      icp: "Tech companies",
+    });
+
+    expect(result.success).toBe(true);
+
+    // fullHeartbeat is called via setImmediate — flush microtasks
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockFullHeartbeat).toHaveBeenCalledWith(result.metadata?.runId);
   });
 
   it("prevents duplicate active cycles", async () => {
@@ -363,6 +402,160 @@ describe("cycle_status", () => {
     const result = await handleCycleStatus({});
     expect(result.success).toBe(true);
     expect(result.output).toContain("No operating cycles active");
+  });
+});
+
+// ============================================================
+// Brief 139: GTM Pipeline as cycle type
+// ============================================================
+
+describe("gtm-pipeline cycle type", () => {
+  it("activates with gtmContext and returns plan summary", async () => {
+    const result = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: {
+        planName: "Dev audience on X",
+        product: "Ditto",
+        audience: "Developers frustrated with AI agents",
+        channels: "X",
+      },
+      goals: "Grow developer audience on X",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.toolName).toBe("activate_cycle");
+    expect(result.output).toContain("growth plan");
+    expect(result.output).toContain("Dev audience on X");
+    expect(result.metadata?.cycleType).toBe("gtm-pipeline");
+    expect(result.metadata?.runId).toBeDefined();
+  });
+
+  it("requires planName in gtmContext", async () => {
+    const result = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      goals: "Grow audience",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("planName");
+  });
+
+  it("allows multiple concurrent plans with different planNames", async () => {
+    const first = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Plan A" },
+      goals: "Grow on X",
+    });
+    expect(first.success).toBe(true);
+
+    // The mock now sets cycleType+cycleConfig, so the run is visible to overlap check
+
+    const second = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Plan B" },
+      goals: "Grow on LinkedIn",
+    });
+    expect(second.success).toBe(true);
+    expect(second.metadata?.runId).not.toBe(first.metadata?.runId);
+  });
+
+  it("rejects duplicate planName within active GTM runs", async () => {
+    await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Same Plan" },
+      goals: "Grow audience",
+    });
+
+    const duplicate = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Same Plan" },
+      goals: "Different goal",
+    });
+
+    expect(duplicate.success).toBe(false);
+    expect(duplicate.output).toContain("already running");
+    expect(duplicate.output).toContain("Same Plan");
+  });
+
+  it("pause_cycle with planName targets specific plan", async () => {
+    const planA = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Plan A" },
+      goals: "Grow on X",
+    });
+
+    const planB = await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Plan B" },
+      goals: "Grow on LinkedIn",
+    });
+
+    // Mark both as running
+    testDb.update(schema.processRuns)
+      .set({ status: "running" })
+      .where(eq(schema.processRuns.id, planA.metadata?.runId as string))
+      .run();
+    testDb.update(schema.processRuns)
+      .set({ status: "running" })
+      .where(eq(schema.processRuns.id, planB.metadata?.runId as string))
+      .run();
+
+    // Pause only Plan A
+    const pauseResult = await handlePauseCycle({
+      cycleType: "gtm-pipeline",
+      planName: "Plan A",
+    });
+    expect(pauseResult.success).toBe(true);
+    expect(pauseResult.output).toContain("Plan A");
+
+    // Plan B should still be running
+    const [runB] = testDb
+      .select({ status: schema.processRuns.status })
+      .from(schema.processRuns)
+      .where(eq(schema.processRuns.id, planB.metadata?.runId as string))
+      .all();
+    expect(runB.status).toBe("running");
+  });
+
+  it("existing cycle types ignore planName parameter", async () => {
+    const result = await handleActivateCycle({
+      cycleType: "sales-marketing",
+      goals: "Sales goal",
+      icp: "Tech companies",
+    });
+    expect(result.success).toBe(true);
+
+    // planName on pause is ignored for non-GTM types
+    const runId = result.metadata?.runId as string;
+    testDb.update(schema.processRuns)
+      .set({ status: "running", cycleType: "sales-marketing" })
+      .where(eq(schema.processRuns.id, runId))
+      .run();
+
+    const pauseResult = await handlePauseCycle({
+      cycleType: "sales-marketing",
+      planName: "ignored",
+    });
+    expect(pauseResult.success).toBe(true);
+  });
+
+  it("cycle_status shows all active GTM plans", async () => {
+    await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Dev audience" },
+      goals: "X growth",
+    });
+    await handleActivateCycle({
+      cycleType: "gtm-pipeline",
+      gtmContext: { planName: "Enterprise outbound" },
+      goals: "LinkedIn growth",
+    });
+
+    const result = await handleCycleStatus({});
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("gtm-pipeline");
+    expect(result.output).toContain("Dev audience");
+    expect(result.output).toContain("Enterprise outbound");
   });
 });
 

@@ -103,28 +103,24 @@ export async function notifyProcessCompletion(processRunId: string): Promise<voi
     }
   }
 
-  // 5. Compose and send notification
-  const userName = networkUser.name || "there";
+  // 5. Compose and send notification — written in Alex's voice (Brief 144 AC26)
+  const userName = networkUser.name || "mate";
   const processName = process.name || process.slug;
 
   let body: string;
   if (highlights.length > 0) {
     body = [
-      `Hi ${userName},`,
-      "",
-      `I've finished working on "${processName}". Here's a summary:`,
+      `${userName} — finished up "${processName}". Here's what came out of it:`,
       "",
       ...highlights.map((h) => `${h}`),
       "",
-      "Reply if you want me to dig deeper or take a different angle.",
+      "Let me know if you want me to dig deeper or take a different angle on any of this.",
     ].join("\n");
   } else {
     body = [
-      `Hi ${userName},`,
+      `${userName} — "${processName}" is done. Everything went through cleanly.`,
       "",
-      `I've finished working on "${processName}". Everything completed successfully.`,
-      "",
-      "Reply if you have questions or want me to follow up on anything.",
+      "Reply if you've got questions or want me to follow up on anything.",
     ].join("\n");
   }
 

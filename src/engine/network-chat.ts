@@ -14,7 +14,7 @@ import { db, schema } from "../db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { createHash } from "crypto";
-import { createCompletion, extractText, extractToolUse, getConfiguredModel } from "./llm";
+import { createCompletion, extractText, extractToolUse, getConfiguredModel, type LlmToolDefinition } from "./llm";
 import { createStreamingCompletion, type StreamEvent } from "./llm-stream";
 import { isSpendCeilingReached, recordFrontDoorSpend } from "./spend-ceiling";
 import { buildFrontDoorPrompt, ALEX_RESPONSE_TOOL, type ChatContext, type VisitorContext, type DetectedMode, type ConversationStage } from "./network-chat-prompt";
@@ -24,6 +24,8 @@ import { webSearch } from "./web-search";
 import { fetchUrlContent, type FetchResult } from "./web-fetch";
 import { geolocateIp } from "./geo";
 import type { LlmMessage } from "./llm";
+import type { ContentBlock } from "./content-blocks";
+import { buildFrontDoorBlocks } from "./network-chat-blocks";
 
 // ============================================================
 // Tool Call Extraction
@@ -31,15 +33,33 @@ import type { LlmMessage } from "./llm";
 
 const VALID_MODES = new Set(["connector", "sales", "cos", "both"]);
 
+export interface LearnedContext {
+  name?: string | null;
+  business?: string | null;
+  role?: string | null;
+  industry?: string | null;
+  location?: string | null;
+  target?: string | null;
+  problem?: string | null;
+  channel?: string | null;
+  phone?: string | null;
+}
+
 interface AlexToolArgs {
   reply: string;
+  question: string | null;
   suggestions: string[];
+  requestName: boolean;
+  requestLocation: boolean;
   requestEmail: boolean;
   done: boolean;
   resendEmail: boolean;
   detectedMode: DetectedMode;
   searchQuery: string | null;
   fetchUrl: string | null;
+  plan: string | null;
+  learned: LearnedContext | null;
+  extraQuestions: string[];
 }
 
 /**
@@ -55,22 +75,34 @@ function extractAlexResponse(content: import("./llm").LlmContentBlock[]): AlexTo
     // Fallback: no tool call — treat text as reply with defaults
     return {
       reply,
+      question: null,
       suggestions: [],
+      requestName: false,
+      requestLocation: false,
       requestEmail: false,
       done: false,
       resendEmail: false,
       detectedMode: null,
       searchQuery: null,
       fetchUrl: null,
+      plan: null,
+      learned: null,
+      extraQuestions: [],
     };
   }
 
   const args = alexCall.input as Record<string, unknown>;
   const result: AlexToolArgs = {
     reply,
+    question:
+      typeof args.question === "string" && args.question.trim()
+        ? args.question.trim()
+        : null,
     suggestions: Array.isArray(args.suggestions)
       ? args.suggestions.filter((s): s is string => typeof s === "string")
       : [],
+    requestName: Boolean(args.requestName),
+    requestLocation: Boolean(args.requestLocation),
     requestEmail: Boolean(args.requestEmail),
     done: Boolean(args.done),
     resendEmail: Boolean(args.resendEmail),
@@ -86,6 +118,15 @@ function extractAlexResponse(content: import("./llm").LlmContentBlock[]): AlexTo
       typeof args.fetchUrl === "string" && args.fetchUrl.trim()
         ? args.fetchUrl.trim()
         : null,
+    plan:
+      typeof args.plan === "string" && args.plan.trim()
+        ? args.plan.trim()
+        : null,
+    learned:
+      args.learned && typeof args.learned === "object"
+        ? args.learned as LearnedContext
+        : null,
+    extraQuestions: [], // populated by validateAndCleanResponse() post-call
   };
 
   // fetchUrl takes priority — if both are set, clear searchQuery
@@ -95,6 +136,253 @@ function extractAlexResponse(content: import("./llm").LlmContentBlock[]): AlexTo
   }
 
   return result;
+}
+
+// ============================================================
+// Voice Fallback Guidance (exported for voice endpoints)
+// ============================================================
+
+/**
+ * Rule-based guidance for voice when LLM evaluation is too slow or fails.
+ * Mirrors the stage-gated logic of buildStateDirective but simplified for voice
+ * (no UI-specific instructions like "set requestName to true").
+ *
+ * Single source of truth — imported by /voice/guidance and /voice/tool endpoints.
+ */
+export function buildVoiceFallbackGuidance(learned: Record<string, string | null> | null): string {
+  const hasName = learned?.name != null && learned.name !== "";
+  const hasBusiness = learned?.business != null && learned.business !== "";
+  const hasTarget = (learned?.target != null && learned.target !== "") || (learned?.problem != null && learned.problem !== "");
+  const hasLocation = learned?.location != null && learned.location !== "";
+
+  if (!hasName) return "Ask the visitor's name — introduce yourself warmly first.";
+  if (!hasBusiness) return `You know their name is ${learned!.name}. Ask about their business.`;
+  if (!hasTarget) return `Ask ${learned!.name} who they're trying to reach or what problem they're solving.`;
+  if (!hasLocation) return "Ask where they're based so you can target the right market.";
+  return "Continue the conversation. React with substance, then ask one question.";
+}
+
+// ============================================================
+// State Directive (injected into system prompt before LLM call)
+// ============================================================
+
+/**
+ * Build a state directive from the session's learned context.
+ * Appended to the system prompt so the LLM knows what information
+ * we have and what it should focus on this turn.
+ *
+ * This is the pre-call guidance — no extra LLM call needed,
+ * just deterministic state inspection.
+ */
+function buildStateDirective(session: ChatSession): string {
+  const learned = session.learned;
+  // Use != null to avoid false negatives from empty strings
+  const hasName = learned?.name != null && learned.name !== "";
+  const hasBusiness = learned?.business != null && learned.business !== "";
+  const hasTarget = (learned?.target != null && learned.target !== "") || (learned?.problem != null && learned.problem !== "");
+  const hasLocation = learned?.location != null && learned.location !== "";
+  const hasEmail = session.requestEmailFlagged;
+
+  const lines: string[] = ["\n\n## THIS TURN — what to do (from conversation state)"];
+
+  if (!hasName) {
+    lines.push("You do NOT know this visitor's name yet. Set requestName to true. Your text should react to what they said with substance, then naturally ask who you're talking to. The name input appears below your text. Ask ONLY for their name — nothing else this turn.");
+  } else if (!hasBusiness) {
+    lines.push(`You know their name is ${learned!.name}. Use it. This turn: ask about their business. Invite them to share a website or LinkedIn. Ask ONLY about the business — nothing else.`);
+  } else if (!hasTarget) {
+    lines.push(`You know ${learned!.name} and their business (${learned!.business}). This turn: ask who they're trying to reach or what problem they're solving. Ask ONLY about the target — nothing else.`);
+  } else if (!hasLocation) {
+    lines.push(`You know ${learned!.name}, their business, and target. Set requestLocation to true. Ask where they're based so you can target the right market — the location input appears below your text. Ask ONLY about location — nothing else.`);
+  } else if (!hasEmail) {
+    lines.push(`You have name, business, target, and location. This turn: set requestEmail to true and explain why you need their email — briefings, approvals, and communication happen there.`);
+  } else {
+    lines.push(`You have all context. Reflect back what you've heard using THEIR words — confirm you got it right. Propose your approach as an option they can accept or modify. Get explicit consent before activating. Remember: confirm, never assume.`);
+  }
+
+  return lines.join("\n");
+}
+
+// ============================================================
+// Stage Gate Enforcement
+// ============================================================
+
+/**
+ * Enforce conversation stage gates using the session's learned context.
+ *
+ * Implements the gate conditions defined in front-door-conversation.yaml.
+ * The process template declares the rules; this function enforces them.
+ *
+ * Gate conditions (from process YAML):
+ *   done_requires: learned.name, learned.business, email_verified
+ *   request_email_requires: learned.name, learned.business
+ *   force_request_name_until: learned.name
+ */
+function enforceStageGates(result: AlexToolArgs, session: ChatSession): AlexToolArgs {
+  const learned = session.learned;
+  const hasName = learned?.name != null && learned.name !== "";
+  const hasBusiness = learned?.business != null && learned.business !== "";
+  const hasTarget = (learned?.target != null && learned.target !== "") || (learned?.problem != null && learned.problem !== "");
+  const hasLocation = learned?.location != null && learned.location !== "";
+  const hasEmail = session.requestEmailFlagged;
+
+  // done_requires: learned.name, learned.business, learned.location, email_verified
+  if (result.done && (!hasName || !hasBusiness || !hasLocation || !hasEmail)) {
+    const missing = [!hasName && "name", !hasBusiness && "business", !hasLocation && "location", !hasEmail && "email"].filter(Boolean);
+    console.warn(`[harness] Blocked done — missing: ${missing.join(", ")}`);
+    result.done = false;
+    if (hasName && hasBusiness && hasTarget && hasLocation && !hasEmail) {
+      result.requestEmail = true;
+    }
+  }
+
+  // request_email_requires: learned.name, learned.business, learned.target|problem, learned.location
+  if (result.requestEmail && (!hasName || !hasBusiness || !hasTarget || !hasLocation)) {
+    const missing = [!hasName && "name", !hasBusiness && "business", !hasTarget && "target", !hasLocation && "location"].filter(Boolean);
+    console.warn(`[harness] Blocked requestEmail — gate requires: ${missing.join(", ")}`);
+    result.requestEmail = false;
+  }
+
+  // force_request_name_until: learned.name
+  if (!hasName && !result.requestName && session.messageCount <= 2) {
+    result.requestName = true;
+  }
+
+  return result;
+}
+
+// ============================================================
+// Response Validator (post-call — Haiku)
+// ============================================================
+
+const VALIDATOR_TOOL: LlmToolDefinition = {
+  name: "validation_result",
+  description: "Return the validation result for Alex's reply.",
+  input_schema: {
+    type: "object",
+    properties: {
+      has_no_question: {
+        type: "boolean",
+        description: "True if the reply does NOT ask any question at all. A reply that only makes statements or observations without inviting a response. Rhetorical questions count as questions. 'Isn't it?' or 'right?' tag questions count. But 'That's interesting.' with no question is has_no_question=true.",
+      },
+      has_multiple_questions: {
+        type: "boolean",
+        description: "True if the reply asks MORE THAN ONE distinct question. Test: 'What's the business, and who are you trying to get in front of?' = TWO questions ('what's the business' + 'who are you trying to get in front of') joined by 'and' — even though there's only one question mark. 'B2B or B2C?' = ONE question (either/or choice). If the question contains 'and' or comma joining two DIFFERENT asks, it's multiple.",
+      },
+      primary_question: {
+        type: "string",
+        description: "The FIRST question asked. For 'What's the business, and who are you trying to get in front of?' the primary question is 'What's the business?'. Empty string if has_no_question is true.",
+      },
+      extra_questions: {
+        type: "array",
+        items: { type: "string" },
+        description: "Questions beyond the primary one, rephrased as standalone questions. For 'What's the business, and who are you trying to get in front of?' the extra question is 'Who are you trying to get in front of?'. Empty array if only one question.",
+      },
+      cleaned_reply: {
+        type: "string",
+        description: "The cleaned reply with ALL fixes applied: extra questions removed AND filler removed. Keep only the reaction/substance + primary question. If no changes needed, return the original reply exactly.",
+      },
+      has_filler: {
+        type: "boolean",
+        description: "True if the reply starts with empty filler like 'Good starting point', 'Great question', 'Nice', 'Interesting', 'Absolutely', 'I'd love to help'. Substantive reactions about the user's situation are NOT filler.",
+      },
+    },
+    required: ["has_no_question", "has_multiple_questions", "primary_question", "extra_questions", "cleaned_reply", "has_filler"],
+  },
+};
+
+/**
+ * Validate Alex's reply using a fast secondary LLM call (Haiku/classification tier).
+ *
+ * Checks for:
+ * 1. Multiple questions (including compound "X and Y?" with one question mark)
+ * 2. Filler/sycophantic openings
+ *
+ * Returns cleaned reply + any extra questions for structured UI.
+ * Runs in ~100-200ms on Haiku — acceptable for the think→stream pipeline.
+ *
+ * Falls back to the original reply if the validator fails.
+ */
+async function validateAndCleanResponse(reply: string, declaredQuestion?: string | null): Promise<{ cleanedReply: string; extraQuestions: string[] }> {
+  // Skip validation for very short replies (e.g. "Check your inbox")
+  if (reply.length < 40 || isTestMode()) {
+    return { cleanedReply: reply, extraQuestions: [] };
+  }
+
+  try {
+    const response = await createCompletion({
+      system: "You are a quality checker for a conversational AI. Analyze the reply and detect ALL questions — including compound questions joined by 'and', comma, or 'who/what/where' within the same sentence. Example: 'What's the business, and who are you trying to reach?' is TWO questions even with one '?'. Split them. Be aggressive about detection — false positives are better than letting compound questions through. ALSO check if the reply asks NO question at all — a reply that only states facts or observations without inviting the user to respond is a critical failure.",
+      messages: [{ role: "user", content: `Validate this reply:\n\n${reply}` }],
+      tools: [VALIDATOR_TOOL],
+      maxTokens: 300,
+      purpose: "classification",
+    });
+
+    const toolCalls = extractToolUse(response.content);
+    const call = toolCalls.find((tc) => tc.name === "validation_result");
+    if (!call) return { cleanedReply: reply, extraQuestions: [] };
+
+    const args = call.input as Record<string, unknown>;
+    const extraQuestions = Array.isArray(args.extra_questions)
+      ? args.extra_questions.filter((q): q is string => typeof q === "string" && q.length > 10 && q.length < 200)
+      : [];
+
+    // cleaned_reply has ALL fixes applied (extra questions removed + filler removed)
+    let cleanedReply = reply;
+    if ((args.has_multiple_questions || args.has_filler) && typeof args.cleaned_reply === "string" && args.cleaned_reply.trim()) {
+      cleanedReply = args.cleaned_reply.trim();
+    }
+
+    // Zero-question enforcement: if the reply has no question, append the
+    // declared question from the alex_response tool call. This is the safety
+    // net — the LLM declared what it intended to ask but forgot to include it.
+    if (args.has_no_question && declaredQuestion) {
+      // Strip trailing punctuation from the reply so the appended question reads naturally
+      cleanedReply = cleanedReply.replace(/[.\s]+$/, "") + "\n\n" + declaredQuestion;
+      console.warn(`[network-chat] Zero-question detected — appended declared question: "${declaredQuestion}"`);
+    } else if (args.has_no_question) {
+      console.warn(`[network-chat] Zero-question detected but no declared question available — reply may stall conversation`);
+    }
+
+    console.log(
+      `[network-chat] Validator result: noQ=${args.has_no_question}, multiQ=${args.has_multiple_questions}, filler=${args.has_filler}, extraQs=${extraQuestions.length}` +
+      (extraQuestions.length > 0 ? ` [${extraQuestions.map((q: string) => q.slice(0, 50)).join(" | ")}]` : "") +
+      (cleanedReply !== reply ? ` | reply cleaned` : ""),
+    );
+
+    return { cleanedReply, extraQuestions };
+  } catch (err) {
+    // Validator failure is non-fatal — use the original reply
+    console.warn("[network-chat] Validator failed, using original reply:", (err as Error).message);
+    return { cleanedReply: reply, extraQuestions: [] };
+  }
+}
+
+// ============================================================
+// Text Similarity (for enrichment dedup)
+// ============================================================
+
+/**
+ * Simple word-overlap similarity (Jaccard on word bigrams).
+ * Returns 0–1. Used to detect when enrichment produced the same reply.
+ */
+function computeTextSimilarity(a: string, b: string): number {
+  const bigrams = (s: string): Set<string> => {
+    const words = s.toLowerCase().split(/\s+/).filter(Boolean);
+    const set = new Set<string>();
+    for (let i = 0; i < words.length - 1; i++) {
+      set.add(`${words[i]} ${words[i + 1]}`);
+    }
+    return set;
+  };
+  const setA = bigrams(a);
+  const setB = bigrams(b);
+  if (setA.size === 0 && setB.size === 0) return 1;
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const bg of setA) {
+    if (setB.has(bg)) intersection++;
+  }
+  return intersection / (setA.size + setB.size - intersection);
 }
 
 // ============================================================
@@ -114,6 +402,7 @@ const AUTHENTICATED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (authe
 const MAX_MESSAGES_PER_SESSION = 20;
 const MAX_MESSAGES_PER_IP_PER_HOUR = 60;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_EXTRACT_REGEX = /[^\s@,]+@[^\s@,]+\.[^\s@,]+/;
 
 // ============================================================
 // Conversation Stage Inference (Insight-170: token efficiency)
@@ -121,24 +410,35 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Infer the current conversation stage from session state.
- * Used for stage-gated prompt injection — only load instructions for
- * current + next stage, saving ~600-800 tokens per call.
+ *
+ * Uses the persisted `learned` context — NOT message count.
+ * Stages map to the front-door-conversation.yaml process steps:
+ *   gather-name / gather-context → "gather"
+ *   request-email → "gather" (reflect loads as next stage)
+ *   reflect-propose → "reflect"
+ *   activate → "activate"
  */
 function inferConversationStage(session: ChatSession): ConversationStage {
-  // Email already captured → gathering details or activating
+  const learned = session.learned;
+
+  // Email captured → reflect stage (propose approach, get consent)
   if (session.requestEmailFlagged) {
-    // Check if last assistant message indicated done
-    const lastAssistantMsg = [...session.messages].reverse().find((m) => m.role === "assistant");
-    if (lastAssistantMsg?.content.includes("[ACTIVATED]")) {
-      return "activate";
-    }
-    return "details";
+    return "reflect";
   }
 
-  // Heuristic based on message count
-  if (session.messageCount <= 3) return "gather";
-  if (session.messageCount <= 6) return "reflect";
-  return "deliver";
+  // No learned context yet → still gathering
+  if (!learned) return "gather";
+
+  const hasName = !!learned.name;
+  const hasBusiness = !!learned.business;
+  const hasTarget = !!learned.target || !!learned.problem;
+
+  // Need core context before advancing — stage-gated prompt loads
+  // current + next, so "gather" also loads "reflect" instructions.
+  if (!hasName || !hasBusiness || !hasTarget) return "gather";
+
+  // Have enough context but no email yet → still gather (reflect loads as next)
+  return "gather";
 }
 
 // ============================================================
@@ -173,7 +473,7 @@ export async function checkIpRateLimit(ipHash: string): Promise<boolean> {
 // Funnel Events
 // ============================================================
 
-async function recordFunnelEvent(
+export async function recordFunnelEvent(
   sessionId: string,
   event: string,
   surface: string,
@@ -212,6 +512,31 @@ interface ChatSession {
   requestEmailFlagged: boolean;
   messageCount: number;
   authenticatedEmail: string | null;
+  learned: Record<string, string | null> | null;
+  /** One-shot flag: true after offerCall has been emitted for this session (Brief 142) */
+  callOffered?: boolean;
+  /** Session-bound token for voice endpoint authentication (Brief 142) */
+  voiceToken?: string | null;
+}
+
+/** Options for controlling pipeline behavior per-channel (Brief 142) */
+export interface ChatPipelineOptions {
+  /** Skip Haiku validation pass — saves ~100-200ms for voice */
+  skipValidation?: boolean;
+  /** Skip web search/fetch enrichment — saves 2-5s for voice */
+  skipEnrichment?: boolean;
+  /** Callback fired when enrichment loop starts — voice uses this for filler phrases */
+  onEnrichmentStart?: () => void;
+  /** Channel type — affects prompt style and event recording */
+  channel?: "text" | "voice";
+  /** Skip IP rate limiting — voice calls come from external servers, not the visitor's IP */
+  skipRateLimit?: boolean;
+  /** Pre-hashed IP — skip hashIp() when the caller already provides the hash */
+  ipPreHashed?: boolean;
+  /** Override max tokens for LLM response */
+  maxTokens?: number;
+  /** Override LLM model — use a faster model for voice */
+  model?: string;
 }
 
 async function loadOrCreateSession(
@@ -240,6 +565,9 @@ async function loadOrCreateSession(
         requestEmailFlagged: existing.requestEmailFlagged ?? false,
         messageCount: existing.messageCount ?? 0,
         authenticatedEmail: existing.authenticatedEmail ?? null,
+        learned: (existing.learned as Record<string, string | null>) ?? null,
+        callOffered: existing.callOffered ?? false,
+        voiceToken: existing.voiceToken ?? null,
       };
     }
   }
@@ -254,6 +582,7 @@ async function loadOrCreateSession(
     requestEmailFlagged: false,
     messageCount: 0,
     authenticatedEmail: null,
+    learned: null,
   };
 
   await db.insert(schema.chatSessions).values({
@@ -277,11 +606,277 @@ async function saveSession(session: ChatSession): Promise<void> {
       messages: session.messages,
       requestEmailFlagged: session.requestEmailFlagged,
       messageCount: session.messageCount,
+      learned: session.learned,
       updatedAt: new Date(),
+      // Brief 142: persist voice channel state
+      callOffered: session.callOffered ?? false,
+      voiceToken: session.voiceToken ?? null,
       // Rolling TTL: authenticated sessions extend to 30 days on each activity (Brief 123)
       ...(session.authenticatedEmail ? { expiresAt: new Date(Date.now() + AUTHENTICATED_SESSION_TTL_MS) } : {}),
     })
     .where(eq(schema.chatSessions.sessionId, session.sessionId));
+}
+
+/**
+ * Voice conversation evaluator — runs the ACTUAL harness pipeline in shadow mode.
+ *
+ * Calls handleChatTurn (the same pipeline as text chat) with the voice transcript.
+ * The harness runs the full LLM call, extracts learned context, runs stage gates.
+ * We keep the structured outputs + the reply (as guidance). ElevenLabs generates
+ * the actual voice response — this is just for process intelligence.
+ */
+export interface VoiceEvaluation {
+  learned: LearnedContext;
+  guidance: string;
+  stage: string;
+}
+
+/**
+ * Core voice evaluation logic — runs the same LLM pipeline as text chat.
+ * Returns evaluation result + optionally persists learned context to DB.
+ *
+ * @param persistLearned - if true, writes learned context back to DB (webhook context).
+ *                         if false, read-only evaluation (auth context). (Brief 150 AC 5-6)
+ */
+async function evaluateVoiceCore(
+  sessionId: string,
+  persistLearned: boolean,
+): Promise<VoiceEvaluation | null> {
+  const [existing] = await db
+    .select()
+    .from(schema.chatSessions)
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+  if (!existing) return null;
+
+  const session: ChatSession = {
+    id: existing.id,
+    sessionId: existing.sessionId,
+    messages: existing.messages as Array<{ role: string; content: string }>,
+    context: existing.context,
+    ipHash: existing.ipHash,
+    requestEmailFlagged: existing.requestEmailFlagged ?? false,
+    messageCount: existing.messageCount ?? 0,
+    authenticatedEmail: existing.authenticatedEmail ?? null,
+    learned: (existing.learned as Record<string, string | null>) ?? null,
+    callOffered: existing.callOffered ?? false,
+    voiceToken: existing.voiceToken ?? null,
+  };
+
+  if (session.messages.length === 0) return null;
+
+  try {
+    // Build the SAME prompt + tools as text chat
+    const conversationStage = inferConversationStage(session);
+    const systemPrompt = buildFrontDoorPrompt(
+      session.context as ChatContext,
+      undefined,
+      conversationStage,
+      "voice",
+    ) + buildStateDirective(session);
+
+    let llmMessages: LlmMessage[] = session.messages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+    // Claude does not support assistant message prefill — the conversation
+    // must end with a user message. If the last message is from the assistant
+    // (e.g. Alex's last response before the voice call), append a synthetic
+    // user prompt so the evaluation can run.
+    if (llmMessages.length > 0 && llmMessages[llmMessages.length - 1].role === "assistant") {
+      llmMessages = [...llmMessages, { role: "user", content: "[Voice call active — evaluate the conversation so far and produce guidance for the next turn.]" }];
+    }
+
+    // Run the SAME LLM call as text chat — same model, same tool schema
+    const response = await createCompletion({
+      system: systemPrompt,
+      messages: llmMessages,
+      tools: [ALEX_RESPONSE_TOOL],
+      maxTokens: 400,
+    });
+
+    // Extract using the SAME extraction as text chat
+    const rawExtracted = extractAlexResponse(response.content);
+
+    // Merge learned into session — SAME as text chat
+    if (rawExtracted.learned) {
+      session.learned = { ...(session.learned || {}), ...rawExtracted.learned };
+    }
+
+    // Run stage gates — SAME as text chat
+    const gated = enforceStageGates(rawExtracted, session);
+
+    // Only persist learned context when called from webhook context (Brief 150 AC 5-6)
+    if (persistLearned) {
+      await db
+        .update(schema.chatSessions)
+        .set({ learned: session.learned, updatedAt: new Date() })
+        .where(eq(schema.chatSessions.sessionId, sessionId));
+    }
+
+    // The harness reply IS the guidance
+    const guidance = gated.reply || "Continue the conversation.";
+
+    let stage = "gathering";
+    if (gated.done) stage = "complete";
+    else if (gated.requestEmail) stage = "activating";
+    else if (rawExtracted.detectedMode) stage = "proposing";
+
+    console.log(`[evaluateVoice] Stage: ${stage}, mode: ${rawExtracted.detectedMode || "?"}, learned: ${JSON.stringify(session.learned)}, persist: ${persistLearned}`);
+
+    return {
+      learned: (session.learned as LearnedContext) || {},
+      stage,
+      guidance,
+    };
+  } catch (err) {
+    console.warn("[evaluateVoice] Failed:", (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Evaluate voice conversation — writes learned context to DB.
+ * Use from webhook/tool context where writes are expected.
+ */
+export async function evaluateVoiceConversation(
+  sessionId: string,
+): Promise<VoiceEvaluation | null> {
+  return evaluateVoiceCore(sessionId, true);
+}
+
+/**
+ * Read-only voice evaluation — does NOT write to DB.
+ * Use from auth endpoint where only a read is expected. (Brief 150 AC 5)
+ */
+export async function evaluateVoiceConversationReadOnly(
+  sessionId: string,
+): Promise<VoiceEvaluation | null> {
+  return evaluateVoiceCore(sessionId, false);
+}
+
+/**
+ * Persist voice transcript turns to session messages. (Brief 150 AC 1-2)
+ * Merges voice turns into the existing messages array, avoiding duplicates.
+ * Each voice turn is prefixed with [voice] to distinguish from text chat.
+ */
+export async function saveVoiceTranscript(
+  sessionId: string,
+  voiceToken: string,
+  turns: Array<{ role: "user" | "alex"; text: string }>,
+): Promise<boolean> {
+  const session = await loadSessionForVoice(sessionId, voiceToken);
+  if (!session) return false;
+  if (turns.length === 0) return true;
+
+  // Append voice turns as messages with [voice] prefix for traceability
+  const newMessages = turns.map((t) => ({
+    role: t.role === "user" ? "user" : "assistant",
+    content: `[voice] ${t.text}`,
+  }));
+
+  const merged = [...session.messages, ...newMessages];
+
+  await db
+    .update(schema.chatSessions)
+    .set({
+      messages: merged,
+      messageCount: (session.messageCount || 0) + turns.length,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+
+  return true;
+}
+
+/**
+ * Append a text message to a session during an active voice call.
+ * Treated as regular user input — the voice agent picks it up on the next turn.
+ *
+ * If the text contains a URL, kicks off async enrichment (web fetch) so
+ * the results appear in the chat UI and are available to the voice agent.
+ */
+export async function appendTextContext(session: ChatSession, text: string): Promise<void> {
+  session.messages.push({
+    role: "user",
+    content: text,
+  });
+  session.messageCount += 1;
+  await saveSession(session);
+
+  // Async enrichment: if the text looks like a URL, fetch it in the background
+  // and append the results to the session for the voice agent to use.
+  const urlMatch = text.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) {
+    // Fire and forget — don't block the response
+    enrichSessionWithUrl(session.sessionId, urlMatch[0]).catch((err) => {
+      console.warn("[appendTextContext] Background enrichment failed:", (err as Error).message);
+    });
+  }
+}
+
+/**
+ * Fetch a URL and append the content to the session as assistant context.
+ * Runs async — the voice agent sees the results on its next turn.
+ */
+async function enrichSessionWithUrl(sessionId: string, url: string): Promise<void> {
+  const { fetchUrlContent } = await import("./web-fetch");
+  const result = await fetchUrlContent(url);
+  if (!result.content) return;
+
+  // Reload the session (may have changed since we started)
+  const [existing] = await db
+    .select()
+    .from(schema.chatSessions)
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+  if (!existing) return;
+
+  const messages = existing.messages as Array<{ role: string; content: string }>;
+  messages.push({
+    role: "assistant",
+    content: `I've looked at ${url} — here's what I found:\n\n${result.content.slice(0, 2000)}`,
+  });
+
+  await db
+    .update(schema.chatSessions)
+    .set({ messages, updatedAt: new Date() })
+    .where(eq(schema.chatSessions.sessionId, sessionId));
+}
+
+/**
+ * Load a session by sessionId, validating a voice token for security (Brief 142).
+ * Returns null if session not found, expired, or token doesn't match.
+ */
+export async function loadSessionForVoice(
+  sessionId: string,
+  voiceToken: string,
+): Promise<ChatSession | null> {
+  const [existing] = await db
+    .select()
+    .from(schema.chatSessions)
+    .where(
+      and(
+        eq(schema.chatSessions.sessionId, sessionId),
+        sql`${schema.chatSessions.expiresAt} > ${Date.now()}`,
+      ),
+    );
+
+  if (!existing) return null;
+  if (existing.voiceToken !== voiceToken) return null;
+
+  return {
+    id: existing.id,
+    sessionId: existing.sessionId,
+    messages: existing.messages as Array<{ role: string; content: string }>,
+    context: existing.context,
+    ipHash: existing.ipHash,
+    requestEmailFlagged: existing.requestEmailFlagged ?? false,
+    messageCount: existing.messageCount ?? 0,
+    authenticatedEmail: existing.authenticatedEmail ?? null,
+    learned: (existing.learned as Record<string, string | null>) ?? null,
+    callOffered: existing.callOffered ?? false,
+    voiceToken: existing.voiceToken ?? null,
+  };
 }
 
 // ============================================================
@@ -387,12 +982,15 @@ function extractNeedFromConversation(messages: Array<{ role: string; content: st
 export interface ChatTurnResult {
   reply: string;
   sessionId: string;
+  requestName?: boolean;
+  requestLocation?: boolean;
   requestEmail?: boolean;
   emailCaptured?: boolean;
   done?: boolean;
   rateLimited?: boolean;
   suggestions?: string[];
   detectedMode?: DetectedMode;
+  extraQuestions?: string[];
   testMode?: boolean;
 }
 
@@ -460,8 +1058,10 @@ export async function handleChatTurn(
   let knownEmail = (isTestMode() ? null : returningEmail) || null;
   let emailCaptured = false;
 
-  if (EMAIL_REGEX.test(trimmedMessage)) {
-    knownEmail = trimmedMessage;
+  // Extract email from anywhere in the message (e.g. "Tim, tim@company.com")
+  const emailMatch = trimmedMessage.match(EMAIL_EXTRACT_REGEX);
+  if (emailMatch) {
+    knownEmail = emailMatch[0];
     emailCaptured = true;
 
     // Trigger intake as side effect — creates person record + sends intro email
@@ -469,7 +1069,7 @@ export async function handleChatTurn(
     const name = visitorName || extractNameFromConversation(session.messages);
     const need = extractNeedFromConversation(session.messages);
     // Brief 126 AC4: pass sessionId so intro email metadata can trace replies
-    try { await startIntake(trimmedMessage, name, need, undefined, "alex", undefined, session.sessionId); } catch { /* non-fatal */ }
+    try { await startIntake(knownEmail, name, need, undefined, "alex", undefined, session.sessionId); } catch { /* non-fatal */ }
     await recordFunnelEvent(session.sessionId, "email_captured", context, {
       hasName: !!name, hasNeed: !!need,
     });
@@ -527,13 +1127,14 @@ export async function handleChatTurn(
 
   // Infer conversation stage for stage-gated prompting (Insight-170: token efficiency)
   const conversationStage = inferConversationStage(session);
-  const systemPrompt = buildFrontDoorPrompt(context, visitorContext, conversationStage);
+  const systemPrompt = buildFrontDoorPrompt(context, visitorContext, conversationStage)
+    + buildStateDirective(session);
 
   const llmRequest = {
     system: systemPrompt,
     messages: llmMessages,
     tools: [ALEX_RESPONSE_TOOL],
-    maxTokens: 256,
+    maxTokens: 400,
     ...(model ? { model } : {}),
   };
   const response = await createCompletion(llmRequest);
@@ -541,8 +1142,13 @@ export async function handleChatTurn(
   // Record spend for daily ceiling tracking
   recordFrontDoorSpend(response.costCents);
 
-  let { reply, requestEmail, done, resendEmail, suggestions, detectedMode, searchQuery, fetchUrl } =
-    extractAlexResponse(response.content);
+  const rawExtracted = extractAlexResponse(response.content);
+  // Update session.learned BEFORE gate enforcement so gates see this turn's context
+  if (rawExtracted.learned) {
+    session.learned = { ...(session.learned || {}), ...rawExtracted.learned };
+  }
+  const extracted = enforceStageGates(rawExtracted, session);
+  let { reply, question: declaredQuestion, requestName, requestLocation, requestEmail, done, resendEmail, suggestions, detectedMode, searchQuery, fetchUrl, extraQuestions } = extracted;
 
   // Record mode detection funnel event
   if (detectedMode) {
@@ -562,6 +1168,17 @@ export async function handleChatTurn(
       await startIntake(knownEmail, undefined, undefined, undefined, "alex");
       console.log(`[network-chat] Resent welcome email to ${knownEmail}`);
     } catch { /* non-fatal */ }
+  }
+
+  // Deduplicate: skip fetchUrl if the URL was already fetched in this conversation
+  if (fetchUrl) {
+    const alreadyFetched = session.messages.some((m) =>
+      m.content.includes(`[PAGE_CONTENT from ${fetchUrl}]`) || m.content.includes(`[PAGE_FETCH_FAILED for ${fetchUrl}]`)
+    );
+    if (alreadyFetched) {
+      console.log(`[network-chat] Skipping duplicate fetchUrl: ${fetchUrl}`);
+      fetchUrl = null;
+    }
   }
 
   // Enrichment loop — search or fetch, then re-prompt. Max 2 rounds to prevent runaway.
@@ -598,29 +1215,45 @@ export async function handleChatTurn(
         content: m.content,
       })),
       tools: [ALEX_RESPONSE_TOOL],
-      maxTokens: 512,
+      maxTokens: 400,
       ...(model ? { model } : {}),
     };
 
     try {
       const followUp = await createCompletion(followUpRequest);
       recordFrontDoorSpend(followUp.costCents);
-      const followUpParsed = extractAlexResponse(followUp.content);
-      reply = followUpParsed.reply;
-      done = followUpParsed.done;
-      suggestions = followUpParsed.suggestions;
-      if (followUpParsed.detectedMode) detectedMode = followUpParsed.detectedMode;
+      const followUpRaw = extractAlexResponse(followUp.content);
+      if (followUpRaw.learned) {
+        session.learned = { ...(session.learned || {}), ...followUpRaw.learned };
+      }
+      const followUpGated = enforceStageGates(followUpRaw, session);
+      reply = followUpGated.reply;
+      declaredQuestion = followUpGated.question ?? declaredQuestion;
+      requestName = followUpGated.requestName;
+      requestLocation = followUpGated.requestLocation;
+      requestEmail = followUpGated.requestEmail;
+      done = followUpGated.done;
+      suggestions = followUpGated.suggestions;
+      extraQuestions = followUpGated.extraQuestions;
+      if (followUpGated.detectedMode) detectedMode = followUpGated.detectedMode;
       session.messages.pop();
       session.messages.pop();
-      // Check if the follow-up wants another enrichment round
-      searchQuery = followUpParsed.searchQuery;
-      fetchUrl = followUpParsed.fetchUrl;
+      searchQuery = followUpGated.searchQuery;
+      fetchUrl = followUpGated.fetchUrl;
     } catch {
       session.messages.pop();
       session.messages.pop();
       break;
     }
   }
+
+  // ── Secondary LLM validation (Haiku) ──
+  // Catches compound questions, filler, and quality issues that the primary
+  // model missed. Also catches zero-question replies that would stall the
+  // conversation — appends the declared question from the tool call if available.
+  const validated = await validateAndCleanResponse(reply, declaredQuestion);
+  reply = validated.cleanedReply;
+  extraQuestions = validated.extraQuestions;
 
   // Brief 126: Safety net — if email was captured in THIS turn (emailCaptured flag)
   // and the LLM's response + enrichment loop didn't set done, force it.
@@ -722,17 +1355,22 @@ export async function handleChatTurn(
     }
   }
 
+  // session.learned already updated before enforceStageGates (line 808) and in enrichment loops
+
   session.messages.push({ role: "assistant", content: reply });
   await saveSession(session);
 
   return {
     reply,
     sessionId: session.sessionId,
+    requestName,
+    requestLocation,
     requestEmail,
     emailCaptured,
     done,
     suggestions,
     detectedMode,
+    extraQuestions,
     ...(isTestMode() ? { testMode: true } : {}),
   };
 }
@@ -753,7 +1391,8 @@ export type ChatStreamEvent =
   | { type: "text-delta"; text: string }
   | { type: "text-replace"; text: string }
   | { type: "status"; message: string }
-  | { type: "metadata"; requestEmail: boolean; done: boolean; suggestions: string[]; detectedMode: DetectedMode; emailCaptured: boolean }
+  | { type: "content-block"; block: ContentBlock }
+  | { type: "metadata"; requestName: boolean; requestLocation: boolean; requestEmail: boolean; done: boolean; suggestions: string[]; detectedMode: DetectedMode; emailCaptured: boolean; plan: string | null; learned: LearnedContext | null; extraQuestions: string[]; voiceReady?: boolean; voiceToken?: string }
   | { type: "done" }
   | { type: "error"; message: string };
 
@@ -770,17 +1409,20 @@ export async function* handleChatTurnStreaming(
   returningEmail?: string | null,
   funnelMetadata?: Record<string, unknown>,
   visitorName?: string,
+  options?: ChatPipelineOptions,
 ): AsyncGenerator<ChatStreamEvent> {
-  const ipHash = hashIp(ip);
+  const ipHash = options?.ipPreHashed ? ip : hashIp(ip);
 
-  // Rate limit: IP
-  const ipAllowed = await checkIpRateLimit(ipHash);
-  if (!ipAllowed) {
-    yield { type: "session", sessionId: sessionId || randomUUID(), ...(isTestMode() ? { testMode: true } : {}) };
-    yield { type: "text-delta", text: "We've been chatting a lot — drop me your email and I'll continue there. Better for both of us." };
-    yield { type: "metadata", requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false };
-    yield { type: "done" };
-    return;
+  // Rate limit: IP (skip for voice channel)
+  if (!options?.skipRateLimit) {
+    const ipAllowed = await checkIpRateLimit(ipHash);
+    if (!ipAllowed) {
+      yield { type: "session", sessionId: sessionId || randomUUID(), ...(isTestMode() ? { testMode: true } : {}) };
+      yield { type: "text-delta", text: "We've been chatting a lot — drop me your email and I'll continue there. Better for both of us." };
+      yield { type: "metadata", requestName: false, requestLocation: false, requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false, plan: null, learned: null, extraQuestions: [] };
+      yield { type: "done" };
+      return;
+    }
   }
 
   // Load or create session
@@ -792,14 +1434,14 @@ export async function* handleChatTurnStreaming(
   // Rate limit: per-session
   if (session.messageCount >= MAX_MESSAGES_PER_SESSION) {
     yield { type: "text-delta", text: "We've been chatting a lot — drop me your email and I'll continue there. Better for both of us." };
-    yield { type: "metadata", requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false };
+    yield { type: "metadata", requestName: false, requestLocation: false, requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false, plan: null, learned: null, extraQuestions: [] };
     yield { type: "done" };
     return;
   }
 
   // Resolve model
   let model: string | undefined;
-  try { model = getConfiguredModel(); } catch { /* mock mode */ }
+  try { model = options?.model || getConfiguredModel(); } catch { /* mock mode */ }
 
   // Intercept bracket-tagged funnel events
   const funnelEventMatch = message.trim().match(/^\[(\w+)\]$/);
@@ -810,10 +1452,10 @@ export async function* handleChatTurnStreaming(
     return;
   }
 
-  // Record chat message event
-  await recordFunnelEvent(session.sessionId, "chat_message", context, { ipHash });
+  // Record chat message events (fire-and-forget — don't block the response)
+  recordFunnelEvent(session.sessionId, "chat_message", context, { ipHash }).catch(() => {});
   if (session.messageCount === 0) {
-    await recordFunnelEvent(session.sessionId, "conversation_started", context);
+    recordFunnelEvent(session.sessionId, "conversation_started", context).catch(() => {});
   }
 
   const trimmedMessage = message.trim();
@@ -823,13 +1465,14 @@ export async function* handleChatTurnStreaming(
   let knownEmail = (isTestMode() ? null : returningEmail) || null;
   let emailCaptured = false;
 
-  if (EMAIL_REGEX.test(trimmedMessage)) {
-    knownEmail = trimmedMessage;
+  const streamEmailMatch = trimmedMessage.match(EMAIL_EXTRACT_REGEX);
+  if (streamEmailMatch) {
+    knownEmail = streamEmailMatch[0];
     emailCaptured = true;
     const name = visitorName || extractNameFromConversation(session.messages);
     const need = extractNeedFromConversation(session.messages);
     // Brief 126 AC4: pass sessionId so intro email metadata can trace replies
-    try { await startIntake(trimmedMessage, name, need, undefined, "alex", undefined, session.sessionId); } catch { /* non-fatal */ }
+    try { await startIntake(knownEmail, name, need, undefined, "alex", undefined, session.sessionId); } catch { /* non-fatal */ }
     await recordFunnelEvent(session.sessionId, "email_captured", context, {
       hasName: !!name, hasNeed: !!need,
     });
@@ -840,19 +1483,15 @@ export async function* handleChatTurnStreaming(
 
   session.messageCount += 1;
 
-  // Visitor context + geolocation — skip person lookup in test mode
+  // Visitor context + geolocation — run in parallel, skip person lookup in test mode
   let visitorContext: VisitorContext | undefined;
   const geoPromise = geolocateIp(ip, ipHash);
+  const visitorPromise = (knownEmail && !isTestMode())
+    ? assembleVisitorContext(knownEmail).catch(() => ({ email: knownEmail, isReturning: !!returningEmail } as VisitorContext))
+    : Promise.resolve(undefined);
 
-  if (knownEmail && !isTestMode()) {
-    try {
-      visitorContext = await assembleVisitorContext(knownEmail);
-    } catch {
-      visitorContext = { email: knownEmail, isReturning: !!returningEmail };
-    }
-  }
-
-  const geo = await geoPromise;
+  const [geo, resolvedVisitor] = await Promise.all([geoPromise, visitorPromise]);
+  visitorContext = resolvedVisitor;
   if (geo) {
     if (!visitorContext) visitorContext = {};
     visitorContext.location = geo;
@@ -862,7 +1501,7 @@ export async function* handleChatTurnStreaming(
   if (isSpendCeilingReached()) {
     await saveSession(session);
     yield { type: "text-delta", text: "I'm getting a lot of traffic right now — drop me your email and I'll follow up personally." };
-    yield { type: "metadata", requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false };
+    yield { type: "metadata", requestName: false, requestLocation: false, requestEmail: true, done: false, suggestions: [], detectedMode: null, emailCaptured: false, plan: null, learned: null, extraQuestions: [] };
     yield { type: "done" };
     return;
   }
@@ -875,39 +1514,54 @@ export async function* handleChatTurnStreaming(
 
   // Stage-gated prompting (Insight-170: token efficiency)
   const streamConversationStage = inferConversationStage(session);
-  const systemPrompt = buildFrontDoorPrompt(context, visitorContext, streamConversationStage);
+  const systemPrompt = buildFrontDoorPrompt(context, visitorContext, streamConversationStage, options?.channel)
+    + buildStateDirective(session);
 
   const llmRequest = {
     system: systemPrompt,
     messages: llmMessages,
     tools: [ALEX_RESPONSE_TOOL],
-    maxTokens: 256,
+    maxTokens: options?.maxTokens || 400,
     ...(model ? { model } : {}),
   };
 
-  // Stream the LLM response — no fallback, let errors propagate to the frontend
-  // which shows an email capture form
-  let fullContent: import("./llm").LlmContentBlock[] = [];
+  // Phase 1: Stream text directly from LLM to user for instant feedback.
+  // Text blocks stream as text-deltas. Tool call (alex_response) is captured
+  // at the end for metadata. If enrichment is needed (search/fetch), a
+  // follow-up non-streaming call replaces the text.
+  yield { type: "status", message: "Thinking…" };
+
+  let streamedText = "";
+  let thinkContent: import("./llm").LlmContentBlock[] = [];
+  let thinkCost = 0;
+  let needsEnrichment = false;
+
   for await (const event of createStreamingCompletion(llmRequest)) {
     if (event.type === "text-delta") {
-      yield { type: "text-delta", text: event.text };
-    }
-    if (event.type === "content-complete") {
-      fullContent = event.content;
-      recordFrontDoorSpend(event.costCents);
+      // Stream text directly to the user — instant feedback
+      yield { type: "text-delta" as const, text: event.text };
+      streamedText += event.text;
+    } else if (event.type === "content-complete") {
+      thinkContent = event.content;
+      thinkCost = event.costCents;
     }
   }
+  recordFrontDoorSpend(thinkCost);
 
-  // Extract structured data from tool call
-  let { reply, requestEmail, done, resendEmail, suggestions, detectedMode, searchQuery, fetchUrl } =
-    extractAlexResponse(fullContent);
+  const streamRawExtracted = extractAlexResponse(thinkContent);
+  // Update session.learned BEFORE gate enforcement so gates see this turn's context
+  if (streamRawExtracted.learned) {
+    session.learned = { ...(session.learned || {}), ...streamRawExtracted.learned };
+  }
+  const streamExtracted = enforceStageGates(streamRawExtracted, session);
+  let { reply, question: streamDeclaredQuestion, requestName, requestLocation, requestEmail, done, resendEmail, suggestions, detectedMode, searchQuery, fetchUrl, plan, learned, extraQuestions } = streamExtracted;
 
   // Mode detection funnel event
   if (detectedMode) {
-    await recordFunnelEvent(session.sessionId, "mode_detected", context, {
+    recordFunnelEvent(session.sessionId, "mode_detected", context, {
       mode: detectedMode,
       messageCount: session.messageCount,
-    });
+    }).catch(() => {});
   }
 
   if (requestEmail) {
@@ -921,66 +1575,122 @@ export async function* handleChatTurnStreaming(
     } catch { /* non-fatal */ }
   }
 
-  // Enrichment loop — search or fetch, then re-prompt. Max 2 rounds to prevent runaway.
-  for (let enrichRound = 0; enrichRound < 2; enrichRound++) {
-    let enrichContent: string | null = null;
-    let enrichLabel = "";
+  // Deduplicate: skip fetchUrl if the URL was already fetched in this conversation
+  if (fetchUrl) {
+    const alreadyFetched = session.messages.some((m) =>
+      m.content.includes(`[PAGE_CONTENT from ${fetchUrl}]`) || m.content.includes(`[PAGE_FETCH_FAILED for ${fetchUrl}]`)
+    );
+    if (alreadyFetched) {
+      console.log(`[network-chat] Skipping duplicate fetchUrl: ${fetchUrl}`);
+      fetchUrl = null;
+    }
+  }
 
-    if (searchQuery) {
-      yield { type: "status", message: "Searching…" };
-      enrichContent = await webSearch(searchQuery);
-      enrichLabel = `[SEARCH_RESULTS for "${searchQuery}"]`;
-    } else if (fetchUrl) {
-      yield { type: "status", message: "Reading that page…" };
-      const result: FetchResult = await fetchUrlContent(fetchUrl);
-      if (result.content) {
-        enrichContent = result.content;
-        enrichLabel = `[PAGE_CONTENT from ${fetchUrl}]`;
-      } else if (result.error) {
-        enrichContent = result.error;
-        enrichLabel = `[PAGE_FETCH_FAILED for ${fetchUrl}]`;
+  // Check if enrichment is needed (search/fetch triggered by alex_response)
+  needsEnrichment = !!(searchQuery || fetchUrl) && !options?.skipEnrichment;
+  let lastEnrichmentText: string | null = null;
+
+  // If enrichment is needed, the streamed text will be replaced.
+  // Send a text-replace event so the frontend knows to swap it.
+  if (needsEnrichment) {
+    for (let enrichRound = 0; enrichRound < 2; enrichRound++) {
+      let enrichContent: string | null = null;
+      let enrichLabel = "";
+
+      if (searchQuery) {
+        if (enrichRound === 0) options?.onEnrichmentStart?.();
+        yield { type: "status", message: "Searching…" };
+        enrichContent = await webSearch(searchQuery);
+        enrichLabel = `[SEARCH_RESULTS for "${searchQuery}"]`;
+      } else if (fetchUrl) {
+        if (enrichRound === 0) options?.onEnrichmentStart?.();
+        yield { type: "status", message: "Reading that page…" };
+        const result: FetchResult = await fetchUrlContent(fetchUrl);
+        if (result.content) {
+          enrichContent = result.content;
+          enrichLabel = `[PAGE_CONTENT from ${fetchUrl}]`;
+        } else if (result.error) {
+          enrichContent = result.error;
+          enrichLabel = `[PAGE_FETCH_FAILED for ${fetchUrl}]`;
+        }
+      } else {
+        break;
       }
-    } else {
-      break;
+
+      if (!enrichContent) break;
+      lastEnrichmentText = enrichContent;
+
+      session.messages.push({ role: "assistant", content: reply });
+      session.messages.push({ role: "user", content: `${enrichLabel}\n${enrichContent}` });
+
+      const followUpRequest = {
+        system: systemPrompt,
+        messages: session.messages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+        tools: [ALEX_RESPONSE_TOOL],
+        maxTokens: 400,
+        ...(model ? { model } : {}),
+      };
+
+      try {
+        yield { type: "status" as const, message: "Putting it together…" };
+        const followUp = await createCompletion(followUpRequest);
+        recordFrontDoorSpend(followUp.costCents);
+        const followUpRaw = extractAlexResponse(followUp.content);
+        if (followUpRaw.learned) {
+          learned = followUpRaw.learned;
+          session.learned = { ...(session.learned || {}), ...learned };
+        }
+        const followUpGated = enforceStageGates(followUpRaw, session);
+        reply = followUpGated.reply;
+        streamDeclaredQuestion = followUpGated.question ?? streamDeclaredQuestion;
+        requestName = followUpGated.requestName;
+        requestLocation = followUpGated.requestLocation;
+        requestEmail = followUpGated.requestEmail;
+        done = followUpGated.done;
+        suggestions = followUpGated.suggestions;
+        extraQuestions = followUpGated.extraQuestions;
+        if (followUpGated.detectedMode) detectedMode = followUpGated.detectedMode;
+        if (followUpGated.plan) plan = followUpGated.plan;
+        session.messages.pop();
+        session.messages.pop();
+        searchQuery = followUpGated.searchQuery;
+        fetchUrl = followUpGated.fetchUrl;
+      } catch {
+        session.messages.pop();
+        session.messages.pop();
+        break;
+      }
     }
 
-    if (!enrichContent) break;
+    // Replace the streamed text with the enriched reply
+    yield { type: "text-replace" as const, text: reply };
+  }
 
-    session.messages.push({ role: "assistant", content: reply });
-    session.messages.push({ role: "user", content: `${enrichLabel}\n${enrichContent}` });
+  // ── Secondary LLM validation (Haiku) ──
+  // Skip on first message — perceived latency matters most on the first turn.
+  // Skip if text was already streamed without enrichment (can't un-stream it).
+  // Brief 142: skip for voice channel — saves ~100-200ms latency
+  if (!options?.skipValidation && session.messageCount > 1 && needsEnrichment) {
+    yield { type: "status", message: "Checking…" };
+    const streamValidated = await validateAndCleanResponse(reply, streamDeclaredQuestion);
+    reply = streamValidated.cleanedReply;
+    extraQuestions = streamValidated.extraQuestions;
+    yield { type: "text-replace" as const, text: reply };
+  }
 
-    yield { type: "status", message: "Thinking…" };
-
-    const followUpRequest = {
-      system: systemPrompt,
-      messages: session.messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      tools: [ALEX_RESPONSE_TOOL],
-      maxTokens: 512,
-      ...(model ? { model } : {}),
-    };
-
-    try {
-      const followUp = await createCompletion(followUpRequest);
-      recordFrontDoorSpend(followUp.costCents);
-      const followUpParsed = extractAlexResponse(followUp.content);
-      // Replace the streamed text — don't append
-      yield { type: "text-replace", text: followUpParsed.reply };
-      reply = followUpParsed.reply;
-      done = followUpParsed.done;
-      suggestions = followUpParsed.suggestions;
-      if (followUpParsed.detectedMode) detectedMode = followUpParsed.detectedMode;
-      session.messages.pop();
-      session.messages.pop();
-      searchQuery = followUpParsed.searchQuery;
-      fetchUrl = followUpParsed.fetchUrl;
-    } catch {
-      session.messages.pop();
-      session.messages.pop();
-      break;
-    }
+  // Brief 137: Emit content blocks after text, before metadata (Insight-110 boundary)
+  const frontDoorBlocks = buildFrontDoorBlocks({
+    plan,
+    detectedMode,
+    learned,
+    stage: streamConversationStage,
+    enrichmentText: lastEnrichmentText,
+  });
+  for (const block of frontDoorBlocks) {
+    yield { type: "content-block", block };
   }
 
   // Brief 126: Safety net — if email was captured but enrichment didn't set done
@@ -1066,10 +1776,40 @@ export async function* handleChatTurnStreaming(
     }
   }
 
+  // session.learned already updated before enforceStageGates (line 1185) and in enrichment loops
+
   session.messages.push({ role: "assistant", content: reply });
   await saveSession(session);
 
+  // Brief 142b: Voice — persistent CTA once we know the visitor's name.
+  // voiceReady is emitted on EVERY turn (not one-shot) so the frontend
+  // keeps the "Talk to Alex" button visible. Just needs
+  // a voiceToken for session auth.
+  let voiceReady: boolean | undefined;
+  let voiceTokenOut: string | undefined;
+  if (session.learned?.name && options?.channel !== "voice") {
+    voiceReady = true;
+    // Reuse existing voiceToken or generate a new one
+    if (!session.voiceToken) {
+      session.voiceToken = randomUUID();
+      await saveSession(session);
+    }
+    voiceTokenOut = session.voiceToken;
+    // Record first offer for analytics (one-shot)
+    if (!session.callOffered) {
+      session.callOffered = true;
+      await saveSession(session);
+      await recordFunnelEvent(session.sessionId, "call_offered", context, {
+        messageCount: session.messageCount,
+        channel: options?.channel || "text",
+      });
+    }
+  }
+
   // Send metadata and done
-  yield { type: "metadata", requestEmail, done, suggestions, detectedMode, emailCaptured };
+  yield { type: "metadata", requestName, requestLocation, requestEmail, done, suggestions, detectedMode, emailCaptured, plan, learned, extraQuestions, voiceReady, voiceToken: voiceTokenOut };
   yield { type: "done" };
 }
+
+// Brief 148: Re-export from dedicated module (avoids circular dep with magic-link.ts)
+export { persistLearnedContext } from "./memory-bridge";

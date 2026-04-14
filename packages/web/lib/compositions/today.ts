@@ -69,7 +69,7 @@ export function composeToday(context: CompositionContext): ContentBlock[] {
 
   const summaryText = `${greeting}. ${summaryParts.join(", ")}.`;
 
-  blocks.push({ type: "text", text: summaryText });
+  blocks.push({ type: "text", text: summaryText, variant: "hero-primary" });
 
   // 2. Metrics row — key numbers at a glance (MetricBlock)
   if (reviewCount > 0 || activeWorkCount > 0 || processes.length > 0) {
@@ -138,7 +138,7 @@ export function composeToday(context: CompositionContext): ContentBlock[] {
   );
 
   if (runningProcesses.length > 0) {
-    blocks.push({ type: "text", text: "**Your routines**" });
+    blocks.push({ type: "text", text: "Your routines", variant: "hero-secondary" });
 
     for (const proc of runningProcesses.slice(0, 5)) {
       const statusText =

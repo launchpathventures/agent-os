@@ -9,7 +9,7 @@
 
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { CompositionContext, ActiveRunSummary, RoadmapData } from "./compositions/types";
+import type { CompositionContext, ActiveRunSummary, RoadmapData, GrowthPlanSummary, ProcessCapability } from "./compositions/types";
 import type { ProcessSummary, WorkItemSummary } from "./process-query";
 import type { FeedResponse, FeedItem } from "./feed-types";
 
@@ -17,6 +17,20 @@ import type { FeedResponse, FeedItem } from "./feed-types";
 async function fetchActiveRuns(): Promise<{ activeRuns: ActiveRunSummary[] }> {
   const res = await fetch("/api/processes?action=activeRuns");
   if (!res.ok) return { activeRuns: [] };
+  return res.json();
+}
+
+/** Fetch growth plan data from the API (Brief 140) */
+async function fetchGrowthPlans(): Promise<GrowthPlanSummary[]> {
+  const res = await fetch("/api/growth");
+  if (!res.ok) return [];
+  return res.json();
+}
+
+/** Fetch process capabilities from the API (library view) */
+async function fetchCapabilities(): Promise<ProcessCapability[]> {
+  const res = await fetch("/api/capabilities");
+  if (!res.ok) return [];
   return res.json();
 }
 
@@ -60,6 +74,22 @@ export function useCompositionContext(intent?: string): CompositionContext {
     staleTime: 5_000,
   });
 
+  // Brief 140: Lazy growth plan data — only fetched when growth intent is active
+  const { data: growthPlansData } = useQuery({
+    queryKey: ["growthPlans"],
+    queryFn: fetchGrowthPlans,
+    enabled: intent === "growth",
+    staleTime: 10_000,
+  });
+
+  // Lazy capabilities data — only fetched when library intent is active
+  const { data: capabilitiesData } = useQuery({
+    queryKey: ["capabilities"],
+    queryFn: fetchCapabilities,
+    enabled: intent === "library",
+    staleTime: 30_000,
+  });
+
   // Brief 055: Lazy roadmap data — only fetched when roadmap intent is active
   const { data: roadmapData } = useQuery({
     queryKey: ["roadmap"],
@@ -86,8 +116,10 @@ export function useCompositionContext(intent?: string): CompositionContext {
       pendingReviews,
       activeRuns,
       roadmap: roadmapData,
+      growthPlans: growthPlansData,
+      capabilities: capabilitiesData,
       now: new Date(),
     }),
-    [processes, workItems, feedItems, pendingReviews, activeRuns, roadmapData],
+    [processes, workItems, feedItems, pendingReviews, activeRuns, roadmapData, growthPlansData, capabilitiesData],
   );
 }

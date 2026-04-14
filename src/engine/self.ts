@@ -47,7 +47,7 @@ import { assembleBriefing } from "./briefing-assembler";
 // ============================================================
 
 /** Token budget for always-loaded Self context (~7K tokens) */
-const SELF_CONTEXT_TOKEN_BUDGET = 7000;
+const SELF_CONTEXT_TOKEN_BUDGET = 9000;
 const CHARS_PER_TOKEN = 4;
 
 /** Maximum tool_use turns in a single conversation cycle (prevents runaway loops) */
@@ -158,7 +158,7 @@ Irreversible actions (trust, process save): describe plan, ask confirmation.
 You are a workspace conductor. Tools shape the workspace — use them to move from chat into structured experiences.
 
 **Tool routing:** Recurring need → generate_process(save=false). Substantial work → start_dev_role / start_pipeline. Quick question → consult_role. Planning → plan_with_role. Status → use loaded context. Casual → respond directly.
-**Process creation:** Draft early with generate_process(save=false), iterate through the tool, save after confirmation.
+**Process creation:** Draft early with generate_process(save=false), iterate through the tool, save after confirmation. After save=true with activationHint, offer to run immediately via start_pipeline.
 **Delegation** = full harness run (~1-5 min). **Consultation** = quick perspective (~10 sec). **Planning** = doc reading + analysis. **Pipeline** = end-to-end (PM→Builder→Reviewer).
 **Proactive:** get_briefing on return, detect_risks for signals, suggest_next for coverage gaps (never during exceptions).
 **Confirmation required:** adjust_trust(confirmed=true), generate_process(save=true), connect_service(action='guide') — always preview first, get explicit "yes".
@@ -199,6 +199,8 @@ When you detect these signals:
 5. When the user approves → generate_process(save=true).
 
 Do NOT have a 3-5 turn text conversation about what the process should be, then call generate_process at the end. Draft early, iterate through the tool.
+
+**POST-CREATION ACTIVATION:** When generate_process(save=true) succeeds and the result includes activationHint: true, immediately offer to run the process. Say something like "Created. Want me to run this now?" and if the user confirms, call start_pipeline with the processSlug from the result. If there's pending work that matches the new process (e.g., a work item or task the user mentioned), mention it: "Want me to run this with your [pending item]?" This ensures every process creation leads to either immediate execution or a clear activation prompt.
 
 **Delegation** (start_dev_role) spawns a full process run — expensive (~1-5 min). Use ONLY when the human is requesting actual work that needs a specific role's expertise.
 
@@ -387,14 +389,30 @@ export interface SelfConverseCallbacks {
  * AC2: Full conversation cycle through the Self.
  * AC9: Uses createCompletion() from llm.ts, not claude -p.
  */
+/** Options for selfConverse — surface-specific capabilities. */
+export interface SelfConverseOptions {
+  /** When true, the Self can offer chat escalation via generate_chat_link (Brief 131). */
+  chatEscalationAvailable?: boolean;
+  /** User's email address — needed for magic link generation during chat escalation. */
+  userEmail?: string;
+}
+
 export async function selfConverse(
   userId: string,
   message: string,
   surface: "cli" | "telegram" | "web" | "inbound",
   callbacks?: SelfConverseCallbacks,
+  options?: SelfConverseOptions,
 ): Promise<SelfConverseResult> {
   // 1. Assemble context
   const context = await assembleSelfContext(userId, surface);
+
+  // Brief 131: Inject chat escalation context for inbound surface
+  if (options?.chatEscalationAvailable && surface === "inbound") {
+    context.systemPrompt += `\n\n<chat_escalation>
+You can offer email-to-chat escalation. When the user's request is complex and would benefit from a focused back-and-forth conversation (multiple clarifying questions, rich context gathering), use the generate_chat_link tool to create a magic link. Include it naturally in your reply: "I'd love to help with that — let me ask a few questions. [Continue in chat →](url)". This is YOUR judgment call based on request complexity — simple requests should be handled inline in email.${options.userEmail ? `\nUser email: ${options.userEmail}` : ""}
+</chat_escalation>`;
+  }
 
   // 2. Load session turns as conversation history
   const priorTurns = await loadSessionTurns(context.sessionId, 2000);

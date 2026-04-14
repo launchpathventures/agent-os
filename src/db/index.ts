@@ -3,17 +3,19 @@
  *
  * Zero-setup: auto-creates data/ directory and DB file on first run.
  * WAL mode for performance (antfarm pattern).
- * Schema sync: runs `drizzle-kit push` to ensure DB matches code schema.
+ * Schema sync: runs Drizzle Kit migrations on startup.
  *
  * Provenance: antfarm /src/db.ts (SQLite + WAL + auto-create)
  */
 
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
+import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import * as schema from "./schema";
-import { DB_PATH, DATA_DIR } from "../paths.js";
+import { DB_PATH, DATA_DIR, PROJECT_ROOT } from "../paths.js";
 
 // Auto-create data directory
 if (!fs.existsSync(DATA_DIR)) {
@@ -31,576 +33,251 @@ export const db = drizzle(sqlite, { schema });
 export { schema };
 
 /**
- * Ensure DB schema matches the code schema.
- * Uses direct SQL CREATE TABLE IF NOT EXISTS statements.
- * Safe for production (no dev dependency on drizzle-kit).
+ * Ensure DB schema is up to date by running Drizzle Kit migrations.
  *
- * WARNING: This SQL must be kept in sync with src/db/schema.ts and src/test-utils.ts.
+ * Single source of truth: migrations are generated from the Drizzle schema
+ * via `pnpm db:generate`. No more hand-written SQL to keep in sync.
+ *
+ * For existing databases (pre-migration era), we detect whether the baseline
+ * migration has already been applied by checking for the presence of tables.
+ * If tables exist but no migration journal, we stamp the baseline as applied
+ * so future migrations run cleanly.
  */
 export function ensureSchema(): void {
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS processes (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      slug TEXT NOT NULL UNIQUE,
-      description TEXT,
-      version INTEGER NOT NULL DEFAULT 1,
-      status TEXT NOT NULL DEFAULT 'draft',
-      definition TEXT NOT NULL DEFAULT '{}',
-      trust_tier TEXT NOT NULL DEFAULT 'supervised',
-      trust_data TEXT DEFAULT '{}',
-      source TEXT,
-      output_delivery TEXT,
-      project_id TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+  const migrationsFolder = path.join(PROJECT_ROOT, "drizzle");
 
-    CREATE TABLE IF NOT EXISTS process_dependencies (
-      id TEXT PRIMARY KEY,
-      source_process_id TEXT NOT NULL REFERENCES processes(id),
-      target_process_id TEXT NOT NULL REFERENCES processes(id),
-      output_name TEXT NOT NULL,
-      input_name TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+  // Check if this is a pre-migration database that already has tables
+  // but hasn't been through the Drizzle migration system yet
+  const hasExistingTables = sqlite.prepare(
+    "SELECT count(*) as cnt FROM sqlite_master WHERE type='table' AND name='processes'"
+  ).get() as { cnt: number };
 
-    CREATE TABLE IF NOT EXISTS agents (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      description TEXT,
-      status TEXT NOT NULL DEFAULT 'idle',
-      adapter_type TEXT NOT NULL,
-      adapter_config TEXT NOT NULL DEFAULT '{}',
-      category TEXT NOT NULL DEFAULT 'domain',
-      system_role TEXT,
-      monthly_budget_cents INTEGER,
-      current_spend_cents INTEGER NOT NULL DEFAULT 0,
-      budget_reset_at INTEGER,
-      total_runs INTEGER NOT NULL DEFAULT 0,
-      success_rate REAL,
-      owner_id TEXT,
-      organisation_id TEXT,
-      permissions TEXT,
-      provenance TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+  // Check if there are any migration records (not just the table existing — it may be empty)
+  let hasMigrationEntries = false;
+  try {
+    const result = sqlite.prepare(
+      "SELECT count(*) as cnt FROM __drizzle_migrations"
+    ).get() as { cnt: number };
+    hasMigrationEntries = result.cnt > 0;
+  } catch {
+    // Table doesn't exist yet — that's fine
+  }
 
-    CREATE TABLE IF NOT EXISTS process_runs (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      status TEXT NOT NULL DEFAULT 'queued',
-      triggered_by TEXT NOT NULL,
-      inputs TEXT DEFAULT '{}',
-      current_step_id TEXT,
-      started_at INTEGER,
-      completed_at INTEGER,
-      total_tokens INTEGER DEFAULT 0,
-      total_cost_cents INTEGER DEFAULT 0,
-      suspend_state TEXT,
-      orchestrator_confidence TEXT,
-      definition_override TEXT,
-      definition_override_version INTEGER NOT NULL DEFAULT 0,
-      chains_processed INTEGER NOT NULL DEFAULT 0,
-      trust_tier_override TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+  if (hasExistingTables.cnt > 0 && !hasMigrationEntries) {
+    // Existing DB from pre-migration era. Drop any empty/stale migration table
+    // and stamp the baseline migration as applied.
+    try { sqlite.exec("DROP TABLE IF EXISTS __drizzle_migrations"); } catch { /* ignore */ }
+    // Read the migration journal to find the baseline migration hash.
+    const metaPath = path.join(migrationsFolder, "meta", "_journal.json");
+    if (fs.existsSync(metaPath)) {
+      const journal = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+      const baseline = journal.entries?.[0];
+      if (baseline) {
+        // Compute hash the same way drizzle-orm does: SHA-256 of the migration SQL
+        const migrationSql = fs.readFileSync(
+          path.join(migrationsFolder, `${baseline.tag}.sql`), "utf-8"
+        );
+        const hash = crypto.createHash("sha256").update(migrationSql).digest("hex");
 
-    CREATE TABLE IF NOT EXISTS step_runs (
-      id TEXT PRIMARY KEY,
-      process_run_id TEXT NOT NULL REFERENCES process_runs(id),
-      step_id TEXT NOT NULL,
-      agent_id TEXT REFERENCES agents(id),
-      status TEXT NOT NULL DEFAULT 'queued',
-      executor_type TEXT NOT NULL,
-      inputs TEXT DEFAULT '{}',
-      outputs TEXT DEFAULT '{}',
-      parallel_group_id TEXT,
-      started_at INTEGER,
-      completed_at INTEGER,
-      tokens_used INTEGER DEFAULT 0,
-      cost_cents INTEGER DEFAULT 0,
-      error TEXT,
-      confidence_level TEXT,
-      model TEXT,
-      integration_service TEXT,
-      integration_protocol TEXT,
-      tool_calls TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+        sqlite.exec(`
+          CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hash TEXT NOT NULL,
+            created_at numeric
+          )
+        `);
+        sqlite.prepare(
+          "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)"
+        ).run(hash, baseline.when);
 
-    CREATE TABLE IF NOT EXISTS process_outputs (
-      id TEXT PRIMARY KEY,
-      process_run_id TEXT NOT NULL REFERENCES process_runs(id),
-      step_run_id TEXT REFERENCES step_runs(id),
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      content TEXT NOT NULL,
-      content_url TEXT,
-      needs_review INTEGER NOT NULL DEFAULT 1,
-      reviewed_at INTEGER,
-      reviewed_by TEXT,
-      confidence_score REAL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+        // Apply any missing tables/columns that ensureSchema() used to add
+        // but that exist in the baseline migration. Use IF NOT EXISTS to be safe.
+        applyMissingSchemaObjects(sqlite);
+      }
+    }
+  }
 
-    CREATE TABLE IF NOT EXISTS feedback (
-      id TEXT PRIMARY KEY,
-      output_id TEXT NOT NULL REFERENCES process_outputs(id),
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      type TEXT NOT NULL,
-      diff TEXT,
-      comment TEXT,
-      edit_severity TEXT,
-      edit_ratio REAL,
-      correction_pattern TEXT,
-      pattern_confidence REAL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
+  migrate(db, { migrationsFolder });
+}
 
-    CREATE TABLE IF NOT EXISTS memories (
-      id TEXT PRIMARY KEY,
-      scope_type TEXT NOT NULL,
-      scope_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      content TEXT NOT NULL,
-      metadata TEXT,
-      source TEXT NOT NULL,
-      source_id TEXT,
-      reinforcement_count INTEGER NOT NULL DEFAULT 1,
-      last_reinforced_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      confidence REAL NOT NULL DEFAULT 0.3,
-      active INTEGER NOT NULL DEFAULT 1,
-      shared INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS improvements (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      status TEXT NOT NULL DEFAULT 'proposed',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      evidence TEXT NOT NULL,
-      estimated_impact TEXT,
-      estimated_effort TEXT,
-      risk TEXT,
-      confidence REAL,
-      decided_at INTEGER,
-      decided_by TEXT,
-      decision_comment TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS harness_decisions (
-      id TEXT PRIMARY KEY,
-      process_run_id TEXT NOT NULL REFERENCES process_runs(id),
-      step_run_id TEXT NOT NULL REFERENCES step_runs(id),
-      trust_tier TEXT NOT NULL,
-      trust_action TEXT NOT NULL,
-      review_pattern TEXT NOT NULL DEFAULT '[]',
-      review_result TEXT NOT NULL DEFAULT 'skip',
-      review_details TEXT DEFAULT '{}',
-      review_cost_cents INTEGER NOT NULL DEFAULT 0,
-      memories_injected INTEGER NOT NULL DEFAULT 0,
-      sampling_hash TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS trust_changes (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      from_tier TEXT NOT NULL,
-      to_tier TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      actor TEXT NOT NULL,
-      metadata TEXT DEFAULT '{}',
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS trust_suggestions (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      current_tier TEXT NOT NULL,
-      suggested_tier TEXT NOT NULL,
-      evidence TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      decided_at INTEGER,
-      decided_by TEXT,
-      decision_comment TEXT,
-      previous_suggestion_id TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS work_items (
-      id TEXT PRIMARY KEY,
-      type TEXT NOT NULL DEFAULT 'task',
-      status TEXT NOT NULL DEFAULT 'intake',
-      content TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'capture',
-      goal_ancestry TEXT DEFAULT '[]',
-      assigned_process TEXT REFERENCES processes(id),
-      spawned_from TEXT,
-      spawned_items TEXT DEFAULT '[]',
-      decomposition TEXT,
-      execution_ids TEXT DEFAULT '[]',
-      context TEXT DEFAULT '{}',
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      completed_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS activities (
-      id TEXT PRIMARY KEY,
-      action TEXT NOT NULL,
-      description TEXT,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT,
-      entity_type TEXT,
-      entity_id TEXT,
-      metadata TEXT DEFAULT '{}',
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
+/**
+ * For databases that pre-date the migration system, apply any tables/indexes
+ * that were added in later briefs but might be missing from the DB.
+ * Uses IF NOT EXISTS so it's safe to run repeatedly.
+ *
+ * TRANSITIONAL CODE — remove once all deployed databases have run through
+ * the Drizzle migration system at least once (i.e. have a row in
+ * __drizzle_migrations). After that point, ensureSchema() stamps the baseline
+ * and this function is never called.
+ */
+function applyMissingSchemaObjects(db: Database.Database): void {
+  // Tables that were in the Drizzle schema but missing from old ensureSchema()
+  const missingTableStatements = [
+    `CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY NOT NULL,
+      file_path TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      format TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      chunk_count INTEGER DEFAULT 0 NOT NULL,
+      source TEXT DEFAULT 'local' NOT NULL,
+      last_indexed INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_content (
+      id TEXT PRIMARY KEY NOT NULL,
+      document_hash TEXT NOT NULL,
+      parsed_markdown TEXT NOT NULL,
+      page_count INTEGER DEFAULT 1 NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS document_content_document_hash_unique ON document_content(document_hash)`,
+    `CREATE TABLE IF NOT EXISTS email_verification_codes (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      verified INTEGER DEFAULT false NOT NULL,
+      attempts INTEGER DEFAULT 0 NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS review_pages (
+      id TEXT PRIMARY KEY NOT NULL,
       user_id TEXT NOT NULL,
-      surface TEXT NOT NULL,
-      started_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      last_active_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      status TEXT NOT NULL DEFAULT 'active',
-      summary TEXT,
-      turns TEXT NOT NULL DEFAULT '[]'
-    );
-
-    CREATE TABLE IF NOT EXISTS credentials (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      service TEXT NOT NULL,
-      encrypted_value TEXT NOT NULL,
-      iv TEXT NOT NULL,
-      auth_tag TEXT NOT NULL,
-      expires_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      UNIQUE(process_id, service)
-    );
-
-    CREATE TABLE IF NOT EXISTS interaction_events (
-      id TEXT PRIMARY KEY,
+      person_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content_blocks TEXT NOT NULL,
+      chat_messages TEXT,
+      status TEXT DEFAULT 'active' NOT NULL,
+      user_name TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      first_accessed_at INTEGER
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS review_pages_token_unique ON review_pages(token)`,
+    `CREATE TABLE IF NOT EXISTS budgets (
+      id TEXT PRIMARY KEY NOT NULL,
+      goal_work_item_id TEXT NOT NULL REFERENCES work_items(id),
+      user_id TEXT NOT NULL,
+      total_cents INTEGER NOT NULL,
+      spent_cents INTEGER DEFAULT 0 NOT NULL,
+      status TEXT DEFAULT 'created' NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS budgets_goal_work_item_id_unique ON budgets(goal_work_item_id)`,
+    `CREATE TABLE IF NOT EXISTS budget_transactions (
+      id TEXT PRIMARY KEY NOT NULL,
+      budget_id TEXT NOT NULL REFERENCES budgets(id),
+      type TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL,
+      description TEXT,
+      sub_goal_id TEXT,
+      stripe_payment_id TEXT,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS slm_training_exports (
+      id TEXT PRIMARY KEY NOT NULL,
+      process_slug TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      example_count INTEGER DEFAULT 0 NOT NULL,
+      format TEXT DEFAULT 'jsonl' NOT NULL,
+      export_path TEXT NOT NULL,
+      scrubber_used TEXT DEFAULT 'none' NOT NULL,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS slm_deployments (
+      id TEXT PRIMARY KEY NOT NULL,
+      process_slug TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      status TEXT DEFAULT 'candidate' NOT NULL,
+      training_export_id TEXT REFERENCES slm_training_exports(id),
+      eval_accuracy REAL,
+      eval_f1 REAL,
+      eval_examples INTEGER,
+      production_run_count INTEGER DEFAULT 0,
+      production_approval_rate REAL,
+      baseline_approval_rate REAL,
+      retired_reason TEXT,
+      created_at INTEGER NOT NULL,
+      promoted_at INTEGER,
+      retired_at INTEGER
+    )`,
+    `CREATE TABLE IF NOT EXISTS interaction_events (
+      id TEXT PRIMARY KEY NOT NULL,
       user_id TEXT NOT NULL,
       event_type TEXT NOT NULL,
       entity_id TEXT,
       properties TEXT DEFAULT '{}',
-      timestamp INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE INDEX IF NOT EXISTS interaction_events_user_timestamp
-      ON interaction_events(user_id, timestamp);
-
-    CREATE TABLE IF NOT EXISTS schedules (
-      id TEXT PRIMARY KEY,
-      process_id TEXT NOT NULL REFERENCES processes(id),
-      cron_expression TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      last_run_at INTEGER,
-      next_run_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS delayed_runs (
-      id TEXT PRIMARY KEY,
-      process_slug TEXT NOT NULL,
-      inputs TEXT NOT NULL DEFAULT '{}',
-      execute_at INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      created_by_run_id TEXT REFERENCES process_runs(id),
-      parent_trust_tier TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS people (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS interaction_events_user_timestamp ON interaction_events(user_id, timestamp)`,
+    `CREATE TABLE IF NOT EXISTS workspace_assets (
+      id TEXT PRIMARY KEY NOT NULL,
+      asset_type TEXT NOT NULL,
       name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      organization TEXT,
-      role TEXT,
-      source TEXT NOT NULL DEFAULT 'manual',
-      journey_layer TEXT NOT NULL DEFAULT 'participant',
-      visibility TEXT NOT NULL DEFAULT 'internal',
-      persona_assignment TEXT,
-      trust_level TEXT NOT NULL DEFAULT 'cold',
-      opted_out INTEGER NOT NULL DEFAULT 0,
-      last_interaction_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE INDEX IF NOT EXISTS people_user_id ON people(user_id);
-    CREATE INDEX IF NOT EXISTS people_user_visibility ON people(user_id, visibility);
-    CREATE INDEX IF NOT EXISTS people_email ON people(email);
-
-    CREATE TABLE IF NOT EXISTS interactions (
-      id TEXT PRIMARY KEY,
-      person_id TEXT NOT NULL REFERENCES people(id),
-      user_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      channel TEXT NOT NULL DEFAULT 'email',
-      mode TEXT NOT NULL,
-      subject TEXT,
-      summary TEXT,
-      outcome TEXT,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER,
+      storage_path TEXT NOT NULL,
+      source TEXT NOT NULL,
+      prompt TEXT,
       process_run_id TEXT REFERENCES process_runs(id),
-      metadata TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE INDEX IF NOT EXISTS interactions_person_id ON interactions(person_id);
-    CREATE INDEX IF NOT EXISTS interactions_user_id ON interactions(user_id);
-
-    CREATE TABLE IF NOT EXISTS network_users (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
-      name TEXT,
-      business_context TEXT,
-      persona_assignment TEXT,
-      status TEXT NOT NULL DEFAULT 'active',
-      workspace_id TEXT,
-      person_id TEXT REFERENCES people(id),
-      workspace_suggested_at INTEGER,
-      wants_visibility INTEGER NOT NULL DEFAULT 0,
-      paused_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE INDEX IF NOT EXISTS network_users_email ON network_users(email);
-
-    CREATE TABLE IF NOT EXISTS admin_feedback (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES network_users(id),
-      feedback TEXT NOT NULL,
-      created_by TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE INDEX IF NOT EXISTS admin_feedback_user_id ON admin_feedback(user_id);
-
-    CREATE TABLE IF NOT EXISTS network_tokens (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token_hash TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      revoked_at INTEGER
-    );
-
-    CREATE INDEX IF NOT EXISTS network_tokens_user_id ON network_tokens(user_id);
-    CREATE INDEX IF NOT EXISTS network_tokens_hash ON network_tokens(token_hash);
-
-    CREATE TABLE IF NOT EXISTS managed_workspaces (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL UNIQUE,
-      machine_id TEXT NOT NULL,
-      volume_id TEXT NOT NULL,
-      workspace_url TEXT NOT NULL,
-      region TEXT NOT NULL DEFAULT 'syd',
-      image_ref TEXT NOT NULL,
-      current_version TEXT,
-      status TEXT NOT NULL DEFAULT 'provisioning',
-      last_health_check_at INTEGER,
-      last_health_status TEXT,
-      error_log TEXT,
-      token_id TEXT NOT NULL,
-      service_id TEXT,
-      railway_environment_id TEXT,
-      auth_secret_hash TEXT,
-      deprovisioned_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS suggestion_dismissals (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      suggestion_type TEXT NOT NULL,
-      content_hash TEXT NOT NULL,
-      content TEXT NOT NULL,
-      dismissed_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      expires_at INTEGER NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS suggestion_dismissals_user_expires
-      ON suggestion_dismissals(user_id, expires_at);
-
-    CREATE TABLE IF NOT EXISTS briefs (
-      number INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL,
-      depends_on TEXT,
-      unlocks TEXT,
-      file_path TEXT,
-      last_modified INTEGER,
-      synced_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS upgrade_history (
-      id TEXT PRIMARY KEY,
-      image_ref TEXT NOT NULL,
-      previous_image_ref TEXT,
-      status TEXT NOT NULL DEFAULT 'in_progress',
-      total_workspaces INTEGER NOT NULL,
-      upgraded_count INTEGER NOT NULL DEFAULT 0,
-      failed_count INTEGER NOT NULL DEFAULT 0,
-      skipped_count INTEGER NOT NULL DEFAULT 0,
-      canary_workspace_id TEXT,
-      canary_result TEXT,
-      circuit_breaker_at INTEGER,
-      error_summary TEXT,
-      triggered_by TEXT NOT NULL,
-      started_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      completed_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS upgrade_workspace_results (
-      id TEXT PRIMARY KEY,
-      upgrade_id TEXT NOT NULL REFERENCES upgrade_history(id),
-      workspace_id TEXT NOT NULL REFERENCES managed_workspaces(id),
-      previous_image_ref TEXT NOT NULL,
-      result TEXT NOT NULL,
-      health_check_result TEXT,
-      error_log TEXT,
-      duration_ms INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS verify_attempts (
-      id TEXT PRIMARY KEY,
-      ip_hash TEXT NOT NULL,
-      email TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS verification_emails (
-      id TEXT PRIMARY KEY,
-      recipient_email TEXT NOT NULL,
-      sent_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_sessions (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL UNIQUE,
-      messages TEXT NOT NULL DEFAULT '[]',
-      context TEXT NOT NULL,
-      ip_hash TEXT NOT NULL,
-      request_email_flagged INTEGER NOT NULL DEFAULT 0,
-      message_count INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      expires_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS funnel_events (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      event TEXT NOT NULL,
-      surface TEXT NOT NULL,
-      metadata TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS process_models (
-      id TEXT PRIMARY KEY,
-      slug TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      description TEXT,
-      industry_tags TEXT DEFAULT '[]',
-      function_tags TEXT DEFAULT '[]',
-      complexity TEXT NOT NULL DEFAULT 'moderate',
-      version INTEGER NOT NULL DEFAULT 1,
-      status TEXT NOT NULL DEFAULT 'nominated',
-      source TEXT NOT NULL DEFAULT 'template',
-      process_definition TEXT NOT NULL DEFAULT '{}',
-      quality_criteria TEXT DEFAULT '[]',
-      validation_report TEXT,
-      nominated_by TEXT,
-      approved_by TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
-      published_at INTEGER
-    );
-  `);
-
-  // Brief 100: Railway migration — add new columns to managed_workspaces
-  // Safe to run repeatedly: SQLite ignores ALTER TABLE ADD COLUMN if column exists
-  const migrationColumns = [
-    "ALTER TABLE managed_workspaces ADD COLUMN service_id TEXT",
-    "ALTER TABLE managed_workspaces ADD COLUMN railway_environment_id TEXT",
-    "ALTER TABLE managed_workspaces ADD COLUMN auth_secret_hash TEXT",
+      content_hash TEXT,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS workspace_assets_type_idx ON workspace_assets(asset_type)`,
+    `CREATE INDEX IF NOT EXISTS workspace_assets_run_idx ON workspace_assets(process_run_id)`,
   ];
-  for (const stmt of migrationColumns) {
+
+  for (const stmt of missingTableStatements) {
     try {
-      sqlite.exec(stmt);
-    } catch (e: unknown) {
-      // Ignore "duplicate column name" — means migration already ran
-      if (e instanceof Error && !e.message.includes("duplicate column")) throw e;
+      db.exec(stmt);
+    } catch {
+      // Ignore errors — table/index may already exist
     }
   }
 
-  // Backfill service_id from machine_id for existing Fly.io records
-  sqlite.exec(`UPDATE managed_workspaces SET service_id = machine_id WHERE service_id IS NULL`);
-
-  // Multi-brief batch: new columns on existing tables
-  const batchMigrations = [
-    // process_runs: operating cycles (Briefs 116-118)
+  // Columns that were added via ALTER TABLE in the old ensureSchema()
+  const alterStatements = [
+    "ALTER TABLE managed_workspaces ADD COLUMN service_id TEXT",
+    "ALTER TABLE managed_workspaces ADD COLUMN railway_environment_id TEXT",
+    "ALTER TABLE managed_workspaces ADD COLUMN auth_secret_hash TEXT",
     "ALTER TABLE process_runs ADD COLUMN cycle_type TEXT",
     "ALTER TABLE process_runs ADD COLUMN cycle_config TEXT",
     "ALTER TABLE process_runs ADD COLUMN parent_cycle_run_id TEXT",
     "ALTER TABLE process_runs ADD COLUMN run_metadata TEXT",
     "ALTER TABLE process_runs ADD COLUMN timeout_at INTEGER",
-    // step_runs: cognitive modes (Brief 114)
+    "ALTER TABLE process_runs ADD COLUMN chains_processed INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE process_runs ADD COLUMN trust_tier_override TEXT",
     "ALTER TABLE step_runs ADD COLUMN cognitive_mode TEXT",
     "ALTER TABLE step_runs ADD COLUMN deferred_until INTEGER",
-    // trust_suggestions: step category (Brief 128)
     "ALTER TABLE trust_suggestions ADD COLUMN step_category TEXT",
-    // chat_sessions: magic link auth (Brief 123)
     "ALTER TABLE chat_sessions ADD COLUMN authenticated_email TEXT",
+    "ALTER TABLE chat_sessions ADD COLUMN learned TEXT",
+    "ALTER TABLE chat_sessions ADD COLUMN call_offered INTEGER DEFAULT 0",
+    "ALTER TABLE chat_sessions ADD COLUMN voice_token TEXT",
+    "ALTER TABLE network_users ADD COLUMN last_notified_at INTEGER",
   ];
-  for (const stmt of batchMigrations) {
+
+  for (const stmt of alterStatements) {
     try {
-      sqlite.exec(stmt);
-    } catch (e: unknown) {
-      if (e instanceof Error && !e.message.includes("duplicate column")) throw e;
+      db.exec(stmt);
+    } catch {
+      // Ignore "duplicate column" — means column already exists
     }
   }
 
-  // New tables: outbound actions tracking + magic links
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS outbound_actions (
-      id TEXT PRIMARY KEY,
-      process_run_id TEXT NOT NULL REFERENCES process_runs(id),
-      step_run_id TEXT NOT NULL REFERENCES step_runs(id),
-      channel TEXT NOT NULL,
-      sending_identity TEXT NOT NULL,
-      recipient_id TEXT,
-      content_summary TEXT,
-      blocked INTEGER NOT NULL DEFAULT 0,
-      block_reason TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-
-    CREATE TABLE IF NOT EXISTS magic_links (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      session_id TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      used_at INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
-    );
-  `);
+  // Backfill service_id from machine_id for existing Fly.io records
+  try {
+    db.exec("UPDATE managed_workspaces SET service_id = machine_id WHERE service_id IS NULL");
+  } catch {
+    // Ignore
+  }
 }

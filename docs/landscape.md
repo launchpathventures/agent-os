@@ -266,6 +266,16 @@
 
 **Recommendation:** citty (command routing) + @clack/prompts (interactive UX).
 
+### Voice / Conversational AI
+
+**ElevenLabs Conversational AI** — elevenlabs.io
+- Industry-leading TTS quality. Conversational AI SDK supports sub-second voice interactions (~600ms total latency: STT ~200ms + LLM ~232ms + TTS ~200ms).
+- Server SDK (`elevenlabs` npm, depend level): programmatic agent creation/update, signed URL generation for private agents. React SDK (`@elevenlabs/react`, depend level): `useConversation` hook with `startSession`, `endSession`, `sendUserMessage`, `sendContextualUpdate`, `onMessage`.
+- Server tools (webhooks): agent calls back to your server during conversation. Supports `constant_value` and `dynamic_variable` in request schemas. Tool timeout configurable (default 10s).
+- LLM options: hosted fast models (GLM-4.5-Air, Qwen3) for speed, or custom LLM endpoint for intelligence. Fast models are unreliable at complex tool calling (Insight 178).
+- **Ditto relevance:** HIGH — adopted as voice transport layer. Harness owns intelligence via server tools (Insight 178: voice as transport, harness as brain). Used for front door voice channel (Brief 142b). SDK quality is excellent; API docs are clear.
+- **Limitation:** Fast LLM can't follow complex process instructions — intelligence must be pushed via contextual updates. No built-in transcript persistence. Agent config update via SDK is buggy (REST API used directly).
+
 ---
 
 ## Agent Harness Patterns (Landscape Insight)
@@ -472,6 +482,12 @@ New category added for Brief 079 (Network Agent MVP). Full report: `docs/researc
 - Purpose-built email infrastructure for AI agents. Programmatic inbox creation via API. Native reply handling with `extractedText` (reply content without quoted history). Thread management. Webhooks for inbound messages (`message.received`, `message.bounced`). Custom domains with DNS verification. WebSocket support for real-time. Usage-based pricing with free tier. $6M seed funding. MIT-licensed Node.js and Python SDKs.
 - **Ditto relevance:** HIGH — primary email adapter for Network Agent. Key advantages over Gmail API: per-agent inbox creation (`alex@ditto.partners`), extracted reply text for agent processing, native threading, and inbound webhooks. `depend` level (npm install). Gmail retained as fallback for workspace email (inbox triage). See `integrations/agentmail.yaml`.
 
+**googleapis** — github.com/googleapis/google-api-nodejs-client (12k+ stars, Apache-2.0)
+- Official Google APIs Node.js client. Covers 200+ Google APIs including Gmail, Calendar, Drive, Sheets. OAuth2 client built-in (`google.auth.OAuth2`) with automatic token refresh. Gmail API: `gmail.users.messages.send` for sending, `gmail.users.messages.list`/`.get` for reading. Typed interfaces generated from discovery docs. Maintained by Google (googleapis org). Weekly releases. 2M+ weekly npm downloads.
+- **Ditto relevance:** HIGH — server-side Gmail API access for `agent-of-user` and `ghost` sending identities (Brief 152). CLI (`gws`) is inappropriate for programmatic OAuth token management — the SDK handles token refresh, credential lifecycle, and API call construction. `depend` level (npm install). Mature, official, heavily used.
+- **Why not alternatives:** `gmail-api-parse-message` (low maintenance), `nodemailer` with OAuth2 (adds unnecessary SMTP layer), raw REST (reimplements what the SDK provides). The official SDK is the obvious choice for server-side Google API access.
+- **Scopes needed:** `gmail.send` (send as user), `gmail.readonly` (read sent mail for voice learning + contact extraction), `userinfo.email` (verify account).
+
 ### Market Signal
 
 AI SDR market in correction: 50-70% churn within 3 months. Hybrid (AI+human) model: 2.3x more revenue than AI-only. Warm intros: 3-5x conversion vs cold. Ditto's low-volume, relationship-first, trust-progressive model is validated by market data.
@@ -483,6 +499,14 @@ AI SDR market in correction: 50-70% churn within 3 months. Hybrid (AI+human) mod
 - Mode-shifted alignment (Self / Selling / Connecting)
 - Refusals as trust-building feature
 - Relationship-first outreach for SMB owners
+
+### Browser Automation (2026-04-13)
+
+**Stagehand** — github.com/browserbase/stagehand (8k+ stars, TypeScript, MIT)
+- AI browser SDK built on Playwright. Four primitives: `act`, `extract`, `observe`, `agent`. Supports Anthropic, OpenAI, Gemini via Vercel AI SDK. Production cloud option via Browserbase ($99/mo). Local mode uses headless Chromium.
+- **Classification:** ADOPT — TypeScript-first, MIT license, clean API, actively maintained. Best fit for Ditto's stack. Young project (startup-backed, 8k stars) — validation step included.
+- **Ditto usage:** `browse_web` self-tool (Brief 134). READ-only: `extract` primitive for research and data extraction. No `act` (write operations blocked by design). SSRF guard blocks private/internal network addresses. Token budget hard-enforced. Model configurable via `STAGEHAND_MODEL` env var.
+- **Full evaluation:** `docs/research/linkedin-ghost-mode-and-browser-automation.md`
 
 ### Hub-and-Spoke Deployment (2026-04-06)
 
@@ -517,6 +541,33 @@ New category for Insight-152 (Network Service is centralized). Full report: `doc
 - **Patterns to adopt:** (1) Memory versioning with `content_sha256` optimistic concurrency — solves concurrent write conflicts during parallel process runs. (2) Immutable version history with redaction — compliance/PII handling gap in Ditto's memory system. (3) Multi-agent thread isolation model — better maker-checker runtime than same-API-call or CLI subprocess.
 - **Watchpoint:** Monitor quarterly for upward feature creep into process orchestration, trust systems, or human-facing interfaces. Current trajectory is infrastructure, not product. If they ship workflow orchestration or earned trust, re-evaluate from complementary to competitive.
 - See `docs/research/claude-managed-agents-architectural-review.md` and Insight-165.
+
+---
+
+## Social Content Publishing APIs (2026-04-13)
+
+### Unipile Posts API (LinkedIn)
+
+- Part of the `unipile-node-sdk` already in use for social DMs (Brief 133). `UsersResource.createPost()` publishes feed posts with text and optional image attachments. Same connected account, same SDK, no additional auth.
+- **Classification:** DEPEND — already paying per connected account.
+- **Ditto relevance:** HIGH — publishes LinkedIn feed posts from GTM pipeline `land-content` step after GATE approval. No additional setup beyond existing Unipile connection.
+- **Limitation:** Feed posts only — no LinkedIn articles (long-form). TypeScript SDK types don't include the Posts API resource (requires type cast). No built-in scheduling.
+- See ADR-029 for adoption decision.
+
+### X API v2 (Tweets/Threads)
+
+- Official REST API at `api.x.com/2/tweets`. Pay-per-use since 2026: $0.01/tweet (~$1-2/month at GTM volume of ~20 tweets/week). OAuth 1.0a for single-user posting. Thread support via sequential tweets with `reply.in_reply_to_tweet_id`.
+- **Classification:** DEPEND — official API, no SDK (direct `fetch`), minimal surface.
+- **Ditto relevance:** HIGH — publishes X tweets and threads from GTM pipeline `land-content` step. `XApiClient` class in `channel.ts` handles OAuth 1.0a signing, single tweets, and thread posting with partial failure handling.
+- **Limitation:** Requires separate X developer account and API keys (one-time setup). OAuth 1.0a is single-user; multi-user would need OAuth 2.0 with PKCE. No free tier for new developers.
+- See ADR-029 for adoption decision.
+
+### Buffer API (not adopted)
+
+- Third-party scheduling/publishing service. Supports LinkedIn + X. $6/mo/channel. OAuth required.
+- **Classification:** NOT ADOPTED — adds a dependency for both channels when Unipile (already paying) covers LinkedIn and X API v2 is cheaper for X.
+- **Ditto relevance:** LOW for v1 — both channels publish natively. Could be reconsidered for scheduling/analytics if needed later.
+- See ADR-029 for evaluation rationale.
 
 ---
 

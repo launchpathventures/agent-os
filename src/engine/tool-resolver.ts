@@ -41,7 +41,7 @@ export interface ResolvedTools {
 
 interface BuiltInTool {
   definition: LlmToolDefinition;
-  execute: (input: Record<string, unknown>) => Promise<string>;
+  execute: (input: Record<string, unknown>, stepRunId?: string) => Promise<string>;
   /** If true, tool calls queue to stagedOutboundActions instead of dispatching (Brief 129) */
   staged?: boolean;
   /** Extract content/channel/recipientId from args for quality gate checking */
@@ -101,7 +101,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         required: ["to", "subject", "body", "personId", "mode"],
       },
     },
-    execute: async (input: Record<string, unknown>): Promise<string> => {
+    execute: async (input: Record<string, unknown>, executionStepRunId?: string): Promise<string> => {
       const { sendAndRecord } = await import("./channel");
       const result = await sendAndRecord({
         to: input.to as string,
@@ -113,6 +113,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         userId: "founder", // single-user MVP
         processRunId: input.processRunId as string | undefined,
         includeOptOut: true,
+        stepRunId: executionStepRunId,
       });
       return JSON.stringify(result, null, 2);
     },
@@ -223,6 +224,618 @@ const builtInTools: Record<string, BuiltInTool> = {
         visibility: "internal",
       });
       return JSON.stringify({ success: true, personId: person.id }, null, 2);
+    },
+  },
+
+  // ---- Web tools (GTM pipeline, front door) ----
+  "web-search": {
+    definition: {
+      name: "web_search",
+      description:
+        "Search the web in real-time via Perplexity Sonar. Returns a synthesized answer with sources. Use for researching people, companies, pain signals, competitors, and market trends.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query — natural language question or keywords",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { webSearch } = await import("./web-search");
+      const query = input.query as string;
+      const result = await webSearch(query);
+      return result ?? "No results — PERPLEXITY_API_KEY may not be configured.";
+    },
+  },
+
+  "web-fetch": {
+    definition: {
+      name: "web_fetch",
+      description:
+        "Fetch a URL and extract readable text content. Use for reading websites, profiles, portfolios, articles, and landing pages shared during research or outreach.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          url: {
+            type: "string",
+            description: "The URL to fetch (https:// added automatically if missing)",
+          },
+        },
+        required: ["url"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { fetchUrlContent } = await import("./web-fetch");
+      const url = input.url as string;
+      const result = await fetchUrlContent(url);
+      if (result.error) return `Error: ${result.error}`;
+      return result.content ?? "No readable content extracted from the page.";
+    },
+  },
+
+  // ---- Social publishing tools (ADR-029, Brief 141) ----
+  "social.publish_post": {
+    staged: true,
+    extractOutboundMeta: (args: Record<string, unknown>) => ({
+      content: args.content as string | undefined,
+      channel: (args.platform as string) ?? "social",
+    }),
+    definition: {
+      name: "social_publish_post",
+      description:
+        "Publish a post to LinkedIn or X. LinkedIn uses Unipile Posts API, X uses X API v2. For X threads, provide threadTweets as an array. Returns postId and postUrl for engagement tracking.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          platform: {
+            type: "string",
+            enum: ["linkedin", "x"],
+            description: "Platform to publish on",
+          },
+          content: {
+            type: "string",
+            description: "Post content text. For single posts on either platform.",
+          },
+          threadTweets: {
+            type: "array",
+            items: { type: "string" },
+            description: "For X threads only: array of tweet texts posted sequentially. First tweet is the head.",
+          },
+          unipileAccountId: {
+            type: "string",
+            description: "Unipile account ID (required for LinkedIn publishing)",
+          },
+          mediaFilePaths: {
+            type: "array",
+            items: { type: "string" },
+            description: "Local file paths for images/video to attach. Get these from content.generate_image asset filePath.",
+          },
+        },
+        required: ["platform", "content"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { publishPost } = await import("./channel");
+      const platform = input.platform as "linkedin" | "x";
+      const content = input.content as string;
+      const result = await publishPost(platform, content, {
+        stepRunId: input._stepRunId as string | undefined,
+        unipileAccountId: input.unipileAccountId as string | undefined,
+        threadTweets: input.threadTweets as string[] | undefined,
+        mediaFilePaths: input.mediaFilePaths as string[] | undefined,
+      });
+      return JSON.stringify(result, null, 2);
+    },
+  },
+
+  "crm.send_social_dm": {
+    staged: true,
+    extractOutboundMeta: (args: Record<string, unknown>) => ({
+      content: args.body as string | undefined,
+      channel: (args.platform as string) ?? "social",
+      recipientId: args.personId as string | undefined,
+    }),
+    definition: {
+      name: "crm_send_social_dm",
+      description:
+        "Send a direct message on LinkedIn (via Unipile) or X (via X API). Records the interaction. For LinkedIn, requires unipileAccountId.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          to: {
+            type: "string",
+            description: "Recipient identifier — Unipile attendee ID (LinkedIn) or X user ID",
+          },
+          body: {
+            type: "string",
+            description: "Message body text",
+          },
+          platform: {
+            type: "string",
+            enum: ["linkedin", "whatsapp", "instagram", "telegram", "x"],
+            description: "Social platform to send on",
+          },
+          personId: {
+            type: "string",
+            description: "Person ID from the people table",
+          },
+          mode: {
+            type: "string",
+            description: "Outreach mode: selling, connecting, or nurture",
+          },
+          unipileAccountId: {
+            type: "string",
+            description: "Unipile account ID for the connected social account (required for LinkedIn/WhatsApp/Instagram/Telegram)",
+          },
+          processRunId: {
+            type: "string",
+            description: "Process run ID (if called from a process step)",
+          },
+        },
+        required: ["to", "body", "platform", "personId", "mode"],
+      },
+    },
+    execute: async (input: Record<string, unknown>, executionStepRunId?: string): Promise<string> => {
+      const { sendAndRecord } = await import("./channel");
+      const platform = input.platform as string;
+
+      // X DMs go through X API, not Unipile (Unipile X is deprecated)
+      if (platform === "x") {
+        // X DM sending via X API v2
+        const { XApiClient, getXApiConfig } = await import("./channel");
+        const config = getXApiConfig();
+        if (!config) {
+          return JSON.stringify({ success: false, error: "X API not configured" });
+        }
+        const client = new XApiClient(config);
+        try {
+          const result = await client.sendDm(input.to as string, input.body as string);
+          // Record the interaction
+          const { recordInteraction } = await import("./people");
+          await recordInteraction({
+            personId: input.personId as string,
+            userId: "founder",
+            type: "outreach_sent",
+            channel: "social",
+            mode: (input.mode as "selling" | "connecting" | "nurture") ?? "nurture",
+            subject: `X DM`,
+            summary: (input.body as string).slice(0, 200),
+            outcome: "neutral",
+            processRunId: input.processRunId as string | undefined,
+          });
+          return JSON.stringify({ success: true, ...result });
+        } catch (err) {
+          return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      // LinkedIn/WhatsApp/Instagram/Telegram go through Unipile via sendAndRecord
+      const result = await sendAndRecord({
+        to: input.to as string,
+        body: input.body as string,
+        personaId: "alex",
+        mode: (input.mode as "selling" | "connecting" | "nurture") ?? "nurture",
+        personId: input.personId as string,
+        userId: "founder",
+        processRunId: input.processRunId as string | undefined,
+        platform: input.platform as import("./channel").SocialPlatform,
+        unipileAccountId: input.unipileAccountId as string | undefined,
+        includeOptOut: false, // social DMs don't have opt-out footers
+        stepRunId: executionStepRunId,
+      });
+      return JSON.stringify(result, null, 2);
+    },
+  },
+
+  // ---- Content asset tools (GTM image generation) ----
+  "content.generate_image": {
+    definition: {
+      name: "content_generate_image",
+      description:
+        "Generate an image for a social media post using Claude (Anthropic). Returns the asset ID and file path. Use for: quote cards, diagrams, header images, infographics. The image is stored in workspace assets and can be attached to posts via social.publish_post.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          prompt: {
+            type: "string",
+            description: "Image generation prompt — be specific about style, composition, text to include. E.g., 'Clean dark-mode quote card with the text: Most agent frameworks solve the wrong problem. Minimal design, monospace font, subtle gradient background.'",
+          },
+          name: {
+            type: "string",
+            description: "Human-readable name for the asset (e.g., 'Trust thread header image')",
+          },
+        },
+        required: ["prompt", "name"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const prompt = input.prompt as string;
+      const name = input.name as string;
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return JSON.stringify({ success: false, error: "ANTHROPIC_API_KEY not configured" });
+      }
+
+      try {
+        // Call Claude with image generation (requires beta header)
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2025-04-14",
+            "anthropic-beta": "image-generation-2025-04-14",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-5-20250514",
+            max_tokens: 16384,
+            messages: [{
+              role: "user",
+              content: `Generate an image: ${prompt}`,
+            }],
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          return JSON.stringify({ success: false, error: `Anthropic API error ${response.status}: ${errorText}` });
+        }
+
+        const data = (await response.json()) as {
+          content: Array<{ type: string; source?: { type: string; media_type: string; data: string } }>;
+        };
+
+        // Find the image block in the response
+        const imageBlock = data.content.find(
+          (block) => block.type === "image" && block.source?.type === "base64",
+        );
+
+        if (!imageBlock?.source?.data) {
+          return JSON.stringify({ success: false, error: "No image generated — Claude may not have produced an image for this prompt. Try being more explicit: 'Generate an image of...'" });
+        }
+
+        const buffer = Buffer.from(imageBlock.source.data, "base64");
+        const mimeType = imageBlock.source.media_type || "image/png";
+
+        // Save to workspace asset storage
+        const { saveAsset } = await import("./asset-storage");
+        const asset = await saveAsset({
+          buffer,
+          name,
+          mimeType,
+          source: "generated",
+          prompt,
+          processRunId: input._stepRunId as string | undefined,
+        });
+
+        return JSON.stringify({
+          success: true,
+          assetId: asset.id,
+          filePath: asset.filePath,
+          mimeType,
+          sizeBytes: buffer.length,
+        }, null, 2);
+      } catch (err) {
+        return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  },
+
+  "content.request_screen_recording": {
+    definition: {
+      name: "content_request_screen_recording",
+      description:
+        "Request a screen recording from the user via ScreenRun. Returns a checklist block with a link to ScreenRun and instructions for what to record. The user records, exports MP4, and uploads via the upload action. Use when a product demo, walkthrough, or screen recording would make the post significantly more engaging.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          title: {
+            type: "string",
+            description: "What to title this recording (e.g., 'Ditto GTM pipeline demo')",
+          },
+          instructions: {
+            type: "string",
+            description: "Specific recording instructions — what to show, how long, what to highlight. Be precise so the user can record quickly.",
+          },
+          suggestedDuration: {
+            type: "string",
+            description: "Suggested duration (e.g., '30 seconds', '60 seconds')",
+          },
+          targetPost: {
+            type: "string",
+            description: "Which post this recording is for (e.g., 'Credibility thread: trust-earning demo')",
+          },
+        },
+        required: ["title", "instructions"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const title = input.title as string;
+      const instructions = input.instructions as string;
+      const duration = (input.suggestedDuration as string) || "30-60 seconds";
+      const targetPost = (input.targetPost as string) || "social post";
+
+      return JSON.stringify({
+        success: true,
+        type: "user_action_required",
+        action: "screen_recording",
+        screenRunUrl: "https://screenrun.app",
+        title,
+        instructions: [
+          `**Record:** ${title}`,
+          `**Duration:** ${duration}`,
+          `**What to show:** ${instructions}`,
+          `**For:** ${targetPost}`,
+          "",
+          "**Steps:**",
+          "1. Open ScreenRun → https://screenrun.app",
+          "2. Record the demo following the instructions above",
+          "3. Export as MP4 (HD 720p, Wide 16:9)",
+          "4. Upload the file — tell me the file path or drag it in",
+          "",
+          "I'll attach it to the post and publish with the video.",
+        ].join("\n"),
+      }, null, 2);
+    },
+  },
+
+  "content.upload_asset": {
+    definition: {
+      name: "content_upload_asset",
+      description:
+        "Register an externally created file (screen recording, manually created image, etc.) as a workspace asset. Copies the file to workspace asset storage and returns the assetId and filePath for use with social.publish_post.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          sourcePath: {
+            type: "string",
+            description: "Absolute path to the file to import (e.g., /Users/thg/Downloads/demo.mp4)",
+          },
+          name: {
+            type: "string",
+            description: "Human-readable name for the asset",
+          },
+        },
+        required: ["sourcePath", "name"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const sourcePath = input.sourcePath as string;
+      const name = input.name as string;
+      const fs = require("fs") as typeof import("fs");
+      const path = require("path") as typeof import("path");
+
+      if (!fs.existsSync(sourcePath)) {
+        return JSON.stringify({ success: false, error: `File not found: ${sourcePath}` });
+      }
+
+      const buffer = fs.readFileSync(sourcePath);
+      const ext = path.extname(sourcePath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif", ".webp": "image/webp",
+      };
+      const mimeType = mimeMap[ext] || "application/octet-stream";
+
+      const { saveAsset } = await import("./asset-storage");
+      const asset = await saveAsset({
+        buffer,
+        name,
+        mimeType,
+        source: "uploaded",
+        processRunId: input._stepRunId as string | undefined,
+      });
+
+      return JSON.stringify({
+        success: true,
+        assetId: asset.id,
+        filePath: asset.filePath,
+        mimeType,
+        sizeBytes: buffer.length,
+        sizeMB: (buffer.length / (1024 * 1024)).toFixed(1),
+      }, null, 2);
+    },
+  },
+
+  // ---- CRM read tools (follow-up-sequences, pipeline-tracking) ----
+  "crm.get_interactions": {
+    definition: {
+      name: "crm_get_interactions",
+      description:
+        "Get all interactions (emails, DMs, meetings) with a person. Returns chronological list with type, channel, subject, summary, outcome, and timestamps.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          personId: {
+            type: "string",
+            description: "Person ID from the people table",
+          },
+        },
+        required: ["personId"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { listInteractions } = await import("./people");
+      const interactions = await listInteractions(input.personId as string);
+      if (interactions.length === 0) return "No interactions found for this person.";
+      return JSON.stringify(
+        interactions.map((i) => ({
+          type: i.type,
+          channel: i.channel,
+          mode: i.mode,
+          subject: i.subject,
+          summary: i.summary,
+          outcome: i.outcome,
+          date: i.createdAt?.toISOString(),
+        })),
+        null,
+        2,
+      );
+    },
+  },
+
+  "crm.get_pipeline": {
+    definition: {
+      name: "crm_get_pipeline",
+      description:
+        "Get all people in the network with their interaction history summary. Returns name, email, org, role, relationship stage, last interaction, and interaction count. Use for pipeline reviews and briefings.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          userId: {
+            type: "string",
+            description: "User ID (defaults to 'founder')",
+          },
+        },
+        required: [],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { listPeopleWithStats } = await import("./people");
+      const userId = (input.userId as string) || "founder";
+      const people = await listPeopleWithStats(userId);
+      if (people.length === 0) return "No people in the pipeline yet.";
+      return JSON.stringify(people, null, 2);
+    },
+  },
+
+  // ---- Social engagement tools (GTM LEARN/SENSE) ----
+  "social.get_post_metrics": {
+    definition: {
+      name: "social_get_post_metrics",
+      description:
+        "Get engagement metrics for a published post. LinkedIn: likes, comments, shares via Unipile. X: likes, retweets, replies, impressions via X API v2. Returns metrics + notable comments/replies.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          platform: {
+            type: "string",
+            enum: ["linkedin", "x"],
+            description: "Platform the post was published on",
+          },
+          postId: {
+            type: "string",
+            description: "Platform post ID (returned from social.publish_post)",
+          },
+          unipileAccountId: {
+            type: "string",
+            description: "Unipile account ID (required for LinkedIn)",
+          },
+        },
+        required: ["platform", "postId"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const platform = input.platform as string;
+      const postId = input.postId as string;
+
+      if (platform === "linkedin") {
+        try {
+          const { getUnipileConfig } = await import("./channel");
+          const { UnipileClient } = await import("unipile-node-sdk");
+          const config = getUnipileConfig();
+          if (!config) return JSON.stringify({ error: "Unipile not configured" });
+
+          const client = new UnipileClient(config.dsn, config.apiKey);
+          // Use Unipile Posts API to get post details + comments
+          type PostsClient = {
+            users: {
+              getPost: (params: { account_id: string; post_id: string }) => Promise<Record<string, unknown>>;
+              getAllPostComments: (params: { account_id: string; post_id: string }) => Promise<{ items?: Array<Record<string, unknown>> }>;
+            };
+          };
+          const postsClient = client as unknown as PostsClient;
+          const accountId = input.unipileAccountId as string;
+
+          const [post, commentsResult] = await Promise.allSettled([
+            accountId ? postsClient.users.getPost({ account_id: accountId, post_id: postId }) : Promise.reject("no accountId"),
+            accountId ? postsClient.users.getAllPostComments({ account_id: accountId, post_id: postId }) : Promise.reject("no accountId"),
+          ]);
+
+          const postData = post.status === "fulfilled" ? post.value : {};
+          const comments = commentsResult.status === "fulfilled" ? (commentsResult.value.items ?? []) : [];
+
+          return JSON.stringify({
+            platform: "linkedin",
+            postId,
+            metrics: {
+              likes: (postData as Record<string, unknown>).likes_count ?? "unknown",
+              comments: comments.length,
+              shares: (postData as Record<string, unknown>).shares_count ?? "unknown",
+              impressions: (postData as Record<string, unknown>).impressions_count ?? "unknown",
+            },
+            notableComments: comments.slice(0, 5).map((c: Record<string, unknown>) => ({
+              author: c.author_name ?? c.author,
+              text: c.text ?? c.content,
+            })),
+          }, null, 2);
+        } catch (err) {
+          return JSON.stringify({ platform: "linkedin", postId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      if (platform === "x") {
+        try {
+          const { XApiClient, getXApiConfig } = await import("./channel");
+          const config = getXApiConfig();
+          if (!config) return JSON.stringify({ error: "X API not configured" });
+
+          const client = new XApiClient(config);
+          const metrics = await client.getTweetMetrics(postId);
+          return JSON.stringify({ platform: "x", postId, ...metrics }, null, 2);
+        } catch (err) {
+          return JSON.stringify({ platform: "x", postId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      return JSON.stringify({ error: `Unsupported platform: ${platform}` });
+    },
+  },
+
+  // ---- Browser tools (Brief 134) ----
+  "browse-web": {
+    definition: {
+      name: "browse_web",
+      description:
+        "Browse a URL or search the web and extract structured data using AI. READ-only — for research, profile viewing, data extraction. No form submission or message sending.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          url: {
+            type: "string",
+            description: "URL to navigate to",
+          },
+          query: {
+            type: "string",
+            description: "Search query (used when no URL provided)",
+          },
+          extractionGoal: {
+            type: "string",
+            description: "What to extract from the page — natural language instruction",
+          },
+          tokenBudget: {
+            type: "number",
+            description: "Max tokens for Stagehand AI calls (default: 500)",
+          },
+        },
+        required: ["extractionGoal"],
+      },
+    },
+    execute: async (input: Record<string, unknown>): Promise<string> => {
+      const { handleBrowseWeb } = await import("./self-tools/browser-tools");
+      const result = await handleBrowseWeb({
+        url: input.url as string | undefined,
+        query: input.query as string | undefined,
+        extractionGoal: input.extractionGoal as string,
+        tokenBudget: input.tokenBudget as number | undefined,
+      });
+      return result.output;
     },
   },
 
@@ -418,6 +1031,7 @@ export function resolveTools(
   integrationDir?: string,
   processId?: string,
   stagedQueue?: StagedOutboundAction[],
+  stepRunId?: string,
 ): ResolvedTools {
   const tools: LlmToolDefinition[] = [];
   // Map from qualified name (service.action) to { service, tool, executeConfig }
@@ -486,7 +1100,8 @@ export function resolveTools(
         });
         return JSON.stringify({ status: "queued", draftId }, null, 2);
       }
-      return builtIn.execute(input);
+      // Pass stepRunId as second parameter for Insight-180 invocation guard (Brief 151)
+      return builtIn.execute(input, stepRunId);
     }
 
     const entry = toolMap.get(name);

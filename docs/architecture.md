@@ -579,6 +579,8 @@ Both purposes traverse the harness pipeline:
 
 External calls are not invisible side-effects. They are governed, audited, and subject to trust tiers.
 
+**Invocation guard pattern (Insight-180):** Functions that produce external side effects (social publishing, payments, webhook dispatches) must require a `stepRunId` parameter as proof the call originates from within harness pipeline step execution. This is a programmatic guard — the function rejects calls without a valid step-run context (except in test mode). This ensures all external mutations traverse trust gates, outbound-quality-gate, and audit logging. Convention-based constraints ("only call this from step execution") are insufficient; the guard makes the constraint self-enforcing.
+
 **Process definition with integrations:**
 
 ```

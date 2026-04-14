@@ -38,6 +38,8 @@ export interface InputFieldDef {
 export interface TextBlock {
   type: "text";
   text: string;
+  /** Typography tier — hero-primary for greetings, hero-secondary for section headers */
+  variant?: "hero-primary" | "hero-secondary" | "body";
 }
 
 /** ReviewCardBlock — Process output for inline review */

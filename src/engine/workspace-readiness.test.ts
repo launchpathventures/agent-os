@@ -21,6 +21,18 @@ vi.mock("../db", async () => {
   };
 });
 
+// Mock LLM — force fallback template in composeStatusEmail tests (Brief 144)
+vi.mock("./llm", () => ({
+  createCompletion: vi.fn(async () => { throw new Error("mock LLM disabled in test"); }),
+  extractText: vi.fn(() => ""),
+}));
+vi.mock("./alex-voice", () => ({
+  getAlexEmailPrompt: vi.fn(() => "Mock Alex voice prompt"),
+}));
+vi.mock("./email-quality-gate", () => ({
+  validateEmailVoice: vi.fn(async (body: string) => ({ passed: true, body, failedChecks: [], latencyMs: 5, wasRewritten: false })),
+}));
+
 // Import after mock
 const {
   checkWorkspaceReadiness,
@@ -348,16 +360,15 @@ describe("composeStatusEmail with workspace suggestion", () => {
       highlights: ["3 new replies received"],
     };
 
-    const { body } = composeStatusEmail(
+    const { body } = await composeStatusEmail(
       data,
       "3 active processes running — a workspace would give you a much better view",
     );
 
-    // AC8: natural, woven in, not a standalone CTA
+    // AC8: natural, woven in, not a standalone CTA (fallback template)
     expect(body).toContain("By the way");
     expect(body).toContain("3 active processes");
     expect(body).toContain("reply \"yes\"");
-    // Should still have the normal sign-off after the suggestion
     expect(body).toContain("Reply to this email");
   });
 
@@ -375,7 +386,7 @@ describe("composeStatusEmail with workspace suggestion", () => {
       highlights: ["1 new reply received"],
     };
 
-    const { body } = composeStatusEmail(data);
+    const { body } = await composeStatusEmail(data);
 
     expect(body).not.toContain("By the way");
     expect(body).not.toContain("workspace");

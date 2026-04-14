@@ -34,8 +34,12 @@ import type { StatusCheckResult } from "./status-composer";
 /** Users in their first 7 days have higher outreach propensity (AC5) */
 const EARLY_RELATIONSHIP_DAYS = 7;
 
-/** Minimum hours between proactive outreach to the same user */
-const MIN_HOURS_BETWEEN_OUTREACH = 24;
+/**
+ * Minimum hours between proactive outreach to the same user.
+ * Brief 151 AC9: reduced from 24h to 4h so the LLM deliberation runs more often.
+ * Per-person daily cap in sendAndRecord() (max 3/day) prevents over-sending.
+ */
+const MIN_HOURS_BETWEEN_OUTREACH = 4;
 const MIN_MS_BETWEEN_OUTREACH = MIN_HOURS_BETWEEN_OUTREACH * 60 * 60 * 1000;
 
 // ============================================================
@@ -115,27 +119,17 @@ async function buildUserSnapshot(
   personId: string,
   createdAt: Date,
   wantsVisibility: boolean = false,
+  lastNotifiedAt: Date | null = null,
 ): Promise<UserSnapshot> {
   const now = Date.now();
 
   // Days since signup
   const daysSinceSignup = Math.floor((now - createdAt.getTime()) / (24 * 60 * 60 * 1000));
 
-  // Last contact: most recent interaction where we sent something to the user
-  const [lastOutbound] = await db
-    .select({ createdAt: schema.interactions.createdAt })
-    .from(schema.interactions)
-    .where(
-      and(
-        eq(schema.interactions.userId, userId),
-        eq(schema.interactions.type, "follow_up"),
-      ),
-    )
-    .orderBy(desc(schema.interactions.createdAt))
-    .limit(1);
-
-  const daysSinceLastContact = lastOutbound
-    ? Math.floor((now - lastOutbound.createdAt.getTime()) / (24 * 60 * 60 * 1000))
+  // Days since last contact: uses networkUsers.lastNotifiedAt — the single
+  // source of truth for "when did Alex last email this user".
+  const daysSinceLastContact = lastNotifiedAt
+    ? Math.floor((now - lastNotifiedAt.getTime()) / (24 * 60 * 60 * 1000))
     : null;
 
   // User model density: count distinct memory types for self-scoped memories
@@ -240,6 +234,8 @@ async function composeProactiveMessage(
   suggestWorkspace: boolean = false,
 ): Promise<{ shouldReach: boolean; subject?: string; body?: string }> {
   const cognitiveCore = getCognitiveCore();
+  const { getAlexEmailPrompt } = await import("./alex-voice");
+  const alexEmailVoice = getAlexEmailPrompt();
 
   const userName = snapshot.userName || "the user";
   const earlyRelationship = snapshot.daysSinceSignup <= EARLY_RELATIONSHIP_DAYS;
@@ -250,6 +246,8 @@ async function composeProactiveMessage(
     : "(No memories yet — this is a brand new relationship)";
 
   const systemPrompt = `${cognitiveCore}
+
+${alexEmailVoice}
 
 ## Your Role Right Now
 
@@ -339,25 +337,9 @@ SILENT`;
 // Recency Check
 // ============================================================
 
-/**
- * Check if we've sent proactive outreach to this user too recently.
- * Uses the most recent "follow_up" interaction as the recency signal.
- */
-async function lastProactiveOutreachAt(userId: string): Promise<Date | null> {
-  const [last] = await db
-    .select({ createdAt: schema.interactions.createdAt })
-    .from(schema.interactions)
-    .where(
-      and(
-        eq(schema.interactions.userId, userId),
-        eq(schema.interactions.type, "follow_up"),
-      ),
-    )
-    .orderBy(desc(schema.interactions.createdAt))
-    .limit(1);
-
-  return last?.createdAt ?? null;
-}
+// lastProactiveOutreachAt removed — replaced by networkUsers.lastNotifiedAt.
+// The single source of truth for "when did Alex last email this user" is the
+// lastNotifiedAt field, updated by notifyUser() on every successful send.
 
 // ============================================================
 // Main: Run Relationship Pulse (AC1, AC9)
@@ -420,8 +402,9 @@ export async function runRelationshipPulse(
       continue;
     }
 
-    // Check recency — don't spam
-    const lastOutreach = await lastProactiveOutreachAt(user.id);
+    // Check recency — don't spam. Uses networkUsers.lastNotifiedAt
+    // (set by notifyUser on every successful send).
+    const lastOutreach = user.lastNotifiedAt ?? null;
     if (lastOutreach) {
       const msSinceLastOutreach = Date.now() - lastOutreach.getTime();
       if (msSinceLastOutreach < MIN_MS_BETWEEN_OUTREACH) {
@@ -439,6 +422,7 @@ export async function runRelationshipPulse(
       user.personId,
       user.createdAt,
       user.wantsVisibility ?? false,
+      user.lastNotifiedAt ?? null,
     );
 
     // Workspace graduation: suggest workspace when 2+ complexity signals present
@@ -463,12 +447,23 @@ export async function runRelationshipPulse(
         continue;
       }
 
+      // Brief 144 AC18: Quality gate before sending proactive outreach
+      const { validateEmailVoice } = await import("./email-quality-gate");
+      const gateResult = await validateEmailVoice(decision.body, {
+        recipientName: user.name ?? undefined,
+        callerContext: "composeProactiveMessage",
+      });
+      const emailBody = gateResult.body;
+      if (!gateResult.passed) {
+        console.log(`[relationship] Quality gate for ${user.email}: ${gateResult.failedChecks.join(", ")} (${gateResult.latencyMs}ms)`);
+      }
+
       // Send via notifyUser (channel-agnostic)
       await notifyUser({
         userId: user.id,
         personId: user.personId,
         subject: decision.subject,
-        body: decision.body,
+        body: emailBody,
       });
 
       // Set workspaceSuggestedAt if we suggested a workspace (Brief 099c AC4 — set once, never cleared)

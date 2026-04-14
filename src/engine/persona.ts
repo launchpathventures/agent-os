@@ -60,7 +60,7 @@ const ALEX_CONFIG: PersonaConfig = {
     "Let me be straight with you",
     "Here's what I think",
   ],
-  signOff: "Alex\nDitto",
+  signOff: "— Alex",
   accent: "Australian English — warm, understated, no excessive slang",
 };
 
@@ -84,7 +84,7 @@ const MIRA_CONFIG: PersonaConfig = {
     "I think the right approach here is",
     "Let me walk you through what I've found",
   ],
-  signOff: "Mira\nDitto",
+  signOff: "— Mira",
   accent: "British English — measured, precise, no excessive formality",
 };
 

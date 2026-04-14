@@ -123,6 +123,70 @@ export async function consumeMagicLink(
 }
 
 /**
+ * Create a workspace login magic link (Brief 143).
+ * Uses a "workspace:" prefixed session ID (not tied to chat sessions).
+ * Returns token and full URL, or null if rate limited.
+ *
+ * Brief 148: Persists frontdoor learned context as person-scoped memories
+ * before generating the link — one write per transition.
+ */
+export async function createWorkspaceMagicLink(
+  email: string,
+): Promise<MagicLinkResult | null> {
+  // Brief 148: Persist frontdoor learned context before generating link
+  try {
+    const [recentSession] = await db
+      .select({ sessionId: schema.chatSessions.sessionId })
+      .from(schema.chatSessions)
+      .where(eq(schema.chatSessions.authenticatedEmail, email.toLowerCase()))
+      .orderBy(sql`${schema.chatSessions.updatedAt} DESC`)
+      .limit(1);
+
+    if (recentSession) {
+      const { persistLearnedContext } = await import("./memory-bridge");
+      await persistLearnedContext(recentSession.sessionId);
+    }
+  } catch (err) {
+    console.warn(`[magic-link] Failed to persist learned context for ${email}:`, err);
+    // Non-fatal — magic link generation must not be blocked
+  }
+
+  // Rate limit: max 5 per email per hour (same as chat magic links)
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  const recentLinks = await db
+    .select({ id: schema.magicLinks.id })
+    .from(schema.magicLinks)
+    .where(
+      and(
+        eq(schema.magicLinks.email, email.toLowerCase()),
+        gt(schema.magicLinks.createdAt, new Date(oneHourAgo)),
+      ),
+    );
+
+  if (recentLinks.length >= MAX_LINKS_PER_EMAIL_PER_HOUR) {
+    return null;
+  }
+
+  const token = generateToken();
+  const expiresAt = new Date(Date.now() + MAGIC_LINK_EXPIRY_MS);
+
+  // Use "workspace:" prefix to distinguish from chat session IDs
+  const sessionId = `workspace:${randomBytes(16).toString("hex")}`;
+
+  await db.insert(schema.magicLinks).values({
+    email: email.toLowerCase(),
+    token,
+    sessionId,
+    expiresAt,
+  });
+
+  const baseUrl = process.env.NETWORK_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+  const url = `${baseUrl}/login/auth?token=${token}`;
+
+  return { token, url };
+}
+
+/**
  * Build a magic link URL for an email. Used by channel.ts to add
  * "Continue in chat" footer to outbound emails.
  *

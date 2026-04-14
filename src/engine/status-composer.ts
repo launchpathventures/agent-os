@@ -16,7 +16,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, gt, desc, inArray } from "drizzle-orm";
+import { eq, and, gt, inArray } from "drizzle-orm";
 import { notifyUser } from "./notify-user";
 import { checkWorkspaceReadiness } from "./workspace-readiness";
 import { isDismissed } from "./suggestion-dismissals";
@@ -77,10 +77,20 @@ async function gatherStatusData(
   personId: string,
   since: Date,
 ): Promise<StatusData> {
-  // Count new interactions since cutoff
+  // Count new interactions since cutoff — join people to get contact names (Brief 144 AC6)
   const recentInteractions = await db
-    .select({ id: schema.interactions.id, type: schema.interactions.type, summary: schema.interactions.summary })
+    .select({
+      id: schema.interactions.id,
+      type: schema.interactions.type,
+      summary: schema.interactions.summary,
+      personId: schema.interactions.personId,
+      personName: schema.people.name,
+      personOrg: schema.people.organization,
+      outcome: schema.interactions.outcome,
+      subject: schema.interactions.subject,
+    })
     .from(schema.interactions)
+    .leftJoin(schema.people, eq(schema.interactions.personId, schema.people.id))
     .where(
       and(
         eq(schema.interactions.userId, userId),
@@ -147,16 +157,55 @@ async function gatherStatusData(
         )
     : [];
 
-  // Build highlights
+  // Build highlights with names, summaries, and outcomes — not just counts (Brief 144 AC6-10)
   const highlights: string[] = [];
+
+  // Replies with contact names and outcomes
   const replies = recentInteractions.filter((i) => i.type === "reply_received");
   if (replies.length > 0) {
-    highlights.push(`${replies.length} new ${replies.length === 1 ? "reply" : "replies"} received`);
+    for (const r of replies.slice(0, 5)) {
+      const who = r.personName || "Someone";
+      const org = r.personOrg ? ` at ${r.personOrg}` : "";
+      const outcomeNote = r.outcome === "positive" ? " — they're interested" :
+                          r.outcome === "negative" ? " — not interested" :
+                          r.outcome === "deferred" ? " — asked to revisit later" :
+                          r.outcome === "question" ? " — asked a question" :
+                          r.outcome === "auto_reply" ? " — auto-reply (OOO)" : "";
+      const detail = r.summary ? `: "${r.summary.slice(0, 100)}"` : "";
+      highlights.push(`${who}${org} replied${outcomeNote}${detail}`);
+    }
+    if (replies.length > 5) {
+      highlights.push(`...and ${replies.length - 5} more ${replies.length - 5 === 1 ? "reply" : "replies"}`);
+    }
   }
 
+  // Outreach with contact names — aggregated by person (Brief 151 AC8)
   const outreach = recentInteractions.filter((i) => i.type === "outreach_sent");
   if (outreach.length > 0) {
-    highlights.push(`${outreach.length} outreach ${outreach.length === 1 ? "message" : "messages"} sent`);
+    // Group by personId to aggregate per-person
+    const byPerson = new Map<string, { name: string; org: string; count: number }>();
+    for (const o of outreach) {
+      const key = o.personId ?? o.personName ?? "unknown";
+      const existing = byPerson.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        byPerson.set(key, {
+          name: o.personName || "Someone",
+          org: o.personOrg ? ` at ${o.personOrg}` : "",
+          count: 1,
+        });
+      }
+    }
+
+    const people = Array.from(byPerson.values());
+    for (const p of people.slice(0, 5)) {
+      const countSuffix = p.count > 1 ? ` (${p.count} messages)` : "";
+      highlights.push(`Reached out to ${p.name}${p.org}${countSuffix}`);
+    }
+    if (people.length > 5) {
+      highlights.push(`...and ${people.length - 5} more ${people.length - 5 === 1 ? "person" : "people"} contacted`);
+    }
   }
 
   if (completedRuns.length > 0) {
@@ -164,7 +213,17 @@ async function gatherStatusData(
   }
 
   if (pendingRuns.length > 0) {
-    highlights.push(`${pendingRuns.length} pending ${pendingRuns.length === 1 ? "approval" : "approvals"}`);
+    highlights.push(`${pendingRuns.length} item${pendingRuns.length === 1 ? "" : "s"} waiting for your review`);
+  }
+
+  // FLAG-4 fix: Catch-all for interaction types beyond reply/outreach
+  // (e.g., follow_up, opt_out). Without this, highlights could be empty
+  // while newInteractions > 0, sending contradictory signals to the LLM.
+  const otherInteractions = recentInteractions.filter(
+    (i) => i.type !== "reply_received" && i.type !== "outreach_sent",
+  );
+  if (otherInteractions.length > 0 && highlights.length === 0) {
+    highlights.push(`${recentInteractions.length} new interaction${recentInteractions.length === 1 ? "" : "s"} recorded`);
   }
 
   return {
@@ -222,45 +281,121 @@ function shouldSendStatus(
 // ============================================================
 
 /**
- * Compose a concise status email body from gathered data.
+ * Compose a status email using LLM with Alex voice spec (Brief 144 AC7).
+ * Falls back to hardcoded template if LLM fails (AC11).
  * Optionally weaves in a workspace suggestion (AC5, AC8).
  */
-function composeStatusEmail(
+async function composeStatusEmail(
+  data: StatusData,
+  workspaceSuggestionReason?: string,
+): Promise<{ subject: string; body: string }> {
+  // Try LLM composition first
+  try {
+    const { createCompletion, extractText } = await import("./llm");
+    const { getAlexEmailPrompt } = await import("./alex-voice");
+
+    const alexVoice = getAlexEmailPrompt();
+    const name = data.userName || "mate";
+
+    const activitySummary = data.highlights.length > 0
+      ? data.highlights.map((h) => `- ${h}`).join("\n")
+      : "No significant activity to report.";
+
+    const response = await createCompletion({
+      system: [
+        alexVoice,
+        "",
+        `You are writing a status update email to ${name} (${data.userEmail}).`,
+        "This is a regular update about what you've been doing on their behalf.",
+        "",
+        "RULES:",
+        "- Lead with the most important thing — a reply, a result, something that needs their attention",
+        "- Name specific people and outcomes — never just counts",
+        "- If there are pending approvals, make that the clear CTA",
+        "- Keep it concise — this should take 30 seconds to read",
+        "- End with one clear next step or invitation to reply",
+        "- Do NOT include a greeting like 'Hi' or 'Hey' — jump straight into it",
+        workspaceSuggestionReason
+          ? `- Weave this suggestion naturally into the update: "${workspaceSuggestionReason}". Frame it as helpful, not a pitch.`
+          : "",
+      ].filter(Boolean).join("\n"),
+      messages: [
+        {
+          role: "user",
+          content: [
+            `Activity since last update:`,
+            activitySummary,
+            data.activeRuns > 0 ? `\n${data.activeRuns} active processes running.` : "",
+            data.pendingApprovals > 0 ? `\n${data.pendingApprovals} items waiting for review.` : "",
+          ].filter(Boolean).join("\n"),
+        },
+      ],
+      maxTokens: 400,
+      purpose: "writing",
+    });
+
+    const body = extractText(response.content).trim();
+
+    if (body.length > 20) {
+      // Quality gate on LLM-composed status email
+      const { validateEmailVoice } = await import("./email-quality-gate");
+      const gateResult = await validateEmailVoice(body, { recipientName: data.userName, callerContext: "composeStatusEmail" });
+      const finalBody = gateResult.body;
+
+      // Generate a subject from the first highlight
+      const subject = data.highlights[0]
+        ? `Update: ${data.highlights[0].slice(0, 60)}`
+        : "Your update from Alex";
+
+      return { subject, body: finalBody };
+    }
+  } catch (err) {
+    console.warn("[status] LLM composition failed, using fallback:", (err as Error).message);
+  }
+
+  // Fallback: hardcoded template (AC11 — never sends an empty email)
+  return composeStatusEmailFallback(data, workspaceSuggestionReason);
+}
+
+/**
+ * Hardcoded fallback template for status emails.
+ * Used when LLM composition fails. Still sounds like Alex — warm, direct, specific.
+ */
+function composeStatusEmailFallback(
   data: StatusData,
   workspaceSuggestionReason?: string,
 ): { subject: string; body: string } {
-  const name = data.userName || "there";
-  const subject = `Your Ditto update — ${data.highlights[0] || "activity summary"}`;
+  const name = data.userName || "mate";
+  const subject = data.highlights[0]
+    ? `Update: ${data.highlights[0].slice(0, 60)}`
+    : "Your update from Alex";
 
   const lines: string[] = [
-    `Hi ${name},`,
-    "",
-    "Here's what's been happening:",
+    `${name} — quick update on what's been happening.`,
     "",
   ];
 
   for (const highlight of data.highlights) {
-    lines.push(`• ${highlight}`);
+    lines.push(`- ${highlight}`);
   }
 
   if (data.activeRuns > 0) {
     lines.push("");
-    lines.push(`${data.activeRuns} ${data.activeRuns === 1 ? "process is" : "processes are"} currently active.`);
+    lines.push(`${data.activeRuns} ${data.activeRuns === 1 ? "thing" : "things"} still in progress.`);
   }
 
   if (data.pendingApprovals > 0) {
     lines.push("");
-    lines.push(`You have ${data.pendingApprovals} item${data.pendingApprovals === 1 ? "" : "s"} waiting for your review.`);
+    lines.push(`${data.pendingApprovals} item${data.pendingApprovals === 1 ? "" : "s"} need${data.pendingApprovals === 1 ? "s" : ""} your call — reply and I'll action it.`);
   }
 
-  // Workspace suggestion woven into the briefing (AC5, AC8)
   if (workspaceSuggestionReason) {
     lines.push("");
-    lines.push(`By the way — ${workspaceSuggestionReason}. I can set one up where you see everything in one place. Just reply "yes" if you'd like that.`);
+    lines.push(`By the way — ${workspaceSuggestionReason}. I can set up a workspace where you see everything in one place. Just reply "yes" if you'd like that.`);
   }
 
   lines.push("");
-  lines.push("Reply to this email if you have questions or want me to focus on something specific.");
+  lines.push("Reply to this email if you want me to adjust anything or dig deeper on something.");
 
   return { subject, body: lines.join("\n") };
 }
@@ -295,7 +430,17 @@ export async function runStatusComposition(): Promise<StatusCheckResult> {
 
   if (users.length === 0) return result;
 
-  for (const user of users) {
+  // Deduplicate by email — multiple user records for the same email
+  // can exist across test sessions. Only process the most recent one.
+  const seenEmails = new Set<string>();
+  const deduped = users.filter((u) => {
+    const email = u.email.toLowerCase();
+    if (seenEmails.has(email)) return false;
+    seenEmails.add(email);
+    return true;
+  });
+
+  for (const user of deduped) {
     result.checked++;
 
     // Brief 108 AC3: Skip paused users
@@ -311,20 +456,15 @@ export async function runStatusComposition(): Promise<StatusCheckResult> {
       continue;
     }
 
-    // Find last status email for this user
-    const [lastStatus] = await db
-      .select({ createdAt: schema.interactions.createdAt })
-      .from(schema.interactions)
-      .where(
-        and(
-          eq(schema.interactions.userId, user.id),
-          eq(schema.interactions.type, "follow_up"),
-        ),
-      )
-      .orderBy(desc(schema.interactions.createdAt))
-      .limit(1);
-
-    const lastStatusAt = lastStatus?.createdAt ?? null;
+    // Use networkUsers.lastNotifiedAt — the single source of truth for
+    // "when did Alex last email this user". Updated by notifyUser() on
+    // every successful send. No fragile interaction table queries.
+    //
+    // BUG FIX: Previously queried interactions for type "follow_up", but
+    // notifyUser sends via sendAndRecord which records "outreach_sent".
+    // The query never matched → lastStatusAt was always null → the 3-day
+    // gate never fired → status email on EVERY pulse tick (every 5 min).
+    const lastStatusAt = user.lastNotifiedAt ?? null;
     const since = lastStatusAt ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default: last 7 days
 
     // Gather activity data
@@ -371,14 +511,27 @@ export async function runStatusComposition(): Promise<StatusCheckResult> {
       }
     }
 
+    // Gather outreach batch summary for the period (Brief 149 AC19)
+    let htmlBlocks: string[] | undefined;
+    try {
+      const { gatherOutreachBatchSummary, renderOutreachTableHtml } = await import("./outreach-table");
+      const outreachSummary = await gatherOutreachBatchSummary(user.id, since);
+      if (outreachSummary.entries.length > 0) {
+        htmlBlocks = [renderOutreachTableHtml(outreachSummary)];
+      }
+    } catch (err) {
+      console.warn("[status] Failed to gather outreach summary:", (err as Error).message);
+    }
+
     // Compose and send status update via user's preferred channel
-    const { subject, body } = composeStatusEmail(data, workspaceSuggestionReason);
+    const { subject, body } = await composeStatusEmail(data, workspaceSuggestionReason);
 
     await notifyUser({
       userId: user.id,
       personId: user.personId!,
       subject,
       body,
+      htmlBlocks,
     });
 
     result.sent++;

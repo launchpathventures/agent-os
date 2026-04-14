@@ -14,6 +14,7 @@ import { db, schema } from "../db";
 import { eq, ne, and, desc, gte } from "drizzle-orm";
 import { updateWorkingPatterns } from "./user-model";
 import { buildInteractionSummary } from "./interaction-events";
+import { findPersonByEmailGlobal } from "./people";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -140,16 +141,60 @@ export async function loadSelfMemories(
       desc(schema.memories.confidence),
     );
 
-  if (memories.length === 0) return "";
-
   const lines: string[] = [];
   let totalChars = 0;
 
+  // Self-scoped memories
   for (const mem of memories) {
     const line = `- [${mem.type}] ${mem.content}`;
     if (totalChars + line.length + 1 > charBudget) break;
     lines.push(line);
     totalChars += line.length + 1;
+  }
+
+  // Brief 148: Load person-scoped memories from frontdoor conversation
+  try {
+    // Look up the workspace user's email
+    const [networkUser] = await db
+      .select({ email: schema.networkUsers.email })
+      .from(schema.networkUsers)
+      .where(eq(schema.networkUsers.id, userId))
+      .limit(1);
+
+    if (networkUser?.email) {
+      const person = await findPersonByEmailGlobal(networkUser.email);
+      if (person) {
+        const personMemories = await db
+          .select({ content: schema.memories.content })
+          .from(schema.memories)
+          .where(
+            and(
+              eq(schema.memories.scopeType, "person"),
+              eq(schema.memories.scopeId, person.id),
+              eq(schema.memories.type, "user_model"),
+              eq(schema.memories.source, "conversation"),
+              eq(schema.memories.active, true),
+            ),
+          );
+
+        if (personMemories.length > 0) {
+          const header = "\nFrom your earlier conversation:";
+          if (totalChars + header.length + 1 <= charBudget) {
+            lines.push(header);
+            totalChars += header.length + 1;
+
+            for (const mem of personMemories) {
+              const line = `- ${mem.content}`;
+              if (totalChars + line.length + 1 > charBudget) break;
+              lines.push(line);
+              totalChars += line.length + 1;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[self-context] Failed to load frontdoor person memories:", err);
   }
 
   return lines.join("\n");

@@ -63,6 +63,7 @@ What to read before starting. List specific files with their purpose:
 
 What NOT to do. Boundaries. Things that must be preserved.
 
+- If this work adds functions with external side effects (publishing, payments, webhooks): require `stepRunId` invocation guard per Insight-180
 - ...
 
 ## Provenance
@@ -108,6 +109,8 @@ How do we verify this work is complete? Each criterion is boolean: pass or fail.
 
 **For prompt-affecting briefs:** If the brief includes a total token budget, break it down per-change so the builder can verify each addition independently. Example: "Total <100 tokens: temporal context <20, judgment framework <40, strategic framing <30, rules <10."
 
+**For briefs that modify process YAML `tools:` declarations (Insight-180):** Include an AC verifying every tool name referenced in YAML has a matching entry in `src/engine/tool-resolver.ts` builtInTools or is resolvable via the integration registry. Tool names in YAML that don't exist in the resolver are silent failures — the step executes without the tool, and the LLM can't call it.
+
 ## Review Process
 
 How to validate the work after completion:
@@ -119,6 +122,8 @@ How to validate the work after completion:
 ## Smoke Test
 
 Describe the manual test that proves this brief is working. This is not optional.
+
+**For briefs adding new external API integrations (Insight-180):** Include a spike test in `src/engine/integration-spike.test.ts` that makes ONE real API call to verify auth format, endpoint URL, and response shape. Type-checking does NOT catch wrong model IDs, missing headers, or incorrect OAuth signing. Run the spike BEFORE wiring the tool: `pnpm vitest run src/engine/integration-spike.test.ts`
 
 ```bash
 # Commands to run and what to expect

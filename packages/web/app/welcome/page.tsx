@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { DittoConversation } from "./ditto-conversation";
 
 export const metadata: Metadata = {
-  title: "Ditto — AI that remembers and improves",
+  title: "Ditto — Tell Alex What You Do. He Handles the Rest.",
   description:
-    "A trusted advisor that connects your network and runs your operations. Not a chatbot. Not AI slop. A chief of staff that earns your trust.",
+    "Alex finds your clients, makes introductions, and handles follow-ups. You approve everything at first. He earns your trust over time.",
 };
 
 export default function WelcomePage() {

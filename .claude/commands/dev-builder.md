@@ -29,6 +29,8 @@ Implement the approved brief or plan as code. Follow the plan precisely. Use exi
 - MUST NOT skip the automated checks — they are the first quality gate
 - MUST capture any design discoveries or principles that emerge during building — or that the human shares during conversation — as insights in `docs/insights/` using the template at `docs/insights/000-template.md`
 - MUST flag in handoff notes any reference doc (ADR, architecture.md) that doesn't match what was actually built — do not fix, flag for the Architect (Insight-043: Builder flags, Architect fixes)
+- MUST apply the "boil the ocean" principle (CLAUDE.md Principle 6) within the brief's scope: complete implementation with tests, docs, and edge cases. The deliverable is the finished product, not a plan to finish later. Never leave a dangling thread when tying it off takes five more minutes.
+- MUST apply the **step-run invocation guard** (Insight-180) to any new function that produces external side effects (social publishing, payments, webhook dispatches, external API mutations). Require a `stepRunId` parameter that proves the call originates from within harness pipeline step execution. Test mode (`DITTO_TEST_MODE`) may bypass the guard.
 
 ## Required Inputs
 

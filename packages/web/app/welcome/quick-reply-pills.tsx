@@ -15,14 +15,14 @@ export function QuickReplyPills({
   disabled: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 pb-1 animate-fade-in">
+    <div className="flex gap-2 pb-1 animate-fade-in overflow-x-auto md:flex-wrap md:overflow-x-visible scrollbar-hidden">
       {pills.map((pill) => (
         <button
           key={pill}
           type="button"
           disabled={disabled}
           onClick={() => onSelect(pill)}
-          className="rounded-full border border-border bg-white px-4 py-2 text-sm text-text-secondary transition-colors hover:border-vivid hover:text-vivid disabled:opacity-40"
+          className="shrink-0 rounded-full border border-border bg-white px-3 py-1.5 md:px-4 md:py-2 text-sm text-text-secondary transition-colors hover:border-vivid hover:text-vivid disabled:opacity-40"
         >
           {pill}
         </button>

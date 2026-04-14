@@ -1,10 +1,12 @@
 # Ditto — Roadmap
 
-**Last updated:** 2026-04-11
-**Current phase:** Phase 10 **complete**. Phase 14 **in progress** (Network Agent — engine code complete, Briefs 097+098a+098b+099a+099b+099c+108+110+114+125 all complete. Brief 114 cognitive mode extensions complete. Brief 115 Operating Cycle Archetype designed — split into sub-briefs 116-118, all draft. Brief 125 outreach visibility + email cancellation complete). Phase 15 **complete** (Managed Workspace Infrastructure — Brief 090 provisioning, Brief 091 fleet upgrades, Brief 100 Railway migration all complete). Phase 11 **in progress** (Briefs 101-104+107 complete — goal decomposition, find-or-build routing, library curation pipeline, budget infrastructure). Phases 12-13 **future**. 1260 unit tests (72 test files) + 14 e2e tests (4 spec files). Three-layer persona architecture (Insight-153) complete. 25 process templates. Front door conversational experience live.
+**Last updated:** 2026-04-14
+**Current phase:** Phase 10 **complete**. Phase 14 **in progress** (Network Agent — engine code complete, Briefs 071+097+098a+098b+099a+099b+099c+108+110+114+119+120+121+124+125+126+127+128+129+130 all complete. Brief 131 (Self Cognitive Orchestration + Email-to-Chat Escalation) draft. Brief 114 cognitive mode extensions complete. Brief 115 Operating Cycle Archetype designed — split into sub-briefs 116-118, all complete. Brief 119 pricing strategy complete. Briefs 120+121 front door relationship lifecycle + process primitive wiring complete. Brief 128 model purpose resolver complete. Brief 129 staged outbound tools complete. Brief 139 GTM cycle type + structured inputs complete. Brief 140 growth composition intent complete. Brief 141 structured GATE review + automated content publishing complete). Phase 15 **complete** (Managed Workspace Infrastructure — Brief 090 provisioning, Brief 091 fleet upgrades, Brief 100 Railway migration all complete). Phase 11 **in progress** (Briefs 101-104+107 complete — goal decomposition, find-or-build routing, library curation pipeline, budget infrastructure. Brief 135 SLM training pipeline complete — training data extraction, readiness scoring, fine-tuning detection, SLM provider factory, eval pipeline, deployment lifecycle). Phases 12-13 **future**. 1516 unit tests (89 test files) + 14 e2e tests (4 spec files). Three-layer persona architecture (Insight-153) complete. 32 process templates. Front door conversational experience live. **Meta-process robustness:** MP-1.1+MP-1.2+MP-1.3 complete (Brief 145 — template matching, post-creation activation, cycle heartbeat fix). MP-1.4-1.6 remaining.
 **Major reframe (ADR-010):** Roadmap restructured around workspace interaction model. Ditto is a living workspace where work evolves through governed meta-processes, not an automation platform. See ADR-010 for the full rationale.
 
 This is the complete capability map for Ditto. Every item traces back to the architecture spec, human-layer design, or landscape analysis. Status is tracked per item. Nothing is silently omitted — deferred items have explicit re-entry conditions.
+
+**Sub-roadmap:** [`docs/meta-process-roadmap.md`](meta-process-roadmap.md) — 10 meta processes (MP-1 through MP-10) that must be robust and tight for an excellent user journey. 44 work items across Goal Framing, Onboarding, Briefing, Feedback Loop, Trust Earning, Inbound Email, Exception Handling, Cycle Management, Process Editing, and Proactive Suggestions. Prioritised P0–P3 with dependency ordering. Read this when triaging next work.
 
 ---
 
@@ -317,6 +319,17 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Step-level `model_hint` in process definitions | done | ADR-017, ADR-014 | Vercel AI SDK alias pattern | `src/engine/model-routing.ts` (Brief 033) |
 | Model tracking on step runs (which model produced what) | done | ADR-014 Phase B1 | Vercel AI SDK `ai.response.model` | `src/db/schema.ts`, `src/engine/heartbeat.ts` (Brief 033) |
 | Self recommends optimal model routing from trust data | done | ADR-014, ADR-007 | Trust earning + RouteLLM economics | `src/engine/model-routing.ts` `generateModelRecommendations()` (Brief 033) |
+| **SLM Training Data Pipeline (Brief 135/136)** | | | | |
+| Training data type contracts (engine-generic) | done | Brief 136, Insight-175 | Original (trust system as training data flywheel) | `packages/core/src/learning/types.ts` |
+| Training data extraction from step_runs + feedback | done | Brief 136 | Stanford Alpaca (pattern) | `src/engine/training-data.ts` |
+| SLM readiness scoring (5 signals) | done | Brief 136 | Original | `src/engine/readiness-scorer.ts` |
+| Fine-tuning candidate detection in model recommendations | done | Brief 136 | RouteLLM economics + Insight-175 | `src/engine/model-routing.ts` |
+| `slm_training_exports` schema table | done | Brief 136 | Original | `src/db/schema.ts` |
+| SLM provider factory (`createSlmProvider`, Neurometric auto-load) | done | Brief 137 | Neurometric API, OpenAI-compatible (pattern) | `src/engine/llm.ts` |
+| SLM eval pipeline (deterministic holdout, classification+extraction comparison) | done | Brief 137 | EleutherAI lm-evaluation-harness (pattern) | `src/engine/eval-pipeline.ts` |
+| SLM deployment lifecycle (state machine, drift retirement, human-gated promotion) | done | Brief 137 | Original | `src/engine/slm-deployment.ts` |
+| Per-(process, step) routing override for promoted SLMs | done | Brief 137 | Original | `src/engine/model-routing.ts` `resolveProviderForStep()` |
+| `slm_deployments` schema table | done | Brief 137 | Original | `src/db/schema.ts` |
 
 ---
 
@@ -616,7 +629,7 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 ### Phase 14: Network Agent
 
 **Re-entry condition:** Phase 10 complete, Proactive Operating Layer designed
-**Status:** Engine code complete (Briefs 080-085). Process templates complete. Character bible + persona architecture complete. Front door + intake flow complete. **Web acquisition funnel complete (Briefs 093-095):** conversational front door, verify page, referred page, post-submission engagement. **Multi-provider purpose routing complete (Brief 096, ADR-026):** Anthropic + OpenAI + Google simultaneous loading, purpose-based model selection. Deployment briefs (086-089) designed and approved. **Integration tools complete (Brief 097):** CRM built-in tools, atomic send-and-record. **Pulse + chain execution complete (Brief 098a):** continuous operation loop, chain definitions, delayed runs, trust inheritance. **Inbound email + status composition complete (Brief 098b).** **Communication intelligence complete (Brief 099a/b/c).** **Referral footer complete (Brief 109):** two-sided acquisition loop end-to-end (Insight-155). **Admin oversight complete (Brief 108):** admin dashboard, pause/resume, feedback, act-as-Alex, downgrade notifications (Insight-160 implementation). **Workspace suggestion trigger complete (Brief 110):** automated detection of workspace readiness (3+ processes, 4+ sub-goals, keyword signals), woven into status email, 30-day cooldown (Insight-161). **Cognitive mode extensions complete (Brief 114):** mode-dependent judgment calibration for connecting/selling/nurturing/chief-of-staff (Insight-165). **Operating Cycle Archetype designed (Brief 115):** coarse judgment-driven cycles replace granular templates — split into sub-briefs 116 (shared infrastructure), 117 (cycle definitions), 118 (self-tools). All draft. Insights 166-169. Next: Brief 116 → 117 → 118, then Briefs 086-089 (Network Service deployment).
+**Status:** Engine code complete (Briefs 080-085). Process templates complete. Character bible + persona architecture complete. Front door + intake flow complete. **Web acquisition funnel complete (Briefs 093-095):** conversational front door, verify page, referred page, post-submission engagement. **Multi-provider purpose routing complete (Brief 096, ADR-026):** Anthropic + OpenAI + Google simultaneous loading, purpose-based model selection. Deployment briefs (086-089) designed and approved. **Integration tools complete (Brief 097):** CRM built-in tools, atomic send-and-record. **Pulse + chain execution complete (Brief 098a):** continuous operation loop, chain definitions, delayed runs, trust inheritance. **Inbound email + status composition complete (Brief 098b).** **Communication intelligence complete (Brief 099a/b/c).** **Referral footer complete (Brief 109):** two-sided acquisition loop end-to-end (Insight-155). **Admin oversight complete (Brief 108):** admin dashboard, pause/resume, feedback, act-as-Alex, downgrade notifications (Insight-160 implementation). **Workspace suggestion trigger complete (Brief 110):** automated detection of workspace readiness (3+ processes, 4+ sub-goals, keyword signals), woven into status email, 30-day cooldown (Insight-161). **Cognitive mode extensions complete (Brief 114):** mode-dependent judgment calibration for connecting/selling/nurturing/chief-of-staff (Insight-165). **Operating Cycle Archetype complete (Briefs 115-118):** coarse judgment-driven cycles, shared infrastructure, cycle definitions, self-tools — all complete. Insights 166-169. **Pricing strategy complete (Brief 119).** **Front door relationship lifecycle complete (Briefs 120-121):** process primitives (schedule, wait_for, gate, email_thread), magic links, ghost mode, email cancellation. **Ghost mode complete (Brief 124):** cognitive extension, voice model, eligibility validation via rules executor. **Journey edge cases complete (Brief 126):** AC19 (both-mode cancellation) + AC20 (trust inheritance in fireEvent) fixed. **Cognitive orchestration complete (Brief 127, ADR-027):** staged outbound tools pattern, partially superseded by operating cycles. **Model purpose resolver complete (Brief 128).** **Staged outbound tools complete (Brief 129).** **Thin process templates complete (Brief 130):** 4 templates refactored to cognitive steps per ADR-027. **Universal Work Loop Activation complete (Brief 071):** all 11 parent ACs, 6 sub-briefs complete. **Self Cognitive Orchestration complete (Brief 131, ADR-027):** `orchestrate_work` tool (Self spawns thin processes via `startSystemAgentRun`), `generate_chat_link` tool (email-to-chat escalation with pre-seeded sessions), cognitive mode orchestration sections. ADR-027 mechanism 3 fully implemented. **Deliberative perspectives complete (Brief 136, ADR-028):** parallel lens generation, peer review, synthesis handler. **Browser research skill complete (Brief 134):** Stagehand-based `browse_web` self-tool. **Front door content blocks complete (Brief 137, Insight-177):** BlockRenderer in front door conversation. **GTM cycle type complete (Brief 139):** `gtm-pipeline` as first-class cycle type with multi-plan concurrency, structured `gtmContext` input, perspectives on research steps, social delivery tools (Unipile DMs, X API, feed posts). Unlocks Brief 140 (Growth Composition Intent) and Brief 141 (Structured GATE + Posting Queue). **Outreach strategy layer complete (Brief 149, Insight-182):** plan-approve-execute pattern, volume governance (5→10→20), dual-surface outreach tables, htmlBlocks pipeline. Next: Briefs 086-089 (Network Service deployment).
 
 | Capability | Status | Source doc | Build from | Deliverable |
 |-----------|--------|-----------|------------|-------------|
@@ -699,6 +712,9 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | 25 templates reorganised as callable sub-processes | done | Brief 117 | Original | `processes/templates/` |
 | 5 cycle self-tools (activate, pause, resume, briefing, status) | done | Brief 118 | Self tool pattern | `src/engine/self-tools/cycle-tools.ts` |
 | Scheduler dual triggers + front door continuous framing | done | Brief 118 | Existing trigger.also type | `src/engine/scheduler.ts`, `src/engine/network-chat-prompt.ts` |
+| **Front Door Content Blocks (Brief 137)** | | | | |
+| Content block rendering in front door conversation | done | Brief 137, Insight-177 | `self-stream.ts` content-block pattern | `src/engine/network-chat-blocks.ts`, `chat-message.tsx` |
+| Bespoke plan card replaced with ProcessProposalBlock | done | Brief 137 | BlockRenderer (existing) | `packages/web/app/welcome/chat-message.tsx` |
 | **Outreach Visibility + Email Cancellation (Brief 125)** | | | | |
 | Full email body stored in interaction metadata | done | Brief 125 | Interaction metadata pattern (adopt) | `src/engine/channel.ts` |
 | Email-initiated cancellation (keyword detection + goal pause) | done | Brief 125 | `isOptOutSignal()` pattern (adopt) | `src/engine/inbound-email.ts` |
@@ -711,6 +727,68 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Auto-generated magic link footer in all outbound emails | done | Brief 123 | `sendAndRecord` pattern (adopt) | `src/engine/channel.ts` |
 | Rolling 30-day TTL for authenticated sessions | done | Brief 123 | Redis session pattern | `src/engine/network-chat.ts` |
 | Session revocation on opt-out | done | Brief 123 | `isOptOutSignal` pattern (adopt) | `src/engine/inbound-email.ts` |
+| **Workspace Magic-Link Auth (Brief 143)** | | | | |
+| Next.js middleware — session cookie check, redirect to `/login` | done | Brief 143 | Brief 123 pattern (adopt) | `packages/web/middleware.ts` |
+| Login page — email input, magic link request, "check your email" | done | Brief 143 | Brief 123 `/chat` auth UX (adopt) | `packages/web/app/login/page.tsx` |
+| Login auth callback — validate token, set HMAC-signed cookie | done | Brief 143 | `/chat/auth` auto-submit pattern (adopt) | `packages/web/app/login/auth/route.ts` |
+| Workspace session API (check + logout) | done | Brief 143 | Next.js cookies() API | `packages/web/app/api/v1/workspace/session/route.ts` |
+| Magic link request API — owner validation, AgentMail send | done | Brief 143 | Anti-enumeration pattern (Brief 123) | `packages/web/app/api/v1/workspace/request-link/route.ts` |
+| `createWorkspaceMagicLink()` — workspace-prefixed session IDs | done | Brief 143 | `createMagicLink()` (adopt) | `src/engine/magic-link.ts` |
+| **Pricing Strategy (Brief 119)** | | | | |
+| Pricing page with tiers, success fees, trust ladder, FAQ | done | Brief 119 | SaaS pricing patterns | `packages/web/app/pricing/page.tsx` |
+| **Front Door Relationship Lifecycle (Briefs 120-121)** | | | | |
+| Process primitive wiring (schedule, wait_for, gate, email_thread) | done | Brief 121 | Original | `packages/core/src/duration.ts`, `src/engine/heartbeat.ts` |
+| Front door relationship lifecycle (magic links, ghost mode, cancellation) | done | Brief 120 | Original | `src/engine/magic-link.ts`, `src/engine/channel.ts`, `src/engine/inbound-email.ts` |
+| **Model Purpose Resolver (Brief 128)** | | | | |
+| Model purpose resolver handler (9 resolution strategies) | done | Brief 128, ADR-027 | Original | `packages/core/src/harness/handlers/model-purpose-resolver.ts` |
+| **Staged Outbound Tools (Brief 129)** | | | | |
+| StagedOutboundAction type + per-draft quality gating | done | Brief 129, ADR-027 | Original | `packages/core/src/harness/harness.ts`, `packages/core/src/harness/handlers/outbound-quality-gate.ts` |
+| **Ghost Mode (Brief 124)** | | | | |
+| Ghost cognitive mode, voice model collection, identity-aware email, rules executor | done | Brief 124, Insight-166 | Lavender.ai (pattern), Superhuman (pattern) | `cognitive/modes/ghost.md`, `src/engine/rules-executor.ts`, `src/engine/channel.ts` |
+| **Journey Edge Cases (Brief 126)** | | | | |
+| P0 dead ends + P1 gaps closed, trust inheritance in fireEvent enforced | done | Brief 126 | Original | `src/engine/inbound-email.ts`, `src/engine/scheduler.ts`, `src/engine/network-chat.ts` |
+| **Universal Work Loop Activation (Brief 071)** | | | | |
+| 6 sub-briefs complete: block emission, interactive blocks, composition intents, orchestrator auto-wiring | done | Brief 071, Insights 132-136 | Paperclip.ai (pattern), ADR-010/015/021/024 | `src/engine/self-stream.ts`, `src/engine/surface-actions.ts`, `src/engine/composition-engine.ts` |
+| **Self Cognitive Orchestration (Brief 131)** | | | | |
+| `orchestrate_work` tool — Self spawns thin process templates with context via `startSystemAgentRun()` | done | Brief 131, ADR-027 | ADR-016 Self (adopt), ADR-020 adapt_process (adopt) | `src/engine/self-delegation.ts` |
+| `generate_chat_link` tool — email-to-chat escalation with pre-seeded sessions | done | Brief 131 | Intercom Resolution Bot (pattern) | `src/engine/self-delegation.ts`, `src/engine/magic-link.ts` |
+| Cognitive mode orchestration sections (connecting, selling, chief-of-staff) | done | Brief 131, ADR-027 | Existing mode files (adopt) | `cognitive/modes/*.md` |
+| **Deliberative Perspectives (Brief 136)** | | | | |
+| Perspectives handler — parallel lens generation, peer review, synthesis | done | Brief 136, ADR-028 | Karpathy llm-council (pattern), Self-MoA (pattern) | `src/engine/harness-handlers/deliberative-perspectives.ts`, `src/engine/harness-handlers/lens-composer.ts`, `src/engine/harness-handlers/peer-review.ts` |
+| **Browser Research Skill (Brief 134)** | | | | |
+| `browse_web` self-tool — Stagehand-based READ-only web research + data extraction | done | Brief 134, research/linkedin-ghost-mode-and-browser-automation.md | Stagehand (adopt), Playwright (depend) | `src/engine/self-tools/browser-tools.ts`, `src/engine/self-delegation.ts`, `src/engine/tool-resolver.ts` |
+| **Web Search + Fetch Tools** | | | | |
+| `web-search` and `web-fetch` as built-in tools in tool-resolver | done | merge commit | Tavily (depend) | `src/engine/tool-resolver.ts` |
+| **GTM Cycle Type + Structured Inputs (Brief 139)** | | | | |
+| `gtm-pipeline` as first-class cycle type with multi-plan concurrency | done | Brief 139, Brief 138 | Existing cycle-tools pattern (adopt) | `src/engine/self-tools/cycle-tools.ts` |
+| `GtmContext` structured input with `planName` disambiguation | done | Brief 139 | Original | `src/engine/self-tools/cycle-tools.ts`, `src/engine/self-delegation.ts` |
+| Deliberative perspectives on GTM YAML steps (sense, assess) | done | Brief 139, Brief 136 | `deliberative-perspectives.ts` handler (adopt) | `processes/templates/gtm-pipeline.yaml`, `processes/cycles/gtm-pipeline.yaml` |
+| Social delivery tools (Unipile DMs, X API, feed posts) in YAML | done | Brief 139, Brief 133 | UnipileAdapter (adopt) | `processes/templates/gtm-pipeline.yaml`, `processes/cycles/gtm-pipeline.yaml` |
+| **Growth Composition Intent (Brief 140)** | | | | |
+| `"growth"` composition intent + `composeGrowth()` function | done | Brief 140, ADR-024 | Existing composition pattern (adopt) | `packages/web/lib/compositions/growth.ts`, `packages/web/lib/compositions/types.ts` |
+| `GrowthPlanSummary` type + lazy fetch from `/api/growth` | done | Brief 140 | Roadmap lazy-fetch pattern (adopt) | `packages/web/lib/composition-context.ts`, `packages/web/app/api/growth/route.ts` |
+| Growth sidebar nav item (trending-up icon) | done | Brief 140 | Existing sidebar pattern (adopt) | `packages/web/components/layout/sidebar.tsx` |
+| `getGrowthPlans()` server-side query (GTM pipeline runs) | done | Brief 140 | `getActiveRuns()` pattern (adopt) | `src/engine/process-data.ts` |
+| **Structured GATE Review + Automated Content Publishing (Brief 141)** | | | | |
+| Structured GTM GATE review cards (experiment markdown by track) | done | Brief 141 | Feed assembler pattern (adopt) | `src/engine/feed-assembler.ts` |
+| `publishPost()` — LinkedIn via Unipile Posts API | done | Brief 141, ADR-029 | Unipile SDK `users.createPost()` (depend) | `src/engine/channel.ts` |
+| `publishPost()` — X via API v2 (tweets + threads) | done | Brief 141, ADR-029 | X API v2 direct fetch (depend) | `src/engine/channel.ts` |
+| `XApiClient` — OAuth 1.0a signing, thread posting, partial failure | done | Brief 141, ADR-029 | X API v2 docs (depend) | `src/engine/channel.ts` |
+| `asset.generate.{type}` surface action → suggestion block | done | Brief 141 | Surface action pattern (adopt) | `src/engine/surface-actions.ts` |
+| Published content with `content` field in growth API | done | Brief 141 | Growth API pattern (adopt) | `src/engine/process-data.ts` |
+| **Outreach Strategy Layer (Brief 149)** | | | | |
+| Outreach strategy sub-process (plan-approve-execute) | done | Brief 149, Insight-182 | connecting-research.yaml human step (pattern) | `processes/templates/outreach-strategy.yaml` |
+| Volume governance (5→10→20 ladder, cycleConfig) | done | Brief 149, Insight-179 | SaaS trial-to-paid (pattern) | `src/engine/self-tools/cycle-tools.ts` |
+| Dual-surface outreach table (HTML email + InteractiveTableBlock) | done | Brief 149 | Stripe/Linear digest emails (pattern) | `src/engine/outreach-table.ts` |
+| htmlBlocks pipeline (notifyUser→sendAndRecord→adapter) | done | Brief 149 | Original | `src/engine/channel.ts`, `src/engine/notify-user.ts` |
+| Sales cycle strategy step between ASSESS and ACT | done | Brief 149 | Operating cycle archetype (Insight-168) | `processes/cycles/sales-marketing.yaml` |
+| **Outreach Deliberation Infrastructure (Brief 151)** | | | | |
+| Outreach dedup safety net (per-run + per-person daily cap) | done | Brief 151, Insight-184 | `hasInteractionSince` pattern (adopt) | `src/engine/channel.ts`, `src/engine/people.ts` |
+| Cycle auto-restart context injection (recentOutreach) | done | Brief 151 | Original | `src/engine/heartbeat.ts` |
+| `dispatchStagedAction` wiring (staged→send pipeline) | done | Brief 151 | `@ditto/core` outbound-quality-gate (adopt) | `src/engine/heartbeat.ts` |
+| Status email per-person aggregation | done | Brief 151 | `outreach-table.ts` grouping (pattern) | `src/engine/status-composer.ts` |
+| Relationship pulse time gate 24h→4h | done | Brief 151 | Original | `src/engine/relationship-pulse.ts` |
+| `stepRunId` threading through tool-resolver | done | Brief 151, Insight-180 | Step-run guard pattern | `src/engine/tool-resolver.ts` |
 | **Network Service Deployment (Briefs 086-089)** | | | | |
 | Brief 086: Network Service deployment (Railway — was Fly.io, needs brief update) | not started | ADR-025, Brief 086 | Railway patterns | — |
 | Brief 088: Network API + Auth | not started | ADR-025, Brief 088 | Standard REST API | — |

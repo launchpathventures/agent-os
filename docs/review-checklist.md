@@ -87,3 +87,23 @@ Do the ADRs and architecture.md sections referenced by this work still accuratel
 - Are referenced ADRs still consistent with what was built/designed?
 - If the work changes architectural scope, was architecture.md updated?
 - FLAG any stale reference docs — even if the producing role didn't catch them
+
+### 13. Side-Effect Invocation Guards (Insight-180)
+Do new functions that produce external side effects require proof of harness context?
+- Any new function that calls external APIs (social publishing, payments, webhooks, email sends) MUST require a `stepRunId` parameter
+- The guard must reject calls without `stepRunId` (except in `DITTO_TEST_MODE`)
+- FLAG any side-effecting function that is callable without step execution context
+- This ensures all external mutations traverse the harness pipeline (trust gates, outbound-quality-gate, audit logging)
+
+### 14. Delegation Guidance Branch Parity (Insight-183)
+When changes touch the Self's delegation guidance in `self.ts`, are all three branches updated?
+- **New user** branch (full ~800 tokens) — the verbose version
+- **Established user** branch (compact ~150 tokens) — must include a compressed equivalent
+- **Inbound** branch (async email/voice) — update if the instruction applies to async flows; skip if UI-only
+- FLAG if a behavioral instruction appears in one branch but not the others where it's relevant
+
+### 15. Landscape Coverage
+Do all external dependencies referenced by this work have evaluations in `docs/landscape.md`?
+- Any new external API, SDK, or service used in the implementation must have a landscape entry
+- FLAG if an external dependency was introduced without a landscape evaluation
+- The Researcher or Architect should have written the evaluation during design — if the Documenter has to add it, that's a process gap

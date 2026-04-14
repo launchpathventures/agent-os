@@ -298,8 +298,8 @@ describe("loadSessionTurns", () => {
 // ============================================================
 
 describe("selfTools", () => {
-  it("defines all delegation, consultation, planning, workspace, proactive, onboarding, confidence, and knowledge tools", () => {
-    expect(selfTools).toHaveLength(26);
+  it("defines all delegation, consultation, planning, workspace, proactive, onboarding, confidence, knowledge, orchestration, and browser tools", () => {
+    expect(selfTools).toHaveLength(29);
     const names = selfTools.map((t) => t.name);
     // Original 5
     expect(names).toContain("start_dev_role");
@@ -429,10 +429,10 @@ describe("assembleSelfContext", () => {
     expect(context.sessionId).toBeTruthy();
   });
 
-  it("fits within ~7K token budget", async () => {
+  it("fits within ~9K token budget", async () => {
     const context = await assembleSelfContext("creator", "telegram");
-    // 7K tokens * 4 chars/token = 28K chars
-    expect(context.systemPrompt.length).toBeLessThanOrEqual(28000);
+    // 9K tokens * 4 chars/token = 36K chars
+    expect(context.systemPrompt.length).toBeLessThanOrEqual(36000);
   });
 });
 
@@ -441,8 +441,8 @@ describe("assembleSelfContext", () => {
 // ============================================================
 
 describe("consult_role tool definition", () => {
-  it("selfTools contains 26 tools including consult_role and plan_with_role", () => {
-    expect(selfTools).toHaveLength(26);
+  it("selfTools contains 29 tools including consult_role and plan_with_role", () => {
+    expect(selfTools).toHaveLength(29);
     const names = selfTools.map((t) => t.name);
     expect(names).toContain("consult_role");
     expect(names).toContain("plan_with_role");

@@ -16,12 +16,16 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, FileText, X } from "lucide-react";
 import { ChatMessage } from "./chat-message";
 import { QuickReplyPills } from "./quick-reply-pills";
 import { TypingIndicator } from "./typing-indicator";
 import { ValueCards } from "./value-cards";
 import { TrustRow } from "./trust-row";
+import type { ContentBlock } from "@/lib/engine";
+import { LearnedContext, LearnedContextCompact } from "./learned-context";
+import { VoiceCall, type VoiceCallHandle } from "./voice-call";
+import { ConversationProvider } from "@elevenlabs/react";
 
 // ============================================================
 // Types
@@ -30,17 +34,20 @@ import { TrustRow } from "./trust-row";
 interface Message {
   role: "alex" | "user";
   text: string;
+  blocks?: ContentBlock[];
 }
 
 const INTRO_MESSAGES: Message[] = [
   { role: "alex", text: "Hey, I\u2019m Alex." },
-  { role: "alex", text: "I\u2019m an AI advisor \u2014 I help people get unstuck, stay on top of things, and find the right opportunities. What are you working on?" },
+  { role: "alex", text: "Tell me what you do and I\u2019ll get to work \u2014 finding clients, making introductions, running your operations, or all three. You approve everything until you trust me." },
 ];
 
 const FRONT_DOOR_PILLS = [
-  "I\u2019m drowning in priorities",
-  "I need to find the right people",
-  "I\u2019m stuck on a problem",
+  "I run a small business",
+  "I\u2019m in sales",
+  "I\u2019m a consultant",
+  "I manage a team",
+  "I\u2019m an entrepreneur",
 ];
 
 const SESSION_KEY = "ditto-chat-session";
@@ -52,18 +59,37 @@ const EMAIL_KEY = "ditto-email-captured";
 
 export function DittoConversation() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [introCount, setIntroCount] = useState(0);
+  const [introCount, setIntroCount] = useState(1);
   const [showIntro, setShowIntro] = useState(true);
+  // Preamble: pain-point lines before Alex intro
+  // 0=cursor+dots, 1=line1, 2=line2, 3=line3, 4=fading out, 5=done (show Alex)
+  const [preamble, setPreamble] = useState(0);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // LLM-controlled flags
+  const [requestName, setRequestName] = useState(false);
+  const [requestLocation, setRequestLocation] = useState(false);
+  const [location, setLocation] = useState("");
   const [requestEmail, setRequestEmail] = useState(false);
   const [emailCaptured, setEmailCaptured] = useState(false);
   const [done, setDone] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [detectedMode, setDetectedMode] = useState<"connector" | "sales" | "cos" | "both" | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [learned, setLearned] = useState<Record<string, string | null> | null>(null);
+  // Multi-question structured input
+  const [extraQuestions, setExtraQuestions] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<number, string>>({});
+  // Brief 142b: Voice call state — persistent CTA once name is known
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [voiceToken, setVoiceToken] = useState<string | null>(null);
+  const [callActive, setCallActive] = useState(false);
+
+  // Email verification flow
+  const [verifyStep, setVerifyStep] = useState<"email" | "code" | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyError, setVerifyError] = useState("");
 
   // Error state
   const [errorFallback, setErrorFallback] = useState(false);
@@ -73,7 +99,14 @@ export function DittoConversation() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
+  const voiceCallRef = useRef<VoiceCallHandle>(null);
+  // Long text pasted into the input — shown as an attachment chip
+  const [pastedText, setPastedText] = useState<string | null>(null);
+
+  // Line count threshold for collapsing into an attachment
+  const MAX_VISIBLE_LINES = 5;
 
   // Turnstile bot verification
   const turnstileRef = useRef<HTMLDivElement>(null);
@@ -146,7 +179,7 @@ export function DittoConversation() {
           if (savedSession) setSessionId(savedSession);
           setMessages([
             { role: "alex", text: "Hey again." },
-            { role: "alex", text: "Check your inbox \u2014 that\u2019s where I work. Need anything else? I\u2019m here." },
+            { role: "alex", text: "I\u2019m still working for you \u2014 check your inbox for anything that needs your sign-off. Want to change anything?" },
           ]);
           return;
         }
@@ -164,7 +197,7 @@ export function DittoConversation() {
           if (savedSession) setSessionId(savedSession);
           setMessages([
             { role: "alex", text: "Hey again." },
-            { role: "alex", text: "Check your inbox \u2014 that\u2019s where I work. Need anything else? I\u2019m here." },
+            { role: "alex", text: "I\u2019m still working for you \u2014 check your inbox for anything that needs your sign-off. Want to change anything?" },
           ]);
           return;
         }
@@ -174,35 +207,92 @@ export function DittoConversation() {
       });
   }, []);
 
-  // Stagger intro messages
+  // Staged intro: preamble pain points → Alex intro → input
+  // Preamble: 0→1→2→3 (lines fade in) → 4 (fade out) → 5 (done, show Alex)
+  // Then introCount: 1=title → 2=body → 3=input+pills+cards
   useEffect(() => {
     if (!showIntro) return;
     const timers = [
-      setTimeout(() => setIntroCount(1), 0),
-      setTimeout(() => setIntroCount(2), 1200),
-      setTimeout(() => {
-        setMessages(INTRO_MESSAGES);
-        setShowIntro(false);
-      }, 2800),
+      setTimeout(() => setPreamble(1), 1600),       // "AI can do more for you and your business than it currently does."
+      setTimeout(() => setPreamble(2), 5200),       // "You know it. You just don't have time to figure it out."
+      setTimeout(() => setPreamble(3), 8000),       // "What if AI just worked?"
+      setTimeout(() => setPreamble(4), 11400),      // Fade out all
+      setTimeout(() => setPreamble(5), 12200),      // Show Alex
+      setTimeout(() => setIntroCount(2), 13000),    // Body text
+      setTimeout(() => setIntroCount(3), 14200),    // Input appears
     ];
     return () => timers.forEach(clearTimeout);
   }, [showIntro]);
 
-  // Scroll to bottom on new messages — scroll the messages container, not the page
+  // Scroll behaviour: keep messages scrolled to bottom.
+  // The messages live in an overflow-y-auto container; we scroll THAT container,
+  // not the page. This is the standard chat pattern (AI SDK, ChatGPT, etc.).
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const container = messagesContainerRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      // Find the last message element and scroll it to the top of the viewport
+      // so the user sees the start of the new message, not the end.
+      const messageEls = container.querySelectorAll("[data-message]");
+      const lastMsg = messageEls[messageEls.length - 1];
+      if (lastMsg) {
+        lastMsg.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
   }, [messages, loading, statusMessage]);
 
-  // Focus input when state changes
+  // Focus input when state changes — use preventScroll to avoid
+  // jumping the viewport to the input and cutting off Alex's response.
   useEffect(() => {
     if (!showIntro && !done) {
-      inputRef.current?.focus();
+      // Focus textarea (chat) or input (email/code) depending on what's visible
+      if (requestEmail) {
+        inputRef.current?.focus({ preventScroll: true });
+      } else {
+        textareaRef.current?.focus({ preventScroll: true });
+      }
     }
   }, [showIntro, done, requestEmail, loading]);
+
+  // ============================================================
+  // Voice call: poll for live session updates (learned context + safety-net guidance)
+  // ============================================================
+  // Primary guidance delivery is now in voice-call.tsx (client tool + eager pre-computation).
+  // This poll is a safety net: updates the UI learned-context card and pushes guidance
+  // via sendContextualUpdate as reinforcement (no dedup — always send, even if unchanged).
+
+  // Fetch learned context + push guidance as safety-net reinforcement
+  const pushGuidance = useCallback(async () => {
+    if (!sessionId || !voiceToken || !voiceCallRef.current) return;
+    try {
+      const res = await fetch(
+        `/api/v1/network/chat/session-updates?sessionId=${sessionId}&voiceToken=${voiceToken}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.learned) setLearned(data.learned);
+
+      // Always send guidance (no dedup) — the agent may have ignored it last time
+      if (data.guidance) {
+        voiceCallRef.current.sendContextualUpdate(
+          `SYSTEM INSTRUCTION: ${data.guidance}`,
+        );
+      }
+    } catch { /* non-fatal */ }
+  }, [sessionId, voiceToken]);
+
+  // Safety-net poll: 10s interval (primary delivery is eager pre-computation in voice-call.tsx)
+  useEffect(() => {
+    if (!callActive || !sessionId || !voiceToken) return;
+    const interval = setInterval(pushGuidance, 10000);
+    return () => clearInterval(interval);
+  }, [callActive, sessionId, voiceToken, pushGuidance]);
 
   // ============================================================
   // Chat API — single function, LLM controls the flow
@@ -215,6 +305,29 @@ export function DittoConversation() {
     const userMsg: Message = { role: "user", text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+
+    // During a voice call: send text directly to the ElevenLabs agent.
+    // URLs go as contextual updates (no response triggered — agent picks it up naturally).
+    // Other text goes as user messages (triggers agent response).
+    if (callActive && voiceCallRef.current) {
+      const isUrl = /^https?:\/\//.test(text.trim());
+      if (isUrl) {
+        voiceCallRef.current.sendContextualUpdate(`The user shared a link: ${text}`);
+      } else {
+        voiceCallRef.current.sendUserMessage(text);
+      }
+      // Also save to session for persistence
+      if (sessionId && voiceToken) {
+        fetch(`/api/v1/network/chat/session-updates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, voiceToken, message: text }),
+        }).catch(() => {});
+      }
+      sendingRef.current = false;
+      return;
+    }
+
     setLoading(true);
     setStatusMessage(null);
 
@@ -288,6 +401,7 @@ export function DittoConversation() {
               setStatusMessage(event.message);
             }
 
+
             if (event.type === "text-replace") {
               // Enrichment produced a refined response — replace the message
               setStatusMessage(null);
@@ -324,6 +438,22 @@ export function DittoConversation() {
               }
             }
 
+            // Brief 137: content blocks arrive atomically after text, before metadata
+            if (event.type === "content-block" && event.block) {
+              setMessages((prev) => {
+                if (prev.length === 0) return prev;
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last.role === "alex") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    blocks: [...(last.blocks || []), event.block],
+                  };
+                }
+                return updated;
+              });
+            }
+
             if (event.type === "metadata") {
               setSuggestions(Array.isArray(event.suggestions) ? event.suggestions : []);
               if (event.detectedMode) setDetectedMode(event.detectedMode);
@@ -331,9 +461,46 @@ export function DittoConversation() {
                 setEmailCaptured(true);
                 if (!testMode) localStorage.setItem(EMAIL_KEY, text);
                 setRequestEmail(false);
+                setRequestName(false);
               }
-              if (event.requestEmail) setRequestEmail(true);
+              if (event.requestName && !name) {
+                setRequestName(true);
+              }
+              // Clear requestName once we have a name from learned context
+              if (event.learned?.name && requestName) {
+                setRequestName(false);
+              }
+              if (event.requestLocation && !location) {
+                setRequestLocation(true);
+              }
+              if (event.learned?.location && requestLocation) {
+                setRequestLocation(false);
+              }
+              if (event.requestEmail && !emailCaptured) {
+                setRequestEmail(true);
+                if (!verifyStep) setVerifyStep("email");
+              }
+              // Defensive: ensure requestEmail is always false once email is captured
+              if (emailCaptured) {
+                setRequestEmail(false);
+              }
               if (event.done) setDone(true);
+              if (event.learned) {
+                setLearned((prev) => ({
+                  ...prev,
+                  ...event.learned,
+                }));
+              }
+              // Multi-question structured input
+              if (event.extraQuestions?.length > 0) {
+                setExtraQuestions(event.extraQuestions);
+                setQuestionAnswers({});
+              }
+              // Brief 142b: Voice — persistent CTA (ElevenLabs)
+              if (event.voiceReady && event.voiceToken) {
+                setVoiceReady(true);
+                setVoiceToken(event.voiceToken);
+              }
             }
 
             if (event.type === "error") {
@@ -355,6 +522,7 @@ export function DittoConversation() {
         setLoading(false);
       }
       setStatusMessage(null);
+
       sendingRef.current = false;
     } catch {
       setErrorFallback(true);
@@ -367,15 +535,137 @@ export function DittoConversation() {
       ]);
       setLoading(false);
       setStatusMessage(null);
+
       sendingRef.current = false;
     }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    sendMessage(trimmed);
+    const message = pastedText ? pastedText : input.trim();
+    if (!message) return;
+    setPastedText(null);
+    setInput("");
+    // Reset textarea to single line
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+    sendMessage(message);
+  }
+
+  function handleNameSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    setRequestName(false);
+    sendMessage(trimmedName);
+  }
+
+  function handleLocationSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedLocation = location.trim();
+    if (!trimmedLocation) return;
+    setRequestLocation(false);
+    sendMessage(trimmedLocation);
+  }
+
+  function handleExtraQuestionsSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    // Combine answers into a natural message
+    const parts: string[] = [];
+    extraQuestions.forEach((_, i) => {
+      const answer = questionAnswers[i]?.trim();
+      if (answer) parts.push(answer);
+    });
+    if (parts.length === 0) return;
+    setExtraQuestions([]);
+    setQuestionAnswers({});
+    sendMessage(parts.join(". "));
+  }
+
+  /** Auto-resize textarea and detect overflow into attachment mode */
+  function handleTextareaChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value;
+    const lineCount = value.split("\n").length;
+
+    if (lineCount > MAX_VISIBLE_LINES) {
+      // Collapse into attachment chip
+      setPastedText(value);
+      setInput("");
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+    } else {
+      setInput(value);
+      // Auto-resize textarea
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      }
+    }
+  }
+
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  }
+
+  async function handleEmailVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setVerifyError("");
+    try {
+      const res = await fetch("/api/v1/network/chat/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send",
+          sessionId,
+          email,
+          visitorName: name || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setVerifyError(data.error || "Could not send code. Try again.");
+        return;
+      }
+      setVerifyStep("code");
+    } catch {
+      setVerifyError("Something went wrong. Please try again.");
+    }
+  }
+
+  async function handleCodeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!verifyCode.trim()) return;
+    setVerifyError("");
+    try {
+      const res = await fetch("/api/v1/network/chat/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "validate",
+          sessionId,
+          email,
+          code: verifyCode.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        // Verified — send name + email as a natural message so Alex picks up
+        setVerifyStep(null);
+        setVerifyCode("");
+        sendMessage(email);
+      } else {
+        setVerifyError(data.error || "Incorrect code.");
+      }
+    } catch {
+      setVerifyError("Something went wrong. Please try again.");
+    }
   }
 
   async function handleErrorEmailSubmit(e: React.FormEvent) {
@@ -401,20 +691,21 @@ export function DittoConversation() {
   // Derived state
   // ============================================================
 
-  const showInput = !showIntro && !done && !errorFallback;
-  const showInitialPills = showInput && messages.length <= 2 && !requestEmail && !loading;
-  const showSuggestions = showInput && !loading && suggestions.length > 0 && !requestEmail;
+  const showInput = !showIntro && !errorFallback;
+  const showInitialPills = showInput && !done && messages.length <= 2 && !requestEmail && !loading;
+  const showSuggestions = showInput && !done && !loading && suggestions.length > 0 && !requestEmail;
 
   // ============================================================
   // Render
   // ============================================================
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <ConversationProvider>
+    <div className="flex h-screen flex-col overflow-hidden bg-white">
       {/* Turnstile invisible widget container */}
       <div ref={turnstileRef} style={{ display: "none" }} />
       {/* Minimal nav */}
-      <nav className="flex items-center justify-between px-6 py-5 md:px-10">
+      <nav className="shrink-0 z-20 flex items-center justify-between bg-white px-6 py-5 md:px-10">
         <Link href="/" className="text-xl font-bold text-vivid">
           ditto
         </Link>
@@ -434,38 +725,138 @@ export function DittoConversation() {
         </div>
       </nav>
 
-      {/* Conversation area — flex column, messages scroll, input anchored on mobile */}
-      <main className="flex flex-1 flex-col overflow-hidden px-4 md:px-10">
-        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col overflow-hidden py-8 md:justify-center md:py-0">
-          {/* Intro phase — staggered messages */}
+      {/* Three-column layout: 25% blank | 50% chat | 25% context cards */}
+      <main className="flex min-h-0 flex-1 px-4 md:px-0">
+        {/* Left spacer — blank on desktop */}
+        <div className="hidden md:block md:w-1/4" />
+
+        {/* Center chat column — 50% on desktop, full width on mobile */}
+        <div className="flex min-h-0 w-full flex-1 flex-col py-4 md:w-1/2 md:flex-none md:py-0">
+          {/* Intro phase — preamble pain points → Alex intro */}
           {showIntro && (
-            <div className="space-y-5 md:space-y-6">
-              {introCount >= 1 && (
-                <p className="animate-fade-in text-3xl font-bold tracking-tight text-text-primary md:text-5xl md:leading-[1.1]">
-                  {INTRO_MESSAGES[0].text}
-                </p>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hidden">
+              {/* Blinking cursor + thinking dots before preamble */}
+              {preamble === 0 && (
+                <div className="flex flex-1 flex-col justify-center">
+                  <div className="flex items-end gap-3">
+                    <span className="inline-block h-8 w-[3px] animate-cursor-blink bg-text-primary md:h-10" />
+                    <div className="flex items-end gap-1.5 pb-1">
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-vivid animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
               )}
-              {introCount >= 2 && (
-                <p className="animate-fade-in text-2xl font-semibold tracking-tight text-text-primary md:text-4xl md:leading-[1.15]">
-                  {INTRO_MESSAGES[1].text}
-                </p>
+
+              {/* Preamble — pain point lines that fade in then out */}
+              {preamble >= 1 && preamble <= 4 && (
+                <div className={`flex flex-1 flex-col justify-center space-y-4 md:space-y-5 ${preamble === 4 ? "animate-fade-out" : ""}`}>
+                  {preamble >= 1 && (
+                    <p className="animate-reveal-ltr text-xl font-medium text-text-muted md:text-2xl">
+                      AI can do <strong className="font-semibold text-text-primary">more for you and your business</strong> than it currently does.
+                    </p>
+                  )}
+                  {preamble >= 2 && (
+                    <p className="animate-reveal-ltr text-xl font-medium text-text-muted md:text-2xl">
+                      You know it. You just don&apos;t have <strong className="font-semibold text-text-primary">time to figure it out</strong>.
+                    </p>
+                  )}
+                  {preamble >= 3 && (
+                    <p className="animate-reveal-ltr text-xl font-semibold text-text-primary md:text-2xl">
+                      What if AI <strong className="font-bold">just worked</strong>?
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Alex intro — appears after preamble exits */}
+              {preamble >= 5 && (
+                <>
+                  <div className="flex-1 space-y-5 md:space-y-6">
+                    {introCount >= 1 && (
+                      <p className="animate-fade-in-slow text-2xl font-bold tracking-tight text-text-primary md:text-3xl md:leading-[1.15]">
+                        {INTRO_MESSAGES[0].text}
+                      </p>
+                    )}
+                    {introCount === 1 && (
+                      <TypingIndicator />
+                    )}
+                    {introCount >= 2 && (
+                      <p className="animate-fade-in-slow text-xl font-semibold tracking-tight text-text-primary md:text-2xl md:leading-[1.2]">
+                        {INTRO_MESSAGES[1].text}
+                      </p>
+                    )}
+                  </div>
+                  {introCount >= 3 && (
+                    <div className="animate-fade-in-slow shrink-0 space-y-3 pb-4 pt-3">
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const trimmed = input.trim();
+                        if (!trimmed) return;
+                        setMessages(INTRO_MESSAGES);
+                        setShowIntro(false);
+                        setTimeout(() => sendMessage(trimmed), 50);
+                      }} className="flex gap-2">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          placeholder="I'm a mortgage broker in Sydney..."
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          className="flex-1 rounded-2xl border-2 border-border bg-white px-5 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!input.trim()}
+                          aria-label="Send message"
+                          className="inline-flex items-center rounded-2xl bg-vivid px-4 py-3 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                        >
+                          <ArrowRight size={18} />
+                        </button>
+                      </form>
+                      <QuickReplyPills
+                        pills={FRONT_DOOR_PILLS}
+                        onSelect={(pill) => {
+                          setMessages(INTRO_MESSAGES);
+                          setShowIntro(false);
+                          setTimeout(() => sendMessage(pill), 50);
+                        }}
+                        disabled={false}
+                      />
+                    </div>
+                  )}
+                  {introCount >= 3 && (
+                    <div className="animate-fade-in-slow space-y-10 pb-16 pt-8">
+                      <ValueCards />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {/* Conversation — messages scroll, input stays anchored */}
+          {/* Conversation — flex column: scrollable messages + fixed input at bottom */}
           {!showIntro && (
-            <div className="flex flex-1 flex-col overflow-hidden">
-              {/* Scrollable messages area */}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* Mobile sticky memory bar — appears after a few exchanges */}
+              {learned && messages.length >= 4 && (
+                <div className="shrink-0 pb-2 md:hidden">
+                  <LearnedContextCompact learned={learned} />
+                </div>
+              )}
+
+              {/* Scrollable messages area — this is the scroll container */}
               <div
                 ref={messagesContainerRef}
-                className="flex-1 space-y-4 overflow-y-auto pb-4"
+                className="min-h-0 flex-1 overflow-y-auto scrollbar-hidden space-y-5 pb-4"
               >
                 {messages.map((msg, i) => (
+                  <div key={i} data-message data-role={msg.role}>
                   <ChatMessage
-                    key={i}
                     role={msg.role}
                     text={msg.text}
+                    blocks={msg.blocks}
                     animate={i >= messages.length - 2}
                     variant={
                       msg.role === "alex" && i === 0
@@ -474,36 +865,31 @@ export function DittoConversation() {
                           ? "hero-secondary"
                           : "body"
                     }
+                    onAction={(actionId) => {
+                      if (actionId === "proposal-approve") {
+                        sendMessage("Looks good — let's try it");
+                      } else if (actionId === "proposal-adjust") {
+                        sendMessage("I'd like to change something");
+                      }
+                    }}
                   />
+                  </div>
                 ))}
                 {(loading || statusMessage) && <TypingIndicator status={statusMessage} />}
                 <div ref={messagesEndRef} />
 
-                {/* Timeline — shown after conversation is complete (scrolls with messages) */}
-                {done && emailCaptured && (
+                {/* Timeline — shown after conversation is complete, but not while a proposal is pending */}
+                {done && emailCaptured && !messages.some((m) => m.blocks?.some((b) => b.type === "process_proposal")) && (
                   <div className="mt-6 animate-fade-in rounded-xl border border-border bg-white p-6">
                     <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">
                       What happens next
                     </p>
                     <div className="space-y-4">
-                      {(detectedMode === "cos"
-                        ? [
-                            "Full plan landing in your inbox now",
-                            "First weekly briefing by Monday",
-                            "Reply anytime to update Alex",
-                          ]
-                        : detectedMode === "sales"
-                          ? [
-                              "Full outreach plan landing in your inbox now",
-                              "Alex reaches out as your company, using your tone",
-                              "You get a report on every outreach",
-                            ]
-                          : [
-                              "Full plan landing in your inbox now",
-                              "Alex reaches out using his own credibility",
-                              "You get a report on who was contacted",
-                            ]
-                      ).map((step, i) => (
+                      {[
+                        "Check your inbox \u2014 Alex is already getting started",
+                        "You\u2019ll hear from Alex a few times a week with updates and things that need your sign-off",
+                        "Want more? Set up a workspace to see everything Alex is doing and manage it yourself",
+                      ].map((step, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-vivid-subtle text-xs font-semibold text-vivid">
                             {i + 1}
@@ -513,114 +899,318 @@ export function DittoConversation() {
                       ))}
                     </div>
                     <p className="mt-4 text-sm text-text-muted">
-                      You set the tone. Alex handles the rest.
+                      Nothing goes out without your approval.
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Input — anchored at bottom, never scrolls away */}
-              {showInput && !loading && !statusMessage && !requestEmail && (
-                <div className="shrink-0 space-y-3 animate-fade-in bg-white pb-4 pt-3">
-                  <form onSubmit={handleSubmit} className="flex gap-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      placeholder="Ask me anything, or tell me what you need"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      className="flex-1 rounded-2xl border-2 border-border bg-white px-5 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!input.trim()}
-                      aria-label="Send message"
-                      className="inline-flex items-center rounded-2xl bg-vivid px-4 py-3 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-                    >
-                      <ArrowRight size={18} />
-                    </button>
-                  </form>
-                  {showInitialPills && (
-                    <QuickReplyPills
-                      pills={FRONT_DOOR_PILLS}
-                      onSelect={(pill) => sendMessage(pill)}
-                      disabled={loading}
-                    />
-                  )}
-                  {showSuggestions && (
-                    <QuickReplyPills
-                      pills={suggestions}
-                      onSelect={(pill) => { setSuggestions([]); sendMessage(pill); }}
-                      disabled={loading}
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Email + name card — shown when Alex is ready to start working */}
-              {showInput && !loading && !statusMessage && requestEmail && (
-                <div className="shrink-0 animate-fade-in bg-white pb-4 pt-3">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!email) return;
-                      sendMessage(email);
-                    }}
-                    className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-3"
-                  >
-                    <input
-                      type="text"
-                      placeholder="Your name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-xl border-2 border-border bg-white px-4 py-2.5 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
-                    />
+              {/* Name collection card — styled input, Alex's text provides the conversational context */}
+              {showInput && requestName && !requestEmail && (
+                <div className="shrink-0 bg-white pb-4 pt-3">
+                  <form onSubmit={handleNameSubmit} className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-3">
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
-                        type="email"
+                        type="text"
                         required
-                        placeholder="you@company.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="First name is fine"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleNameSubmit(e); } }}
                         className="flex-1 rounded-xl border-2 border-border bg-white px-4 py-2.5 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
                       />
                       <button
                         type="submit"
-                        disabled={!email.trim()}
-                        aria-label="Get started"
+                        disabled={!name.trim()}
+                        aria-label="Submit name"
                         className="inline-flex items-center gap-1.5 rounded-xl bg-vivid px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
                       >
                         Go <ArrowRight size={16} />
                       </button>
                     </div>
-                    <p className="text-xs text-text-muted">
-                      Or keep chatting — just type below instead.
-                    </p>
                   </form>
-                  <form onSubmit={handleSubmit} className="mt-2 flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Or ask another question..."
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      className="flex-1 rounded-2xl border-2 border-border bg-white px-5 py-3 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
-                    />
+                </div>
+              )}
+
+              {/* Location collection card */}
+              {showInput && !requestName && requestLocation && !requestEmail && (
+                <div className="shrink-0 bg-white pb-4 pt-3">
+                  <form onSubmit={handleLocationSubmit} className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        required
+                        placeholder="City, country"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLocationSubmit(e); } }}
+                        className="flex-1 rounded-xl border-2 border-border bg-white px-4 py-2.5 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!location.trim()}
+                        aria-label="Submit location"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-vivid px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                      >
+                        Go <ArrowRight size={16} />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Extra questions card — structured input for multi-question responses */}
+              {showInput && !requestName && !requestLocation && !requestEmail && extraQuestions.length > 0 && (
+                <div className="shrink-0 bg-white pb-4 pt-3">
+                  <form onSubmit={handleExtraQuestionsSubmit} className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-4">
+                    {extraQuestions.map((q, i) => (
+                      <div key={i} className="space-y-1.5">
+                        <label className="text-sm font-medium text-text-primary">{q}</label>
+                        <input
+                          type="text"
+                          value={questionAnswers[i] || ""}
+                          onChange={(e) => setQuestionAnswers((prev) => ({ ...prev, [i]: e.target.value }))}
+                          placeholder="Your answer"
+                          className="w-full rounded-xl border-2 border-border bg-white px-4 py-2.5 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
+                        />
+                      </div>
+                    ))}
                     <button
                       type="submit"
-                      disabled={!input.trim()}
-                      aria-label="Send message"
-                      className="inline-flex items-center rounded-2xl bg-vivid/10 px-4 py-3 text-vivid transition-colors hover:bg-vivid/20 disabled:opacity-40"
+                      disabled={!Object.values(questionAnswers).some((v) => v?.trim())}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-vivid px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
                     >
-                      <ArrowRight size={18} />
+                      Send <ArrowRight size={16} />
                     </button>
                   </form>
                 </div>
               )}
 
+              {/* Input area — always visible so the user can always talk to Alex */}
+              {showInput && (
+                <div className="shrink-0 bg-white pb-2 pt-2 md:pb-4 md:pt-3 space-y-2 md:space-y-3">
+                  {/* Pasted text attachment chip */}
+                  {pastedText && (
+                    <div className="flex items-center gap-2 rounded-xl bg-vivid-subtle/50 px-4 py-2.5">
+                      <FileText size={16} className="shrink-0 text-vivid" />
+                      <span className="flex-1 truncate text-sm text-text-secondary">
+                        Pasted text — {pastedText.split("\n").length} lines
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setInput(pastedText); setPastedText(null); }}
+                        className="text-xs text-text-muted hover:text-text-secondary"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPastedText(null)}
+                        aria-label="Remove pasted text"
+                        className="text-text-muted hover:text-text-secondary"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {/* Brief 142b: Voice call card — hide when email verification is showing (unless call active) */}
+                  {voiceReady && !done && sessionId && voiceToken && (!requestEmail || callActive) && (
+                    <div className="shrink-0 bg-white pb-1 pt-2 md:pb-2 md:pt-3">
+                      <div className={`rounded-xl md:rounded-2xl border-2 px-3 py-2.5 md:p-4 flex items-center justify-between ${
+                        callActive
+                          ? "border-vivid/40 bg-vivid/5"
+                          : "border-vivid/20 bg-vivid-subtle/30"
+                      }`}>
+                        <div className="flex-1">
+                          <p className="text-xs md:text-sm font-medium text-text-primary">
+                            {callActive ? "Talking with Alex" : "Prefer to talk?"}
+                          </p>
+                          {!callActive && (
+                            <p className="hidden md:block text-xs text-text-muted mt-0.5">
+                              Switch to a live voice conversation
+                            </p>
+                          )}
+                        </div>
+                        <VoiceCall
+                          ref={voiceCallRef}
+                          sessionId={sessionId}
+                          voiceToken={voiceToken}
+                          learned={learned}
+                          visitorName={name}
+                          recentMessages={messages.slice(-6).map((m) => ({ role: m.role, text: m.text }))}
+                          onCallStart={() => setCallActive(true)}
+                          onCallEnd={() => setCallActive(false)}
+                          onCallError={(error) => {
+                            setCallActive(false);
+                            setMessages((prev) => [...prev, { role: "alex", text: error }]);
+                          }}
+                          onMessage={(role, text) => {
+                            setMessages((prev) => [...prev, { role: role === "alex" ? "alex" : "user", text }]);
+                            // Save ALL messages (user + agent) to session so harness sees full conversation
+                            if (sessionId && voiceToken) {
+                              fetch("/api/v1/network/chat/session-updates", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  sessionId,
+                                  voiceToken,
+                                  message: text,
+                                  role: role === "alex" ? "assistant" : "user",
+                                }),
+                              }).catch(() => {});
+                            }
+                            // Guidance delivery is now handled by voice-call.tsx
+                            // (client tool + eager pre-computation on user speech).
+                            // The 10s polling safety net handles reinforcement.
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <form onSubmit={handleSubmit} className="relative flex items-end">
+                    <textarea
+                      ref={textareaRef}
+                      rows={1}
+                      placeholder={
+                        callActive
+                          ? "Type while talking..."
+                          : done
+                            ? "Ask a question or share a link"
+                            : "Tell me what you do..."
+                      }
+                      value={input}
+                      onChange={handleTextareaChange}
+                      onKeyDown={handleTextareaKeyDown}
+                      disabled={loading || !!statusMessage}
+                      className={`w-full resize-none rounded-xl md:rounded-2xl border-2 bg-white pl-4 pr-11 py-2 md:pl-5 md:pr-14 md:py-3 text-sm md:text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0 disabled:opacity-50 ${
+                        callActive ? "border-vivid/20" : "border-border"
+                      }`}
+                      style={{ maxHeight: "8rem" }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={(!input.trim() && !pastedText) || loading || !!statusMessage}
+                      aria-label="Send message"
+                      className="absolute right-2.5 bottom-2 md:right-3 md:bottom-auto md:top-1/2 md:-translate-y-1/2 inline-flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-vivid text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                    >
+                      <ArrowRight size={14} className="md:hidden" />
+                      <ArrowRight size={16} className="hidden md:block" />
+                    </button>
+                  </form>
+                  {/* Pills — only when no structured card is showing */}
+                  <div className={showInitialPills || showSuggestions ? "min-h-[2rem] md:min-h-[2.5rem]" : ""}>
+                    {showInitialPills && (
+                      <QuickReplyPills
+                        pills={FRONT_DOOR_PILLS}
+                        onSelect={(pill) => sendMessage(pill)}
+                        disabled={loading}
+                      />
+                    )}
+                    {showSuggestions && (
+                      <QuickReplyPills
+                        pills={suggestions}
+                        onSelect={(pill) => { setSuggestions([]); sendMessage(pill); }}
+                        disabled={loading}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Identity + email verification card */}
+              {showInput && requestEmail && verifyStep && (
+                <div className="shrink-0 bg-white pb-4 pt-3">
+                  {verifyStep === "email" && (
+                    <form onSubmit={handleEmailVerify} className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          ref={inputRef}
+                          type="email"
+                          required
+                          placeholder="you@company.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="flex-1 rounded-xl border-2 border-border bg-white px-4 py-2.5 text-[16px] text-text-primary placeholder:text-text-muted focus:border-vivid focus:outline-none focus:ring-0"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!email.trim()}
+                          aria-label="Send verification code"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-vivid px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                        >
+                          Verify <ArrowRight size={16} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        I&apos;ll send a quick code to verify your email &mdash; I&apos;ll be reaching out on your behalf, so I need to make sure it&apos;s really you.
+                      </p>
+                      {verifyError && <p className="text-xs text-negative">{verifyError}</p>}
+                    </form>
+                  )}
+
+                  {verifyStep === "code" && (
+                    <form onSubmit={handleCodeSubmit} className="rounded-2xl border-2 border-vivid/20 bg-vivid-subtle/30 p-4 space-y-3">
+                      <p className="text-sm font-medium text-text-primary">
+                        Check your inbox — I just sent a 6-digit code to <span className="font-semibold">{email}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          required
+                          placeholder="Enter 6-digit code"
+                          value={verifyCode}
+                          onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          className="flex-1 rounded-xl border-2 border-border bg-white px-4 py-2.5 text-center text-lg font-semibold tracking-[0.3em] text-text-primary placeholder:text-text-muted placeholder:tracking-normal placeholder:text-sm placeholder:font-normal focus:border-vivid focus:outline-none focus:ring-0"
+                        />
+                        <button
+                          type="submit"
+                          disabled={verifyCode.length !== 6}
+                          aria-label="Confirm code"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-vivid px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => { setVerifyStep("email"); setVerifyCode(""); setVerifyError(""); }}
+                          className="text-xs text-text-muted hover:text-text-secondary"
+                        >
+                          Wrong email? Go back
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { setVerifyError(""); handleEmailVerify(e as unknown as React.FormEvent); }}
+                          className="text-xs text-vivid hover:underline"
+                        >
+                          Resend code
+                        </button>
+                      </div>
+                      {verifyError && <p className="text-xs text-negative">{verifyError}</p>}
+                    </form>
+                  )}
+
+                  {/* Skip link to bypass verification */}
+                  <button
+                    type="button"
+                    onClick={() => { setVerifyStep(null); setRequestEmail(false); }}
+                    className="mt-1 text-xs text-text-muted hover:text-text-secondary"
+                  >
+                    Skip for now — I&apos;ll verify later
+                  </button>
+                </div>
+              )}
+
               {/* Error fallback — direct email capture */}
               {errorFallback && (
-                <form onSubmit={handleErrorEmailSubmit} className="shrink-0 space-y-3 animate-fade-in bg-white pb-4 pt-3">
+                <form onSubmit={handleErrorEmailSubmit} className="shrink-0 space-y-3 bg-white pb-4 pt-3">
                   <div className="flex gap-2">
                     <input
                       type="email"
@@ -655,17 +1245,19 @@ export function DittoConversation() {
           )}
         </div>
 
-        {/* Below the fold — value cards + trust row */}
-        {(
-          <div className="mx-auto w-full max-w-[640px] space-y-10 pb-16 pt-8">
-            <ValueCards />
-            <TrustRow />
+        {/* Right column — floating context cards, desktop only */}
+        {/* Only shows after 4+ messages (past the intro/first exchange) */}
+        <div className="hidden self-stretch md:block md:w-1/4">
+          <div className="sticky top-24 space-y-4 px-4">
+            {learned && !showIntro && (
+              <LearnedContext learned={learned} />
+            )}
           </div>
-        )}
+        </div>
       </main>
 
-      {/* Minimal footer */}
-      <footer className="flex items-center justify-between px-6 py-5 text-xs text-text-muted md:px-10">
+      {/* Minimal footer — hidden during conversation to maximize chat space */}
+      <footer className={`flex items-center justify-between px-6 py-5 text-xs text-text-muted md:px-10 ${!showIntro ? "hidden" : ""}`}>
         <span>&copy; {new Date().getFullYear()} Ditto</span>
         <div className="flex gap-4">
           <Link href="/network" className="hover:text-text-secondary">
@@ -683,5 +1275,6 @@ export function DittoConversation() {
         </div>
       </footer>
     </div>
+    </ConversationProvider>
   );
 }

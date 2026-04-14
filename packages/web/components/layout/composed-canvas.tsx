@@ -44,5 +44,9 @@ export function ComposedCanvas({ intent, onAction }: ComposedCanvasProps) {
     );
   }
 
-  return <BlockList blocks={blocks} onAction={onAction} />;
+  return (
+    <div key={intent} className="animate-fade-in">
+      <BlockList blocks={blocks} onAction={onAction} />
+    </div>
+  );
 }

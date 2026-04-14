@@ -6,9 +6,9 @@
  */
 export function TrustRow() {
   const statements = [
-    "Remembers everything.",
-    "Earns your trust.",
-    "No spam, ever.",
+    "Nothing goes out without your OK.",
+    "Gets better the more you use it.",
+    "No setup. Just tell him what you do.",
   ];
 
   return (

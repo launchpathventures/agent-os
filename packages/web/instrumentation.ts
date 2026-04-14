@@ -40,6 +40,23 @@ export async function register() {
       console.error("[instrumentation] LLM init failed (chat will use mock fallback):", error);
     }
 
+    // Sync process YAML definitions to DB so scheduler can register cron jobs.
+    // Without this, cycles exist on disk but never execute (Brief 151 spike).
+    try {
+      const { loadAllProcesses, syncProcessesToDb } = await import("../../src/engine/process-loader");
+      const { PROJECT_ROOT } = await import("../../src/paths");
+      const path = await import("path");
+      const processDir = path.join(PROJECT_ROOT, "processes");
+      const templateDir = path.join(PROJECT_ROOT, "processes", "templates");
+      const cycleDir = path.join(PROJECT_ROOT, "processes", "cycles");
+      const definitions = loadAllProcesses(processDir, templateDir, cycleDir);
+      await syncProcessesToDb(definitions);
+      console.log(`[instrumentation] Synced ${definitions.length} process definitions to DB.`);
+    } catch (error) {
+      console.error("[instrumentation] Process sync failed:", error);
+      // Non-fatal — processes may already be synced, or scheduler will start with existing DB state
+    }
+
     try {
       // Auto-start the nurture scheduler
       const { start } = await import("../../src/engine/scheduler");
@@ -59,6 +76,33 @@ export async function register() {
     } catch (error) {
       console.error("[instrumentation] Pulse start failed:", error);
       // Non-fatal — pulse can be started manually
+    }
+
+    // Validate workspace auth configuration
+    // When WORKSPACE_OWNER_EMAIL is set, auth is enforced — companion vars must be present.
+    if (process.env.WORKSPACE_OWNER_EMAIL) {
+      const missing: string[] = [];
+      if (!process.env.NEXT_PUBLIC_APP_URL && !process.env.NETWORK_BASE_URL) {
+        missing.push("NEXT_PUBLIC_APP_URL (magic link emails need a domain)");
+      }
+      if (!process.env.SESSION_SECRET) {
+        missing.push("SESSION_SECRET (HMAC signing falls back to guessable WORKSPACE_OWNER_EMAIL)");
+      }
+      if (!process.env.AGENTMAIL_API_KEY) {
+        missing.push("AGENTMAIL_API_KEY (magic link emails cannot be sent)");
+      }
+      if (missing.length > 0) {
+        console.warn(
+          `[instrumentation] ⚠ Workspace auth is enabled (WORKSPACE_OWNER_EMAIL=${process.env.WORKSPACE_OWNER_EMAIL}) ` +
+          `but ${missing.length} companion variable(s) are missing:\n` +
+          missing.map((m) => `  - ${m}`).join("\n") +
+          "\nSee .env.example for documentation.",
+        );
+      } else {
+        console.log(`[instrumentation] Workspace auth configured for ${process.env.WORKSPACE_OWNER_EMAIL}`);
+      }
+    } else {
+      console.log("[instrumentation] Workspace auth disabled (WORKSPACE_OWNER_EMAIL not set — local dev mode).");
     }
 
     // First-boot seed import (Brief 089)

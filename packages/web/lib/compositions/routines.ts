@@ -51,7 +51,7 @@ export function composeRoutines(context: CompositionContext): ContentBlock[] {
 
   // Processes needing attention first
   if (needsAttention.length > 0) {
-    blocks.push({ type: "text", text: "**Needs attention**" });
+    blocks.push({ type: "text", text: "Needs attention", variant: "hero-secondary" });
 
     for (const proc of needsAttention) {
       blocks.push({
@@ -80,7 +80,8 @@ export function composeRoutines(context: CompositionContext): ContentBlock[] {
   if (healthy.length > 0) {
     blocks.push({
       type: "text",
-      text: needsAttention.length > 0 ? "**Running well**" : "**Your routines**",
+      text: needsAttention.length > 0 ? "Running well" : "Your routines",
+      variant: "hero-secondary",
     });
 
     for (const proc of healthy) {

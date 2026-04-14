@@ -613,6 +613,29 @@ async function executeSingleStep(
     stepRunId: stepRunRecord[0].id,
   });
 
+  // Brief 151 AC6: Wire dispatchStagedAction so approved staged outbound
+  // actions (crm.send_email etc.) actually dispatch via sendAndRecord
+  harnessContext.dispatchStagedAction = async (staged) => {
+    const { sendAndRecord } = await import("./channel");
+    const args = staged.args;
+    const result = await sendAndRecord({
+      to: args.to as string,
+      subject: args.subject as string | undefined,
+      body: args.body as string,
+      personaId: (args.personaId as "alex" | "mira") ?? "alex",
+      mode: (args.mode as "selling" | "connecting" | "nurture") ?? "nurture",
+      personId: args.personId as string,
+      userId: (args.userId as string) ?? "founder",
+      processRunId: (args.processRunId as string) ?? processRunId,
+      includeOptOut: (args.includeOptOut as boolean) ?? true,
+      stepRunId: stepRunRecord[0].id,
+      platform: args.platform as import("./channel").SocialPlatform | undefined,
+      unipileAccountId: args.unipileAccountId as string | undefined,
+    });
+    console.log(`[harness] Dispatched staged ${staged.toolName} to ${args.to}: ${result.success ? "sent" : result.error}`);
+    return JSON.stringify(result);
+  };
+
   const result = await sharedPipeline.run(harnessContext);
 
   // Handle failure
@@ -1050,10 +1073,39 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
               .filter((s) => s.stepId === "learn" && s.status === "approved" && s.outputs)
               .map((s) => s.outputs as Record<string, unknown>);
 
+            // Brief 151 AC5: Inject recent outreach history so the next cycle's
+            // SENSE/ASSESS steps can see what was already done in this run
+            let recentOutreach: Array<{ personId: string; personName: string | null; channel: string; sentAt: Date; subject: string | null }> = [];
+            try {
+              const outreachRows = await db
+                .select({
+                  personId: schema.interactions.personId,
+                  personName: schema.people.name,
+                  channel: schema.interactions.channel,
+                  sentAt: schema.interactions.createdAt,
+                  subject: schema.interactions.subject,
+                })
+                .from(schema.interactions)
+                .leftJoin(schema.people, eq(schema.interactions.personId, schema.people.id))
+                .where(
+                  and(
+                    eq(schema.interactions.processRunId, processRunId),
+                    eq(schema.interactions.type, "outreach_sent"),
+                  ),
+                );
+              recentOutreach = outreachRows;
+              if (recentOutreach.length > 0) {
+                console.log(`[cycle] Injecting ${recentOutreach.length} recent outreach interactions into next cycle`);
+              }
+            } catch {
+              // Non-critical — don't block auto-restart if outreach query fails
+            }
+
             const updatedInputs = {
               ...(run.inputs as Record<string, unknown>),
               previousCycleRunId: processRunId,
               learnOutputs: learnOutputs.length > 0 ? learnOutputs[0] : null,
+              recentOutreach,
             };
 
             const newRunId = await startProcessRun(

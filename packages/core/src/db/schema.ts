@@ -10,7 +10,7 @@
  * Provenance: Extracted from src/db/schema.ts — Ditto monorepo
  */
 
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique } from "drizzle-orm/sqlite-core";
 import { randomUUID } from "crypto";
 
 // ============================================================
@@ -286,6 +286,12 @@ export const processRuns = sqliteTable("process_runs", {
   definitionOverrideVersion: integer("definition_override_version")
     .notNull()
     .default(0),
+  // Chain processing flag (Brief 098a) — prevents duplicate chain execution
+  chainsProcessed: integer("chains_processed", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  // Trust tier override for chain-spawned runs (Brief 098a AC9)
+  trustTierOverride: text("trust_tier_override").$type<TrustTier>(),
   /** Operating cycle type — e.g. 'sales', 'connect', 'intel' (Brief 116) */
   cycleType: text("cycle_type"),
   /** Operating cycle configuration — JSON (Brief 116) */
@@ -569,7 +575,7 @@ export const workItems = sqliteTable("work_items", {
     .$type<string[]>()
     .default([]),
   decomposition: text("decomposition", { mode: "json" })
-    .$type<Record<string, unknown>>(),
+    .$type<Array<{ taskId: string; stepId: string; dependsOn: string[]; status: string }>>(),
   executionIds: text("execution_ids", { mode: "json" })
     .$type<string[]>()
     .default([]),
@@ -642,11 +648,13 @@ export const credentials = sqliteTable("credentials", {
   encryptedValue: text("encrypted_value").notNull(),
   iv: text("iv").notNull(),
   authTag: text("auth_tag").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  expiresAt: integer("expires_at"),
+  createdAt: integer("created_at")
     .notNull()
-    .$defaultFn(() => new Date()),
-});
+    .$defaultFn(() => Date.now()),
+}, (table) => [
+  unique("credentials_process_service_unique").on(table.processId, table.service),
+]);
 
 // ============================================================
 // Outbound Actions — outbound action tracking (Brief 116)
@@ -674,75 +682,27 @@ export const outboundActions = sqliteTable("outbound_actions", {
 });
 
 // ============================================================
-// Process Model Library (Brief 104)
+// Delayed Runs — deferred process execution (Brief 098a)
 // ============================================================
 
-export const processModelStatusValues = [
-  "nominated",
-  "testing",
-  "standardised",
-  "review",
-  "published",
-  "archived",
-] as const;
-export type ProcessModelStatus = (typeof processModelStatusValues)[number];
+export const delayedRunStatusValues = ["pending", "executed", "cancelled"] as const;
+export type DelayedRunStatus = (typeof delayedRunStatusValues)[number];
 
-export const processModelComplexityValues = [
-  "simple",
-  "moderate",
-  "complex",
-] as const;
-export type ProcessModelComplexity =
-  (typeof processModelComplexityValues)[number];
-
-export const processModelSourceValues = [
-  "template",
-  "built",
-  "community",
-] as const;
-export type ProcessModelSource = (typeof processModelSourceValues)[number];
-
-export const processModels = sqliteTable("process_models", {
+export const delayedRuns = sqliteTable("delayed_runs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => randomUUID()),
-  slug: text("slug").notNull().unique(),
-  name: text("name").notNull(),
-  description: text("description"),
-  industryTags: text("industry_tags", { mode: "json" })
-    .$type<string[]>()
-    .default([]),
-  functionTags: text("function_tags", { mode: "json" })
-    .$type<string[]>()
-    .default([]),
-  complexity: text("complexity")
+  processSlug: text("process_slug").notNull(),
+  inputs: text("inputs", { mode: "json" })
     .notNull()
-    .$type<ProcessModelComplexity>()
-    .default("moderate"),
-  version: integer("version").notNull().default(1),
-  status: text("status")
-    .notNull()
-    .$type<ProcessModelStatus>()
-    .default("nominated"),
-  source: text("source")
-    .notNull()
-    .$type<ProcessModelSource>()
-    .default("template"),
-  processDefinition: text("process_definition", { mode: "json" })
-    .notNull()
-    .$type<Record<string, unknown>>(),
-  qualityCriteria: text("quality_criteria", { mode: "json" })
-    .$type<string[]>()
-    .default([]),
-  validationReport: text("validation_report", { mode: "json" })
-    .$type<Record<string, unknown> | null>(),
-  nominatedBy: text("nominated_by"),
-  approvedBy: text("approved_by"),
+    .$type<Record<string, unknown>>()
+    .default({}),
+  executeAt: integer("execute_at", { mode: "timestamp_ms" }).notNull(),
+  status: text("status").notNull().$type<DelayedRunStatus>().default("pending"),
+  createdByRunId: text("created_by_run_id")
+    .references(() => processRuns.id),
+  parentTrustTier: text("parent_trust_tier").$type<TrustTier>(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  publishedAt: integer("published_at", { mode: "timestamp_ms" }),
 });

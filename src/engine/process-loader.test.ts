@@ -312,7 +312,7 @@ describe("process-loader", () => {
         templateDir,
       );
       const templates = all.filter((d) => d.template === true);
-      expect(templates.length).toBe(28);
+      expect(templates.length).toBe(32);
       for (const t of templates) {
         expect(t.callable_as).toBe("sub-process");
       }

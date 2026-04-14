@@ -28,7 +28,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { LlmToolDefinition, LlmMessage, LlmToolResultBlock } from "./llm";
 import { createCompletion, extractText, extractToolUse } from "./llm";
-import { startProcessRun, fullHeartbeat, pauseGoal, goalHeartbeatLoop } from "./heartbeat";
+import { startProcessRun, fullHeartbeat, pauseGoal, goalHeartbeatLoop, startSystemAgentRun } from "./heartbeat";
 import { approveRun, editRun, rejectRun, getWaitingStepOutput } from "./review-actions";
 import { readOnlyTools, executeTool } from "./tools";
 import { recordSelfDecision } from "./self-context";
@@ -51,8 +51,10 @@ import {
   handleCycleBriefing,
   handleCycleStatus,
 } from "./self-tools/cycle-tools";
+import { handleBrowseWeb } from "./self-tools/browser-tools";
 import { updateUserModel, type UserModelDimension, USER_MODEL_DIMENSIONS } from "./user-model";
 import { setSessionTrust } from "./session-trust";
+import { createMagicLink } from "./magic-link";
 import { loadProcessFile } from "./process-loader";
 import { flattenSteps } from "./process-loader";
 
@@ -547,13 +549,13 @@ export const selfTools: LlmToolDefinition[] = [
   // ============================================================
   {
     name: "activate_cycle",
-    description: "Start a continuous operating cycle (sales-marketing, network-connecting, relationship-nurture). Asks config questions if incomplete.",
+    description: "Start a continuous operating cycle (sales-marketing, network-connecting, relationship-nurture, gtm-pipeline). Asks config questions if incomplete.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which operating cycle to activate",
         },
         userId: {
@@ -584,20 +586,36 @@ export const selfTools: LlmToolDefinition[] = [
           type: "boolean",
           description: "Run continuously (default: true). If false, runs once.",
         },
+        gtmContext: {
+          type: "object",
+          description: "GTM pipeline context: planName (required), product, audience, differentiator, channels. Required for gtm-pipeline cycle type.",
+          properties: {
+            planName: { type: "string", description: "Unique name for this growth plan" },
+            product: { type: "string", description: "What you're selling (plain language)" },
+            audience: { type: "string", description: "Who it's for (what they say when frustrated)" },
+            differentiator: { type: "string", description: "Why it's different (the moment they can't go back)" },
+            channels: { type: "string", description: "Where the audience is (channels, communities)" },
+          },
+          required: ["planName"],
+        },
       },
       required: ["cycleType"],
     },
   },
   {
     name: "pause_cycle",
-    description: "Pause a running operating cycle. Stops all cycle operations until resumed.",
+    description: "Pause a running operating cycle. Stops all cycle operations until resumed. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to pause",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target (required for gtm-pipeline when multiple plans active)",
         },
       },
       required: ["cycleType"],
@@ -605,14 +623,18 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "resume_cycle",
-    description: "Resume a paused operating cycle.",
+    description: "Resume a paused operating cycle. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to resume",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target (required for gtm-pipeline when multiple plans active)",
         },
       },
       required: ["cycleType"],
@@ -620,14 +642,18 @@ export const selfTools: LlmToolDefinition[] = [
   },
   {
     name: "cycle_briefing",
-    description: "Generate a standardised briefing for a cycle: context, summary, recommendations, options. The handoff format.",
+    description: "Generate a standardised briefing for a cycle: context, summary, recommendations, options. The handoff format. For gtm-pipeline, use planName to target a specific plan.",
     input_schema: {
       type: "object" as const,
       properties: {
         cycleType: {
           type: "string",
-          enum: ["sales-marketing", "network-connecting", "relationship-nurture"],
+          enum: ["sales-marketing", "network-connecting", "relationship-nurture", "gtm-pipeline"],
           description: "Which cycle to brief on",
+        },
+        planName: {
+          type: "string",
+          description: "Plan name to target a specific GTM plan",
         },
       },
       required: ["cycleType"],
@@ -645,6 +671,88 @@ export const selfTools: LlmToolDefinition[] = [
         },
       },
       required: [],
+    },
+  },
+  // ============================================================
+  // Brief 131 — Self Cognitive Orchestration
+  // ============================================================
+  {
+    name: "orchestrate_work",
+    description: "Spawn a thin process template with context. Selects the right template, injects context, starts it via the harness. Can adapt mid-flight via adapt_process.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        goal: {
+          type: "string",
+          description: "What the work should accomplish",
+        },
+        detectedMode: {
+          type: "string",
+          enum: ["connecting", "selling", "chief-of-staff", "nurturing", "ghost"],
+          description: "Cognitive mode guiding orchestration strategy",
+        },
+        templateSlug: {
+          type: "string",
+          description: "Process template slug to spawn (e.g., 'front-door-intake', 'follow-up-sequences', 'person-research')",
+        },
+        conversationContext: {
+          type: "string",
+          description: "Relevant conversation context to inject into the process",
+        },
+        userDetails: {
+          type: "object",
+          description: "User details relevant to this work (name, email, preferences)",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["goal", "detectedMode", "templateSlug"],
+    },
+  },
+  {
+    name: "generate_chat_link",
+    description: "Generate a magic link for email-to-chat escalation. Creates a focused chat session pre-seeded with context. Use when a user's email request needs rich context gathering.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        userEmail: {
+          type: "string",
+          description: "User's email address",
+        },
+        emailContext: {
+          type: "string",
+          description: "Summary of the email request to pre-seed the chat session",
+        },
+      },
+      required: ["userEmail", "emailContext"],
+    },
+  },
+  // ============================================================
+  // Brief 134 — Browser Research Skill
+  // ============================================================
+  {
+    name: "browse_web",
+    description: "Browse a URL or search the web and extract structured data. READ-only — for research, profile viewing, data extraction. No form submission or message sending.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        url: {
+          type: "string",
+          description: "URL to navigate to (e.g., LinkedIn profile, company website)",
+        },
+        query: {
+          type: "string",
+          description: "Search query (used when no URL provided — searches via Google)",
+        },
+        extractionGoal: {
+          type: "string",
+          description: "What to extract from the page — natural language instruction (e.g., 'recent posts and activity')",
+        },
+        tokenBudget: {
+          type: "number",
+          description: "Max tokens for Stagehand AI calls (default: 500)",
+        },
+      },
+      required: ["extractionGoal"],
     },
   },
 ];
@@ -844,26 +952,55 @@ export async function executeDelegation(
         boundaries: toolInput.boundaries as string | undefined,
         cadence: toolInput.cadence as string | undefined,
         continuous: toolInput.continuous as boolean | undefined,
+        gtmContext: toolInput.gtmContext as { planName: string; product?: string; audience?: string; differentiator?: string; channels?: string } | undefined,
       });
 
     case "pause_cycle":
       return await handlePauseCycle({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "resume_cycle":
       return await handleResumeCycle({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "cycle_briefing":
       return await handleCycleBriefing({
         cycleType: toolInput.cycleType as string,
+        planName: toolInput.planName as string | undefined,
       });
 
     case "cycle_status":
       return await handleCycleStatus({
         userId: toolInput.userId as string | undefined,
+      });
+
+    // Brief 131 — Self Cognitive Orchestration
+    case "orchestrate_work":
+      return await handleOrchestrateWork({
+        goal: toolInput.goal as string,
+        detectedMode: toolInput.detectedMode as string,
+        templateSlug: toolInput.templateSlug as string,
+        conversationContext: toolInput.conversationContext as string | undefined,
+        userDetails: toolInput.userDetails as Record<string, string> | undefined,
+      });
+
+    case "generate_chat_link":
+      return await handleGenerateChatLink({
+        userEmail: toolInput.userEmail as string,
+        emailContext: toolInput.emailContext as string | undefined,
+      });
+
+    // Brief 134 — Browser Research
+    case "browse_web":
+      return await handleBrowseWeb({
+        url: toolInput.url as string | undefined,
+        query: toolInput.query as string | undefined,
+        extractionGoal: toolInput.extractionGoal as string,
+        tokenBudget: toolInput.tokenBudget as number | undefined,
       });
 
     default:
@@ -1416,6 +1553,137 @@ ${role === "architect" ? "**IMPORTANT:** When you use write_file, the content wi
       toolName: "plan_with_role",
       success: false,
       output: `Planning failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+// ============================================================
+// Brief 131 — Self Cognitive Orchestration Handlers
+// ============================================================
+
+/**
+ * Orchestrate work by spawning a thin process template with context.
+ * The Self selects which template to spawn and injects relevant context.
+ * Reuses startSystemAgentRun() for process spawning (ADR-027).
+ */
+async function handleOrchestrateWork(params: {
+  goal: string;
+  detectedMode: string;
+  templateSlug: string;
+  conversationContext?: string;
+  userDetails?: Record<string, string>;
+}): Promise<DelegationResult> {
+  const { goal, detectedMode, templateSlug, conversationContext, userDetails } = params;
+
+  try {
+    const inputs: Record<string, unknown> = {
+      goal,
+      detectedMode,
+      ...(conversationContext && { conversationContext }),
+      ...(userDetails && { userDetails }),
+    };
+
+    const result = await startSystemAgentRun(templateSlug, inputs, "self");
+
+    if (!result) {
+      return {
+        toolName: "orchestrate_work",
+        success: false,
+        output: `Process template not found: ${templateSlug}. Available templates include: front-door-intake, follow-up-sequences, person-research, selling-outreach, connecting-introduction, user-nurture-first-week, ghost-follow-up.`,
+      };
+    }
+
+    return {
+      toolName: "orchestrate_work",
+      success: true,
+      output: JSON.stringify({
+        runId: result.processRunId,
+        status: "spawned",
+        templateSlug,
+        detectedMode,
+        goal: goal.slice(0, 200),
+        stepsExecuted: result.stepsExecuted,
+        runStatus: result.status,
+        message: result.message,
+      }),
+      metadata: { runId: result.processRunId, templateSlug, detectedMode },
+    };
+  } catch (err) {
+    return {
+      toolName: "orchestrate_work",
+      success: false,
+      output: `Failed to orchestrate work: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/**
+ * Generate a magic link for email-to-chat escalation (Brief 131).
+ *
+ * Creates a chat session pre-seeded with context from the email request,
+ * then generates a magic link URL. The Self includes this URL in its
+ * email reply when it decides (cognitively) that the request needs
+ * richer context gathering than email allows.
+ */
+async function handleGenerateChatLink(params: {
+  userEmail: string;
+  emailContext?: string;
+}): Promise<DelegationResult> {
+  const { userEmail, emailContext } = params;
+
+  try {
+    const { db: dbRef, schema: schemaRef } = await import("../db");
+    const { randomUUID } = await import("crypto");
+
+    // Create a new chat session pre-seeded with email context
+    const sessionId = randomUUID();
+    const initialMessages: Array<{ role: string; content: string }> = [];
+
+    if (emailContext) {
+      initialMessages.push({
+        role: "system",
+        content: `This chat session was started from an email conversation. Context: ${emailContext}`,
+      });
+    }
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await dbRef.insert(schemaRef.chatSessions).values({
+      sessionId,
+      messages: initialMessages,
+      context: "escalated",
+      ipHash: "email-escalation",
+      messageCount: 0,
+      authenticatedEmail: userEmail.toLowerCase(),
+      expiresAt,
+    });
+
+    // Generate magic link for this session
+    const magicLinkResult = await createMagicLink(userEmail.toLowerCase(), sessionId);
+
+    if (!magicLinkResult) {
+      return {
+        toolName: "generate_chat_link",
+        success: false,
+        output: "Rate limited — too many magic links generated recently. Try again later.",
+      };
+    }
+
+    return {
+      toolName: "generate_chat_link",
+      success: true,
+      output: JSON.stringify({
+        url: magicLinkResult.url,
+        sessionId,
+        expiresIn: "24 hours",
+      }),
+      metadata: { sessionId, url: magicLinkResult.url },
+    };
+  } catch (err) {
+    return {
+      toolName: "generate_chat_link",
+      success: false,
+      output: `Failed to generate chat link: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }

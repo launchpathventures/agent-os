@@ -104,7 +104,7 @@ export function BlockRenderer({ block, onAction }: BlockRendererProps) {
   }
 }
 
-/** Render an array of content blocks */
+/** Render an array of content blocks with staggered entrance animations */
 export function BlockList({
   blocks,
   onAction,
@@ -113,9 +113,18 @@ export function BlockList({
   onAction?: (actionId: string, payload?: Record<string, unknown>) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {blocks.map((block, i) => (
-        <BlockRenderer key={`${block.type}-${i}`} block={block} onAction={onAction} />
+        <div
+          key={`${block.type}-${i}`}
+          className="animate-fade-in opacity-0"
+          style={{
+            animationDelay: `${Math.min(i * 80, 400)}ms`,
+            animationFillMode: "both",
+          }}
+        >
+          <BlockRenderer block={block} onAction={onAction} />
+        </div>
       ))}
     </div>
   );

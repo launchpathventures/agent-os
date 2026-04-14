@@ -17,7 +17,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, desc, gte, count } from "drizzle-orm";
+import { eq, and, desc, gte, count, inArray } from "drizzle-orm";
 import type {
   PersonVisibility,
   JourneyLayer,
@@ -286,12 +286,110 @@ export async function hasAnyInteractionSince(
   return !!match;
 }
 
+/**
+ * Get recent interactions for a person, optionally filtered by type.
+ * Returns full interaction records with person name context.
+ * Used by outreach dedup (Brief 151) and cycle auto-restart context injection.
+ *
+ * @param personId - The person to query
+ * @param type - Interaction type filter (e.g. "outreach_sent")
+ * @param since - Only return interactions after this date
+ * @param processRunId - Optional: filter to a specific process run
+ */
+export async function getRecentInteractionsForPerson(
+  personId: string,
+  type: InteractionType,
+  since: Date,
+  processRunId?: string,
+): Promise<Array<{
+  id: string;
+  personId: string;
+  personName: string | null;
+  channel: string;
+  sentAt: Date;
+  subject: string | null;
+  processRunId: string | null;
+}>> {
+  const conditions = [
+    eq(schema.interactions.personId, personId),
+    eq(schema.interactions.type, type),
+    gte(schema.interactions.createdAt, since),
+  ];
+
+  if (processRunId) {
+    conditions.push(eq(schema.interactions.processRunId, processRunId));
+  }
+
+  const rows = await db
+    .select({
+      id: schema.interactions.id,
+      personId: schema.interactions.personId,
+      personName: schema.people.name,
+      channel: schema.interactions.channel,
+      sentAt: schema.interactions.createdAt,
+      subject: schema.interactions.subject,
+      processRunId: schema.interactions.processRunId,
+    })
+    .from(schema.interactions)
+    .leftJoin(schema.people, eq(schema.interactions.personId, schema.people.id))
+    .where(and(...conditions))
+    .orderBy(desc(schema.interactions.createdAt));
+
+  return rows;
+}
+
 export async function listInteractionsByUser(userId: string) {
   return db
     .select()
     .from(schema.interactions)
     .where(eq(schema.interactions.userId, userId))
     .orderBy(desc(schema.interactions.createdAt));
+}
+
+/**
+ * List all people with interaction stats for pipeline overview.
+ * Returns people + last interaction date + interaction count.
+ */
+export async function listPeopleWithStats(userId: string) {
+  const people = await db
+    .select()
+    .from(schema.people)
+    .where(eq(schema.people.userId, userId))
+    .orderBy(desc(schema.people.createdAt));
+
+  if (people.length === 0) return [];
+
+  const personIds = people.map((p) => p.id);
+  const interactions = await db
+    .select()
+    .from(schema.interactions)
+    .where(inArray(schema.interactions.personId, personIds))
+    .orderBy(desc(schema.interactions.createdAt));
+
+  // Group interactions by personId
+  const interactionsByPerson = new Map<string, typeof interactions>();
+  for (const i of interactions) {
+    const existing = interactionsByPerson.get(i.personId) ?? [];
+    existing.push(i);
+    interactionsByPerson.set(i.personId, existing);
+  }
+
+  return people.map((p) => {
+    const personInteractions = interactionsByPerson.get(p.id) ?? [];
+    const lastInteraction = personInteractions[0];
+    return {
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      organization: p.organization,
+      role: p.role,
+      source: p.source,
+      interactionCount: personInteractions.length,
+      lastInteractionDate: lastInteraction?.createdAt?.toISOString() ?? null,
+      lastInteractionType: lastInteraction?.type ?? null,
+      lastOutcome: lastInteraction?.outcome ?? null,
+    };
+  });
 }
 
 // ============================================================
