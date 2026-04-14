@@ -18,7 +18,7 @@ import { db, schema } from "../../db";
 import type { RunStatus } from "../../db/schema";
 import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
 import type { DelegationResult } from "../self-delegation";
-import { startProcessRun } from "../heartbeat";
+import { startProcessRun, fullHeartbeat } from "../heartbeat";
 
 // ============================================================
 // Types
@@ -43,6 +43,43 @@ const MULTI_PLAN_TYPES: CycleType[] = ["gtm-pipeline"];
 const TERMINAL_STATUSES: RunStatus[] = ["approved", "rejected", "failed", "cancelled", "skipped"];
 
 // ============================================================
+// Volume Governance (Brief 149, Insight-182)
+// ============================================================
+
+/** Default volume budget for first cycle */
+const DEFAULT_VOLUME_BUDGET = 5;
+
+/**
+ * Volume ladder defaults (user-overridable via conversation):
+ * - Cycle 1: max 5 (prove targeting works)
+ * - Cycle 2: max 10 (if previous cycle had >0 positive responses)
+ * - Cycle 3+: max 20 (if cumulative response rate >10%)
+ */
+export const VOLUME_LADDER = [
+  { cycle: 1, max: 5, condition: "none" },
+  { cycle: 2, max: 10, condition: "previous_had_positives" },
+  { cycle: 3, max: 20, condition: "response_rate_above_10pct" },
+] as const;
+
+/**
+ * Compute the volume budget for the next cycle based on previous results.
+ * Returns the default if no previous results or conditions not met.
+ */
+export function computeVolumeBudget(
+  cycleNumber: number,
+  previousPositiveCount: number,
+  cumulativeResponseRate: number,
+): number {
+  if (cycleNumber >= 3 && cumulativeResponseRate > 0.10) {
+    return 20;
+  }
+  if (cycleNumber >= 2 && previousPositiveCount > 0) {
+    return 10;
+  }
+  return DEFAULT_VOLUME_BUDGET;
+}
+
+// ============================================================
 // activate_cycle
 // ============================================================
 
@@ -65,6 +102,8 @@ export interface ActivateCycleInput {
   cadence?: string;
   continuous?: boolean;
   gtmContext?: GtmContext;
+  /** Maximum outreach targets per cycle batch. Defaults to volume ladder. (Brief 149) */
+  volumeBudget?: number;
 }
 
 export async function handleActivateCycle(
@@ -139,6 +178,9 @@ export async function handleActivateCycle(
     boundaries: truncate(input.boundaries),
     cadence: input.cadence?.slice(0, 200) || "daily on weekdays",
     continuous: input.continuous !== false, // default to continuous
+    // Volume governance (Brief 149, Insight-182): defaults to volume ladder
+    // Cycle 1: 5, Cycle 2: 10 (if previous had positives), Cycle 3+: 20 (if >10% response rate)
+    volumeBudget: input.volumeBudget ?? DEFAULT_VOLUME_BUDGET,
   };
 
   // Attach gtmContext for GTM pipeline cycles
@@ -160,6 +202,15 @@ export async function handleActivateCycle(
       "self:activate_cycle",
       { cycleType, cycleConfig },
     );
+
+    // MP-1.3: Kick off fullHeartbeat immediately — matches start_pipeline pattern
+    // (self-delegation.ts:1107-1111). Without this, cycles sit in "queued" state
+    // until the scheduler picks them up.
+    setImmediate(() => {
+      fullHeartbeat(runId).catch((err) => {
+        console.error(`Cycle ${runId} failed:`, err);
+      });
+    });
 
     const cycleLabel = cycleType === "sales-marketing"
       ? "sales pipeline"
@@ -606,6 +657,13 @@ export async function handleCycleStatus(
       if (reviewCount > 0) {
         lines.push(`  ${reviewCount} item(s) pending review`);
       }
+
+      // Volume governance info (Brief 149 AC13)
+      const config = (run.cycleConfig as Record<string, unknown>) || {};
+      if (config.volumeBudget != null) {
+        lines.push(`  Volume budget: ${config.volumeBudget} per batch`);
+      }
+
       if (nextRunAt) {
         lines.push(`  Next: ${new Date(nextRunAt).toLocaleDateString()}`);
       }

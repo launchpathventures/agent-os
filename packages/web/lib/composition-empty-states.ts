@@ -20,6 +20,7 @@ export function emptyToday(greeting: string): ContentBlock[] {
     {
       type: "text",
       text: `${greeting}. Alex isn\u2019t working for you yet.`,
+      variant: "hero-primary",
     },
     {
       type: "actions",
@@ -80,6 +81,7 @@ export function emptyInbox(): ContentBlock[] {
     {
       type: "text",
       text: "All clear. Nothing needs your review.",
+      variant: "hero-primary",
     },
     {
       type: "text",
@@ -108,6 +110,7 @@ export function emptyWork(): ContentBlock[] {
     {
       type: "text",
       text: "No active work.",
+      variant: "hero-primary",
     },
     {
       type: "actions",
@@ -156,6 +159,7 @@ export function emptyProjects(): ContentBlock[] {
     {
       type: "text",
       text: "No projects yet.",
+      variant: "hero-primary",
     },
     {
       type: "actions",
@@ -195,6 +199,7 @@ export function emptyRoutines(): ContentBlock[] {
     {
       type: "text",
       text: "Alex isn\u2019t running anything for you yet.",
+      variant: "hero-primary",
     },
     {
       type: "actions",
@@ -234,6 +239,7 @@ export function emptyGrowth(): ContentBlock[] {
     {
       type: "text",
       text: "Alex isn\u2019t finding you clients yet.",
+      variant: "hero-primary",
     },
     {
       type: "suggestion",
@@ -271,6 +277,7 @@ export function emptyLibrary(): ContentBlock[] {
     {
       type: "text",
       text: "Here\u2019s what Alex can do for you.",
+      variant: "hero-primary",
     },
     {
       type: "suggestion",
@@ -296,6 +303,7 @@ export function emptyRoadmap(): ContentBlock[] {
     {
       type: "text",
       text: "Create a project first to see your roadmap.",
+      variant: "hero-primary",
     },
     {
       type: "actions",

@@ -21,7 +21,7 @@ export function composeWork(context: CompositionContext): ContentBlock[] {
 
   // Brief 053 AC9: Show ProgressBlock for active pipeline runs
   if (activeRuns && activeRuns.length > 0) {
-    blocks.push({ type: "text", text: "**Running pipelines**" });
+    blocks.push({ type: "text", text: "Running pipelines", variant: "hero-secondary" });
     for (const run of activeRuns) {
       blocks.push({
         type: "progress",
@@ -55,7 +55,7 @@ export function composeWork(context: CompositionContext): ContentBlock[] {
 
   // Active work items as records with progress
   if (active.length > 0) {
-    blocks.push({ type: "text", text: "**In progress**" });
+    blocks.push({ type: "text", text: "In progress", variant: "hero-secondary" });
 
     for (const item of active) {
       const proc = item.assignedProcess
@@ -85,7 +85,7 @@ export function composeWork(context: CompositionContext): ContentBlock[] {
 
   // Recently completed (last 5)
   if (completed.length > 0) {
-    blocks.push({ type: "text", text: "**Recently completed**" });
+    blocks.push({ type: "text", text: "Recently completed", variant: "hero-secondary" });
 
     for (const item of completed.slice(0, 5)) {
       blocks.push({

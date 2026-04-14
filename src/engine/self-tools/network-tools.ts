@@ -206,10 +206,26 @@ export async function handleNetworkStatus(
     }
   }
 
+  // Outreach results table (Brief 149 AC20)
+  let outreachBlock: import("@ditto/core").InteractiveTableBlock | undefined;
+  try {
+    const { gatherOutreachBatchSummary, buildOutreachTableBlock } = await import("../outreach-table");
+    const outreachSummary = await gatherOutreachBatchSummary(input.userId, new Date(weekAgo));
+    if (outreachSummary.entries.length > 0) {
+      outreachBlock = buildOutreachTableBlock(outreachSummary);
+      statusLines.push(``);
+      statusLines.push(`**Outreach Results** (last 7 days)`);
+      statusLines.push(`${outreachSummary.totalSent} sent · ${outreachSummary.totalReplied} replied · ${outreachSummary.totalInterested} interested · ${Math.round(outreachSummary.responseRate * 100)}% response rate`);
+    }
+  } catch (err) {
+    console.warn("[network_status] Failed to gather outreach summary:", (err as Error).message);
+  }
+
   return {
     toolName: "network_status",
     success: true,
     output: statusLines.join("\n"),
+    metadata: outreachBlock ? { outreachTableBlock: outreachBlock } : undefined,
   };
 }
 
@@ -371,10 +387,8 @@ export async function startIntake(
       ? ` We exchanged emails about "${lastSubject}" — I remember.`
       : "";
 
-    // Send welcome-back email (unless caller will send later)
-    if (!skipEmail) {
-      await sendWelcomeEmail(normalizedEmail, personaId, existing.name, need, true, contextNote, existing.id, ownerUserId, sessionId);
-    }
+    // Brief 144: No intro email — only the action email fires after ACTIVATE.
+    // The skipEmail param is now only relevant for action emails downstream.
 
     return {
       success: true,
@@ -418,10 +432,7 @@ export async function startIntake(
   }
   const personaName = personaId === "mira" ? "Mira" : "Alex";
 
-  // Send welcome email (unless caller will send later with richer context)
-  if (!skipEmail) {
-    await sendWelcomeEmail(normalizedEmail, personaId, name, need, false, undefined, person.id, ownerUserId, sessionId);
-  }
+  // Brief 144: No intro email — only the action email fires after ACTIVATE.
 
   const needAck = need ? ` You mentioned you're looking for help with "${need}" — I'll keep that in mind.` : "";
 
@@ -436,78 +447,11 @@ export async function startIntake(
 }
 
 // ============================================================
-// Welcome Email
+// Welcome Email — REMOVED (Brief 144)
 // ============================================================
-
-/**
- * Send a quick intro email — just so the visitor has Alex's email address
- * and can reply at any time. Sent immediately on email capture.
- *
- * Uses sendAndRecord() so the email is atomically tracked as an interaction.
- */
-async function sendIntroEmail(
-  email: string,
-  personaId: "alex" | "mira",
-  name?: string,
-  recognised?: boolean,
-  contextNote?: string,
-  personId?: string,
-  userId?: string,
-  sessionId?: string,
-): Promise<void> {
-  const { sendAndRecord } = await import("../channel");
-
-  const personaName = personaId === "mira" ? "Mira" : "Alex";
-  const greeting = name ? `Hey ${name}` : "Hey";
-
-  let body: string;
-  if (recognised) {
-    body = [
-      `${greeting},`,
-      "",
-      `It's ${personaName} from Ditto.${contextNote || ""} Good to reconnect.`,
-      "",
-      "Just making sure you have my email — this is where the real work happens. If we got cut off on the site, no worries. Reply here and we'll pick up where we left off.",
-    ].join("\n");
-  } else {
-    body = [
-      `${greeting},`,
-      "",
-      `${personaName} here from Ditto. Just making sure you have my email — this is where the real work happens.`,
-      "",
-      "If we got cut off on the site, no worries. Reply here with what you're working on and I'll get started. Otherwise, I'll follow up shortly with a plan.",
-    ].join("\n");
-  }
-
-  if (!personId) {
-    console.error("[intake] No personId for intro email — cannot send untracked email to", email);
-    return;
-  }
-
-  try {
-    const result = await sendAndRecord({
-      to: email,
-      subject: `${personaName} from Ditto`,
-      body,
-      personaId,
-      mode: "nurture",
-      personId,
-      userId: userId || "founder",
-      includeOptOut: true,
-      // Brief 126 AC4: sessionId in DB metadata (never in email headers/body — AC18)
-      // so replies to the intro email can be traced to the user's session
-      ...(sessionId ? { metadata: { sessionId, chatContext: true } } : {}),
-    });
-
-    if (result.success) {
-      console.log(`[intake] Intro email sent to ${email} from ${personaName} (interaction: ${result.interactionId})`);
-    } else {
-      console.error(`[intake] Intro email failed for ${email}:`, result.error);
-    }
-  } catch (err) {
-    console.error(`[intake] Intro email error for ${email}:`, err);
-  }
-}
+// sendIntroEmail deleted — the intro email was generic filler.
+// Users now receive only the action email after ACTIVATE.
+// The action email includes "reply to this email" CTA.
 
 /**
  * Send the action email — detailed follow-up with what Alex learned
@@ -525,6 +469,8 @@ export async function sendActionEmail(
   outreachMode: "connector" | "sales" = "connector",
 ): Promise<void> {
   const { sendAndRecord } = await import("../channel");
+  const { getAlexEmailPrompt } = await import("../alex-voice");
+  const { validateEmailVoice } = await import("../email-quality-gate");
 
   const personaName = personaId === "mira" ? "Mira" : "Alex";
   const greeting = name ? `Hey ${name}` : "Hey";
@@ -533,16 +479,19 @@ export async function sendActionEmail(
     ? `\nHere's what I've got from our conversation:\n${conversationContext}`
     : "";
 
-  // Generate the action email using LLM with full conversation context.
+  // Generate the action email using LLM with Alex voice spec + conversation context.
   // This ensures Alex never asks for information already provided.
   const { createCompletion, extractText } = await import("../llm");
 
   let body: string;
   try {
+    const alexVoice = getAlexEmailPrompt();
     const emailResponse = await createCompletion({
       system: [
-        `You are ${personaName} from Ditto, writing a follow-up email to ${name || "the visitor"} after a front door conversation.`,
-        `Mode: ${outreachMode}. Write as ${personaName} — warm, direct, Australian.`,
+        alexVoice,
+        "",
+        `You are writing a follow-up email to ${name || "the visitor"} after a front door conversation.`,
+        `Mode: ${outreachMode}.`,
         "",
         "RULES:",
         "- NEVER ask for information already in the conversation summary below (website, business name, target, location, etc.)",
@@ -551,6 +500,7 @@ export async function sendActionEmail(
         "- If you already have their website, reference it: 'I've already had a look at your site'",
         "- Keep it concise — 5-8 sentences max",
         "- End with what you need from them (if anything) or what happens next",
+        "- Include 'reply to this email anytime' — this is the user's primary channel to reach Alex",
         outreachMode === "sales"
           ? "- You're reaching out AS their company. Ask about tone/voice if not discussed. Ask for any info you're ACTUALLY missing."
           : "- You're reaching out as yourself (connector mode). You introduce, they decide.",
@@ -565,6 +515,17 @@ export async function sendActionEmail(
       purpose: "writing",
     });
     body = extractText(emailResponse.content).trim();
+
+    // Brief 144 AC16: Quality gate before sending
+    const gateResult = await validateEmailVoice(body, {
+      recipientName: name,
+      conversationSummary: conversationContext?.slice(0, 300),
+      callerContext: "sendActionEmail",
+    });
+    body = gateResult.body;
+    if (!gateResult.passed) {
+      console.log(`[intake] Action email quality gate: ${gateResult.failedChecks.join(", ")} (${gateResult.latencyMs}ms)`);
+    }
   } catch (err) {
     // Fallback to a safe generic email if LLM fails
     console.warn("[intake] LLM email generation failed, using fallback:", (err as Error).message);
@@ -580,7 +541,7 @@ export async function sendActionEmail(
         : "- I'm researching the right people to connect you with",
       "- You'll get a full report on who I've reached out to and what's coming back",
       "",
-      "I'll be in touch soon with an update. Reply here anytime if something changes.",
+      "Reply to this email anytime if something changes or you need to get in touch.",
     ].join("\n");
   }
 
@@ -651,6 +612,8 @@ export async function sendCosActionEmail(
   personId?: string,
 ): Promise<void> {
   const { sendAndRecord } = await import("../channel");
+  const { getAlexEmailPrompt } = await import("../alex-voice");
+  const { validateEmailVoice } = await import("../email-quality-gate");
 
   const personaName = personaId === "mira" ? "Mira" : "Alex";
   const greeting = name ? `Hey ${name}` : "Hey";
@@ -663,10 +626,12 @@ export async function sendCosActionEmail(
 
   let body: string;
   try {
+    const alexVoice = getAlexEmailPrompt();
     const emailResponse = await createCompletion({
       system: [
-        `You are ${personaName} from Ditto, writing a follow-up email to ${name || "the visitor"} after a front door conversation about Chief of Staff / operational support.`,
-        `Write as ${personaName} — warm, direct, Australian.`,
+        alexVoice,
+        "",
+        `You are writing a follow-up email to ${name || "the visitor"} after a front door conversation about Chief of Staff / operational support.`,
         "",
         "RULES:",
         "- NEVER ask for information already in the conversation summary below",
@@ -674,6 +639,7 @@ export async function sendCosActionEmail(
         "- Explain the CoS setup: weekly priorities briefings, decision tracking, you control the pace",
         "- Be specific about what their first briefing will cover based on what you learned",
         "- Keep it concise — 5-8 sentences max",
+        "- Include 'reply to this email anytime' — this is the user's primary channel to reach Alex",
       ].join("\n"),
       messages: [
         {
@@ -685,6 +651,17 @@ export async function sendCosActionEmail(
       purpose: "writing",
     });
     body = extractText(emailResponse.content).trim();
+
+    // Brief 144 AC17: Quality gate before sending
+    const gateResult = await validateEmailVoice(body, {
+      recipientName: name,
+      conversationSummary: conversationContext?.slice(0, 300),
+      callerContext: "sendCosActionEmail",
+    });
+    body = gateResult.body;
+    if (!gateResult.passed) {
+      console.log(`[intake] CoS action email quality gate: ${gateResult.failedChecks.join(", ")} (${gateResult.latencyMs}ms)`);
+    }
   } catch (err) {
     console.warn("[intake] LLM CoS email generation failed, using fallback:", (err as Error).message);
     body = [
@@ -700,7 +677,7 @@ export async function sendCosActionEmail(
       "",
       "Your first briefing will arrive by Monday. I only act when you've approved — nothing happens without your say-so.",
       "",
-      "Reply here anytime to update me on what's changed or what's on your mind.",
+      "Reply to this email anytime to update me on what's changed or what's on your mind.",
     ].join("\n");
   }
 
@@ -753,17 +730,4 @@ export async function sendCosActionEmail(
   }
 }
 
-// Keep backward compat for sendWelcomeEmail (used by resend flow)
-async function sendWelcomeEmail(
-  email: string,
-  personaId: "alex" | "mira",
-  name?: string,
-  _need?: string,
-  recognised?: boolean,
-  contextNote?: string,
-  personId?: string,
-  userId?: string,
-  sessionId?: string,
-): Promise<void> {
-  return sendIntroEmail(email, personaId, name, recognised, contextNote, personId, userId, sessionId);
-}
+// sendWelcomeEmail removed (Brief 144) — intro email path eliminated.

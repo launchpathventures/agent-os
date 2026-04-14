@@ -260,16 +260,13 @@ export function DittoConversation() {
   }, [showIntro, done, requestEmail, loading]);
 
   // ============================================================
-  // Voice call: poll for live session updates (messages + learned)
+  // Voice call: poll for live session updates (learned context + safety-net guidance)
   // ============================================================
-  // Voice call: harness-driven process guidance.
-  // Two mechanisms working together:
-  // 1. Poll every 3s for learned context (updates the UI card)
-  // 2. On every agent message, fetch fresh guidance and push it
-  //    via sendContextualUpdate (steers the next response)
-  const lastGuidanceRef = useRef("");
+  // Primary guidance delivery is now in voice-call.tsx (client tool + eager pre-computation).
+  // This poll is a safety net: updates the UI learned-context card and pushes guidance
+  // via sendContextualUpdate as reinforcement (no dedup — always send, even if unchanged).
 
-  // Fetch guidance from harness and push to voice agent
+  // Fetch learned context + push guidance as safety-net reinforcement
   const pushGuidance = useCallback(async () => {
     if (!sessionId || !voiceToken || !voiceCallRef.current) return;
     try {
@@ -281,8 +278,8 @@ export function DittoConversation() {
 
       if (data.learned) setLearned(data.learned);
 
-      if (data.guidance && data.guidance !== lastGuidanceRef.current) {
-        lastGuidanceRef.current = data.guidance;
+      // Always send guidance (no dedup) — the agent may have ignored it last time
+      if (data.guidance) {
         voiceCallRef.current.sendContextualUpdate(
           `SYSTEM INSTRUCTION: ${data.guidance}`,
         );
@@ -290,10 +287,10 @@ export function DittoConversation() {
     } catch { /* non-fatal */ }
   }, [sessionId, voiceToken]);
 
-  // Poll for learned context updates (UI card)
+  // Safety-net poll: 10s interval (primary delivery is eager pre-computation in voice-call.tsx)
   useEffect(() => {
     if (!callActive || !sessionId || !voiceToken) return;
-    const interval = setInterval(pushGuidance, 3000);
+    const interval = setInterval(pushGuidance, 10000);
     return () => clearInterval(interval);
   }, [callActive, sessionId, voiceToken, pushGuidance]);
 
@@ -1064,8 +1061,9 @@ export function DittoConversation() {
                                 }),
                               }).catch(() => {});
                             }
-                            // After agent message: push fresh guidance for the next turn
-                            if (role === "alex") pushGuidance();
+                            // Guidance delivery is now handled by voice-call.tsx
+                            // (client tool + eager pre-computation on user speech).
+                            // The 10s polling safety net handles reinforcement.
                           }}
                         />
                       </div>

@@ -193,6 +193,23 @@ describe("activate_cycle", () => {
     expect(result.output).toContain("goal or ICP");
   });
 
+  it("triggers fullHeartbeat after activation (MP-1.3)", async () => {
+    const { fullHeartbeat: mockFullHeartbeat } = await import("../heartbeat");
+
+    const result = await handleActivateCycle({
+      cycleType: "sales-marketing",
+      goals: "Test heartbeat",
+      icp: "Tech companies",
+    });
+
+    expect(result.success).toBe(true);
+
+    // fullHeartbeat is called via setImmediate — flush microtasks
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockFullHeartbeat).toHaveBeenCalledWith(result.metadata?.runId);
+  });
+
   it("prevents duplicate active cycles", async () => {
     // Activate first
     const first = await handleActivateCycle({

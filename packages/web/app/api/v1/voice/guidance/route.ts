@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     }
 
     // Run harness evaluation with 6s timeout (client tool has ~10s before ElevenLabs times out)
-    let evaluation: { learned: Record<string, string | null>; stage: string; guidance: string } | null = null;
+    let evaluation: Awaited<ReturnType<typeof evaluateVoiceConversation>> = null;
     try {
       evaluation = await Promise.race([
         evaluateVoiceConversation(sessionId),

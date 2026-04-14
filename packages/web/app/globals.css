@@ -172,6 +172,7 @@ body {
 }
 
 /* Prose styling for markdown in conversation messages */
+.prose-ditto { font-size: 17px; font-weight: 500; line-height: 1.6; }
 .prose-ditto p { margin-bottom: 0.75rem; }
 .prose-ditto p:last-child { margin-bottom: 0; }
 .prose-ditto ol { list-style: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
@@ -184,9 +185,9 @@ body {
 .prose-ditto blockquote { border-left: 2px solid var(--color-vivid); padding-left: 1rem; margin: 0.75rem 0; color: var(--color-text-secondary); }
 .prose-ditto h1, .prose-ditto h2, .prose-ditto h3 { font-weight: 600; color: var(--color-text-primary); margin-top: 1.25rem; margin-bottom: 0.5rem; }
 .prose-ditto h1:first-child, .prose-ditto h2:first-child, .prose-ditto h3:first-child { margin-top: 0; }
-.prose-ditto h1 { font-size: 1.25rem; }
-.prose-ditto h2 { font-size: 1.125rem; }
-.prose-ditto h3 { font-size: 1rem; }
+.prose-ditto h1 { font-size: 1.5625rem; letter-spacing: -0.01em; }
+.prose-ditto h2 { font-size: 1.25rem; letter-spacing: -0.01em; }
+.prose-ditto h3 { font-size: 1.0625rem; }
 .prose-ditto a { color: var(--color-vivid); text-decoration: underline; text-underline-offset: 2px; }
 
 /* Reasoning shimmer — gradient sweep for "Thinking..." text */

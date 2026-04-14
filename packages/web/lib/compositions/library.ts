@@ -58,7 +58,8 @@ export function composeLibrary(context: CompositionContext): ContentBlock[] {
 
     blocks.push({
       type: "text",
-      text: `**${cat.label}** — ${cat.description}`,
+      text: `${cat.label} — ${cat.description}`,
+      variant: "hero-secondary",
     });
 
     // Active capabilities first

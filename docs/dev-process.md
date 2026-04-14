@@ -269,6 +269,8 @@ Reference docs are maintained by the roles that use them, not by a centralised c
 
 **Flag vs fix:** Roles that own a doc type fix drift directly. Roles that consume a doc flag drift in their output for the owner to address. When parallel roles (Designer + Researcher) encounter shared docs, both flag — the downstream Architect resolves.
 
+**Landscape-before-brief rule (Insight-180 retro):** Every external API, SDK, or service referenced in a brief must have an evaluation in `docs/landscape.md` *before* the brief is written. The Researcher adds evaluations during research; the Architect verifies coverage before writing the brief. If the Documenter has to add landscape entries during the retrospective, that's a process gap to flag.
+
 **Handoff visibility:** Every producing role's output includes a "Reference docs" line:
 - `Reference docs updated: [list of files changed]`
 - `Reference docs checked: no drift found`
@@ -299,6 +301,8 @@ The Builder owns all automated quality gates: type-check, test suite, smoke test
 **Re-entry condition (resolved):** Web UI shipped (Phase 10). Browser-based behavioral testing added via Playwright e2e tests (Brief 054) with mock LLM layer (`MOCK_LLM=true`). No dedicated QA role — testing remains distributed across Builder (execution) and Reviewer (verification).
 
 **Prompt token budgets:** For briefs that modify prompts, token budget acceptance criteria should be broken down per-change (not just a total) so the builder can verify each addition independently. A `countTokens(text)` utility in `src/test-utils.ts` would make these mechanically verifiable — currently estimated manually. (Brief 122 retro)
+
+The completeness standard is not "passes checks" — it's "genuinely done." Automated checks are the floor, not the ceiling. See Principle 6 (Boil the ocean).
 
 This layering is the seed for the harness's general quality infrastructure (see Insight-001: Quality Criteria Are Additive).
 

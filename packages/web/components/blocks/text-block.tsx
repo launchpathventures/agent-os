@@ -38,7 +38,7 @@ const components: Components = {
     <h6 className="text-xs font-medium text-text-muted mt-3 mb-1 first:mt-0">{children}</h6>
   ),
   p: ({ children }) => (
-    <p className="text-base leading-relaxed text-text-primary mb-3 last:mb-0">{children}</p>
+    <p className="text-[17px] font-medium leading-relaxed text-text-primary mb-3 last:mb-0">{children}</p>
   ),
   ul: ({ children }) => (
     <ul className="list-disc list-inside text-base text-text-primary mb-3 space-y-1 pl-1">{children}</ul>
@@ -105,9 +105,27 @@ const components: Components = {
   ),
 };
 
+const heroStyles = {
+  "hero-primary":
+    "text-2xl font-bold tracking-tight text-text-primary md:text-3xl md:leading-[1.15]",
+  "hero-secondary":
+    "text-xl font-semibold tracking-tight text-text-primary md:text-2xl md:leading-[1.2]",
+} as const;
+
 export function TextBlockComponent({ block }: { block: TextBlock }) {
+  const variant = block.variant ?? "body";
+
+  // Hero variants render as plain styled text (no markdown processing)
+  if (variant !== "body") {
+    return (
+      <p data-testid="text-block" className={heroStyles[variant]}>
+        {block.text}
+      </p>
+    );
+  }
+
   return (
-    <div data-testid="text-block" className="text-base leading-relaxed text-text-primary">
+    <div data-testid="text-block" className="text-[17px] font-medium leading-relaxed text-text-primary">
       <Markdown remarkPlugins={[remarkGfm]} components={components}>
         {block.text}
       </Markdown>

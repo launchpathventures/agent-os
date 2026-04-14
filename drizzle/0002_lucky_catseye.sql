@@ -1,0 +1,1 @@
+ALTER TABLE `network_users` ADD `last_notified_at` integer;

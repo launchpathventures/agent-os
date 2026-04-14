@@ -2,7 +2,7 @@
  * Ghost Mode Email Formatting Tests (Brief 124)
  *
  * Verifies that ghost mode emails:
- * - Have NO persona sign-off (no "Alex\nDitto")
+ * - Have NO persona sign-off (no "— Alex")
  * - Have NO opt-out footer
  * - Have NO referral footer
  * - Have NO magic link footer
@@ -78,7 +78,7 @@ describe("formatEmailBody — ghost mode (Brief 124)", () => {
     });
     const result = formatEmailBody(msg);
 
-    expect(result).toContain("Alex\nDitto");
+    expect(result).toContain("— Alex");
     expect(result).toContain("unsubscribe");
     expect(result).toContain("ref=user-123");
     expect(result).toContain("Continue in chat");
@@ -88,21 +88,21 @@ describe("formatEmailBody — ghost mode (Brief 124)", () => {
     const msg = makeMessage({ sendingIdentity: "agent-of-user" });
     const result = formatEmailBody(msg);
 
-    expect(result).toContain("Alex\nDitto");
+    expect(result).toContain("— Alex");
   });
 
   it("preserves persona sign-off for principal identity", () => {
     const msg = makeMessage({ sendingIdentity: "principal" });
     const result = formatEmailBody(msg);
 
-    expect(result).toContain("Alex\nDitto");
+    expect(result).toContain("— Alex");
   });
 
   it("preserves persona sign-off when sendingIdentity is undefined", () => {
     const msg = makeMessage();
     const result = formatEmailBody(msg);
 
-    expect(result).toContain("Alex\nDitto");
+    expect(result).toContain("— Alex");
   });
 });
 

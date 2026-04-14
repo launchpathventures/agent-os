@@ -32,7 +32,7 @@ export function composeProjects(context: CompositionContext): ContentBlock[] {
 
   // Goals overview
   if (goals.length > 0) {
-    blocks.push({ type: "text", text: "**Goals**" });
+    blocks.push({ type: "text", text: "Goals", variant: "hero-secondary" });
 
     for (const goal of goals) {
       // Find child tasks
@@ -63,7 +63,7 @@ export function composeProjects(context: CompositionContext): ContentBlock[] {
 
   // Process associations — which routines support which work
   if (processes.length > 0) {
-    blocks.push({ type: "text", text: "**Connected routines**" });
+    blocks.push({ type: "text", text: "Connected routines", variant: "hero-secondary" });
 
     for (const proc of processes) {
       const procWorkItems = workItems.filter(

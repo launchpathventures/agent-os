@@ -71,7 +71,7 @@ export function Message({
           className,
         )}
       >
-        <div className="bg-surface-raised rounded-2xl px-4 py-2.5 text-base leading-relaxed text-text-primary max-w-[85%]">
+        <div className="bg-vivid-subtle rounded-2xl px-4 py-2.5 text-[17px] font-medium leading-relaxed text-text-primary max-w-[85%]">
           {message.parts.map((part, i) => (
             <MessagePart
               key={i}
@@ -115,7 +115,7 @@ export function Message({
           style={isStreaming ? { animation: "dot-breathe 2s ease-in-out infinite" } : undefined}
         />
       </div>
-      <div className="flex-1 text-base leading-relaxed text-text-primary">
+      <div className="flex-1 text-[17px] font-medium leading-relaxed text-text-primary">
         <AssistantParts
           parts={message.parts}
           isStreaming={isStreaming}

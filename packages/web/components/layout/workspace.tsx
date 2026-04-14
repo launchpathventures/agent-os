@@ -31,6 +31,7 @@ import { PromptInput } from "@/components/self/prompt-input";
 import { ConnectionsPanel } from "@/components/settings/connections-panel";
 import { ConversationMessage } from "@/components/self/message";
 import { TypingIndicator } from "@/components/self/typing-indicator";
+import { SuggestionPills } from "@/components/self/suggestion-pills";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { resolveTransition } from "@/lib/transition-map";
@@ -359,6 +360,23 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
 
   const hasMessages = messages.length > 0;
 
+  // Suggestion pills — context-aware conversation starters
+  const suggestionPills = useMemo(() => {
+    if (chatLoading || hasMessages) return [];
+    if (centerView.type !== "canvas") return [];
+    const pillsByIntent: Record<string, string[]> = {
+      today: ["What needs my attention?", "Show me my week", "Any new leads?"],
+      inbox: ["Walk me through reviews", "Anything urgent?"],
+      work: ["What should I focus on?", "Show active tasks"],
+      projects: ["How are my projects going?", "Start a new project"],
+      growth: ["How should we grow?", "What's working?"],
+      library: ["What can you do?", "Set up a new capability"],
+      routines: ["Need a new routine", "How are routines performing?"],
+      roadmap: ["What should we build next?", "Show priorities"],
+    };
+    return pillsByIntent[centerView.intent] ?? [];
+  }, [chatLoading, hasMessages, centerView]);
+
   // ==========================================
   // Artifact mode — full artifact layout (AC2)
   // ==========================================
@@ -421,7 +439,7 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
             activeDestination={activeDestination}
             onNavigate={handleNavigate}
             onSelectProcess={handleSelectProcess}
-            collapsed={isMediumLayout}
+            collapsed
           />
         ) : (
           <MobileMenuButton
@@ -452,7 +470,7 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
               </div>
             ) : centerView.type === "canvas" ? (
               /* Canvas — composed blocks (P00: 720px centred, generous padding) */
-              <div className="max-w-[720px] mx-auto" style={{ padding: "32px 24px 24px" }}>
+              <div className="max-w-[720px] mx-auto" style={{ padding: "48px 24px 24px" }}>
                 {/* Composed ContentBlock[] from composition engine */}
                 <ComposedCanvas
                   intent={centerView.intent}
@@ -461,12 +479,12 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
 
                 {/* Welcome message — static Self greeting for first visit */}
                 {welcomeMessage && !hasMessages && !chatLoading && (
-                  <div className="mt-4 space-y-1">
+                  <div className="mt-6 animate-fade-in-slow">
                     <div className="max-w-[720px] mx-auto flex gap-3 py-3">
                       <div className="flex-shrink-0 mt-1.5">
                         <div className="w-2 h-2 rounded-full bg-vivid" />
                       </div>
-                      <div className="flex-1 text-base leading-relaxed text-text-primary">
+                      <div className="flex-1 text-xl font-semibold tracking-tight text-text-primary">
                         {welcomeMessage}
                       </div>
                     </div>
@@ -475,7 +493,7 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
 
                 {/* Conversation messages */}
                 {hasMessages && (
-                  <div className="mt-4 space-y-1">
+                  <div className="mt-6 space-y-4">
                     {messages.map((message, _idx, arr) => (
                       <ConversationMessage
                         key={message.id}
@@ -497,18 +515,50 @@ export function Workspace({ userId = "default" }: WorkspaceProps) {
                     <TypingIndicator />
                   </div>
                 )}
+
+                {/* Suggestion pills — conversation starters */}
+                {suggestionPills.length > 0 && (
+                  <div className="mt-6 max-w-[720px] mx-auto">
+                    <SuggestionPills
+                      pills={suggestionPills}
+                      onSelect={(pill) => {
+                        setInput(pill);
+                        handleChatSubmit();
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ) : null /* artifact mode handled by early return above */}
           </div>
 
+          {/* Fade gradient above input */}
+          <div className="h-6 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+
           {/* Chat input — persistent at bottom of center column (P00 input bar) */}
-          <div className="bg-background" style={{ padding: "12px 24px 20px" }}>
+          <div className="bg-background" style={{ padding: "12px 24px 24px" }}>
             <div>
               <PromptInput
                 value={input}
                 onChange={setInput}
                 onSubmit={handleChatSubmit}
                 isLoading={chatLoading}
+                placeholder={
+                  chatLoading
+                    ? "Jump in anytime..."
+                    : centerView.type === "canvas"
+                      ? ({
+                          today: "What's on your mind?",
+                          inbox: "Ask about any of these...",
+                          work: "What do you need to get done?",
+                          projects: "Tell me about a project...",
+                          growth: "How should we grow?",
+                          library: "Need a new capability?",
+                          routines: "Need a new routine?",
+                          roadmap: "What should we build next?",
+                        } as Record<string, string>)[centerView.intent]
+                      : undefined
+                }
               />
             </div>
           </div>

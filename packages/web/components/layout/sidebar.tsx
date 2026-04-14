@@ -179,7 +179,7 @@ export function Sidebar({
   if (collapsed) {
     return (
       <div
-        className="flex-shrink-0 border-r border-border bg-surface flex flex-col items-center py-4 gap-1"
+        className="flex-shrink-0 bg-background flex flex-col items-center py-4 gap-1 shadow-[var(--shadow-subtle)]"
         style={{ width: 56 }}
       >
         {/* Wordmark placeholder — just a dot in collapsed state */}
@@ -198,10 +198,10 @@ export function Sidebar({
               key={id}
               onClick={() => onNavigate(id)}
               title={label}
-              className={`relative flex items-center justify-center transition-colors ${
+              className={`relative flex items-center justify-center transition-all duration-200 ${
                 isActive
-                  ? "text-text-primary"
-                  : "text-text-muted hover:bg-surface-raised hover:text-text-primary"
+                  ? "text-text-primary opacity-100"
+                  : "text-text-muted opacity-60 hover:opacity-100 hover:bg-surface-raised hover:text-text-primary"
               }`}
               style={{
                 width: 36,

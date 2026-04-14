@@ -263,6 +263,7 @@ function applyMissingSchemaObjects(db: Database.Database): void {
     "ALTER TABLE chat_sessions ADD COLUMN learned TEXT",
     "ALTER TABLE chat_sessions ADD COLUMN call_offered INTEGER DEFAULT 0",
     "ALTER TABLE chat_sessions ADD COLUMN voice_token TEXT",
+    "ALTER TABLE network_users ADD COLUMN last_notified_at INTEGER",
   ];
 
   for (const stmt of alterStatements) {

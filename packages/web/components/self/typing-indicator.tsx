@@ -1,18 +1,13 @@
 "use client";
 
 /**
- * Ditto Typing Indicator (Brief 062 AC7)
+ * Ditto Typing Indicator
  *
- * Vivid dot + shimmer "Thinking..." text — Self's visual presence while thinking.
- * Status text replaces generic "Thinking..." when available.
+ * Three-dot pulse animation with optional status text.
+ * Matches frontdoor iMessage/WhatsApp pattern.
  *
- * Matches conversation message layout: max-width 720px, vivid dot, left-aligned.
- * Mirrors Self's message structure (vivid dot + text), not a disconnected animation.
- *
- * Provenance: P30 prototype gathering_indicator.
+ * Provenance: welcome/typing-indicator.tsx pattern, Brief 094.
  */
-
-import { Shimmer } from "@/components/ai-elements/shimmer";
 
 interface TypingIndicatorProps {
   status?: string;
@@ -21,14 +16,25 @@ interface TypingIndicatorProps {
 export function TypingIndicator({ status }: TypingIndicatorProps) {
   return (
     <div className="max-w-[720px] mx-auto py-3">
-      <div className="flex items-center gap-3">
-        {/* Vivid dot — matches Self message identity dot */}
-        <div className="w-2 h-2 rounded-full bg-vivid flex-shrink-0" />
+      <div className="flex items-center gap-3 animate-fade-in">
+        {/* Three-dot pulse — iMessage style */}
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-2 w-2 rounded-full bg-text-muted"
+              style={{
+                animation: "pulse-dot 1.2s ease-in-out infinite",
+                animationDelay: `${i * 0.2}s`,
+              }}
+            />
+          ))}
+        </div>
 
-        {/* Status text with shimmer, or default "Thinking..." */}
-        <span className="text-sm text-text-secondary">
-          <Shimmer>{status ?? "Thinking..."}</Shimmer>
-        </span>
+        {/* Status text — "Considering...", "Reading your processes..." */}
+        {status && (
+          <span className="text-sm text-text-muted italic">{status}</span>
+        )}
       </div>
     </div>
   );

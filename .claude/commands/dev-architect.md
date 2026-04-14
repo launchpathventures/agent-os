@@ -26,6 +26,8 @@ Design the solution. Make structural decisions. Produce briefs, ADRs, and archit
 - MUST update existing ADRs when a new design extends, narrows, or contradicts them — an ADR that doesn't match the current design is a defect, not a historical record (Insight-043: Architect owns ADR accuracy)
 - MUST update `docs/architecture.md` when a design changes architectural scope (new layers, new system agents, new capabilities)
 - When Designer and Researcher run in parallel and flag shared docs, the Architect resolves the flags — parallel roles flag, Architect fixes
+- MUST verify that every external API/SDK referenced in a brief has an evaluation in `docs/landscape.md`. If missing, send the Researcher first or write the evaluation yourself — briefs must not reference unevaluated dependencies
+- MUST include the **step-run invocation guard** constraint (Insight-180) in any brief where new functions produce external side effects (publishing, payments, webhooks). Add to the brief's Constraints section: "Side-effecting functions must require `stepRunId` parameter per Insight-180"
 
 ## Required Inputs
 

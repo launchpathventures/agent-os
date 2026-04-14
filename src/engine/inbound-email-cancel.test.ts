@@ -278,13 +278,13 @@ describe("email cancellation flow", () => {
     const { goalId, threadId } = await createGoalWithProcess(userId);
 
     const payload: InboundEmailPayload = {
-      event_type: "message.received",
+      eventType: "message.received",
       message: {
         from: "boss@example.com",
         subject: "Re: Introduction from Alex",
         text: "cancel this",
-        thread_id: threadId,
-        message_id: "inbound-msg-1",
+        threadId: threadId,
+        messageId: "inbound-msg-1",
       },
     };
 
@@ -304,13 +304,13 @@ describe("email cancellation flow", () => {
     await createNetworkUser({ email: "boss@example.com" });
 
     const payload: InboundEmailPayload = {
-      event_type: "message.received",
+      eventType: "message.received",
       message: {
         from: "boss@example.com",
         subject: "Re: Introduction from Alex",
         text: "maybe hold off on this",
-        thread_id: "some-thread",
-        message_id: "inbound-msg-2",
+        threadId: "some-thread",
+        messageId: "inbound-msg-2",
       },
     };
 
@@ -331,13 +331,13 @@ describe("email cancellation flow", () => {
 
     // Cancel in goal2's thread
     const payload: InboundEmailPayload = {
-      event_type: "message.received",
+      eventType: "message.received",
       message: {
         from: "boss@example.com",
         subject: "Re: Different Outreach",
         text: "stop this",
-        thread_id: goal2.threadId,
-        message_id: "inbound-msg-3",
+        threadId: goal2.threadId,
+        messageId: "inbound-msg-3",
       },
     };
 
@@ -361,13 +361,13 @@ describe("email cancellation flow", () => {
     // User B sends cancel in user A's thread — but resolveGoalFromThread
     // filters by userId, so it won't find a match for user B
     const payload: InboundEmailPayload = {
-      event_type: "message.received",
+      eventType: "message.received",
       message: {
         from: "userb@example.com",
         subject: "Re: Introduction from Alex",
         text: "cancel this",
-        thread_id: threadId,
-        message_id: "inbound-msg-4",
+        threadId: threadId,
+        messageId: "inbound-msg-4",
       },
     };
 
@@ -383,13 +383,13 @@ describe("email cancellation flow", () => {
     await createNetworkUser({ email: "boss@example.com" });
 
     const payload: InboundEmailPayload = {
-      event_type: "message.received",
+      eventType: "message.received",
       message: {
         from: "boss@example.com",
         subject: "Cancel everything",
         text: "cancel everything",
-        // No thread_id — can't resolve which goal
-        message_id: "inbound-msg-5",
+        // No threadId — can't resolve which goal
+        messageId: "inbound-msg-5",
       },
     };
 

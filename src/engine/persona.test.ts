@@ -56,7 +56,7 @@ describe("getPersonaConfig", () => {
     expect(config.id).toBe("alex");
     expect(config.name).toBe("Alex");
     expect(config.voiceTraits.directness).toBe(9);
-    expect(config.signOff).toBe("Alex\nDitto");
+    expect(config.signOff).toBe("— Alex");
   });
 
   it("returns Mira config", () => {
@@ -64,7 +64,7 @@ describe("getPersonaConfig", () => {
     expect(config.id).toBe("mira");
     expect(config.name).toBe("Mira");
     expect(config.voiceTraits.formality).toBe(6);
-    expect(config.signOff).toBe("Mira\nDitto");
+    expect(config.signOff).toBe("— Mira");
   });
 });
 

@@ -382,6 +382,11 @@ async function handleFormSubmit(
           save: true,
         });
 
+        // MP-1.2: After successful creation, include conversationContext
+        // so the chat handler can offer activation
+        const parsedOutput = result.success ? JSON.parse(result.output) as Record<string, unknown> : null;
+        const processSlug = parsedOutput?.slug as string | undefined;
+
         return {
           success: result.success,
           message: result.success ? `Process "${name}" created` : result.output,
@@ -395,6 +400,15 @@ async function handleFormSubmit(
                 details: { Steps: String(stepDefs.length) },
               }]
             : [],
+          ...(result.success && processSlug
+            ? {
+                conversationContext: {
+                  activationReady: true,
+                  processSlug,
+                  processName: name.trim(),
+                },
+              }
+            : {}),
         };
       }
 

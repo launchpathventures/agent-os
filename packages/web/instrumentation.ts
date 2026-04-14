@@ -78,6 +78,33 @@ export async function register() {
       // Non-fatal — pulse can be started manually
     }
 
+    // Validate workspace auth configuration
+    // When WORKSPACE_OWNER_EMAIL is set, auth is enforced — companion vars must be present.
+    if (process.env.WORKSPACE_OWNER_EMAIL) {
+      const missing: string[] = [];
+      if (!process.env.NEXT_PUBLIC_APP_URL && !process.env.NETWORK_BASE_URL) {
+        missing.push("NEXT_PUBLIC_APP_URL (magic link emails need a domain)");
+      }
+      if (!process.env.SESSION_SECRET) {
+        missing.push("SESSION_SECRET (HMAC signing falls back to guessable WORKSPACE_OWNER_EMAIL)");
+      }
+      if (!process.env.AGENTMAIL_API_KEY) {
+        missing.push("AGENTMAIL_API_KEY (magic link emails cannot be sent)");
+      }
+      if (missing.length > 0) {
+        console.warn(
+          `[instrumentation] ⚠ Workspace auth is enabled (WORKSPACE_OWNER_EMAIL=${process.env.WORKSPACE_OWNER_EMAIL}) ` +
+          `but ${missing.length} companion variable(s) are missing:\n` +
+          missing.map((m) => `  - ${m}`).join("\n") +
+          "\nSee .env.example for documentation.",
+        );
+      } else {
+        console.log(`[instrumentation] Workspace auth configured for ${process.env.WORKSPACE_OWNER_EMAIL}`);
+      }
+    } else {
+      console.log("[instrumentation] Workspace auth disabled (WORKSPACE_OWNER_EMAIL not set — local dev mode).");
+    }
+
     // First-boot seed import (Brief 089)
     // If DITTO_NETWORK_URL is set and no self-scoped memories exist,
     // fetch and import the workspace seed from the Network Service.

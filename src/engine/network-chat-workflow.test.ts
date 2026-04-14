@@ -457,11 +457,11 @@ describe("front-door workflow — end to end", () => {
       );
       await handleChatTurn(turn1.sessionId, "tim@launchpathventures.com", "front-door", "127.0.0.1");
 
-      // 2 calls: intro email + 1 action email (not 3 — no separate CoS action email)
-      expect(mockSendAndRecord.mock.calls.length).toBe(2);
+      // 1 call: action email only (Brief 144 — intro email removed)
+      expect(mockSendAndRecord.mock.calls.length).toBe(1);
 
-      // The second call is the action email — should be outreach-focused
-      const subject = (mockSendAndRecord.mock.calls[1][0] as Record<string, unknown>).subject;
+      // The call is the action email — should be outreach-focused
+      const subject = (mockSendAndRecord.mock.calls[0][0] as Record<string, unknown>).subject;
       expect(subject).toBe("Here's the plan");
     });
   });

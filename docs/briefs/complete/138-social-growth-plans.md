@@ -1,14 +1,14 @@
 # Brief: Social Growth Plans — Process-Native GTM Social UI
 
 **Date:** 2026-04-13
-**Status:** draft
+**Status:** complete
 **Depends on:** GTM Pipeline v2 (cycle + template — complete), Deliberative Perspectives (Brief 136 — complete), Unipile social channel adapter (Brief 133 — complete), Workspace three-panel layout (complete), Block registry (complete), Composition engine (6 intents — complete), Process runner with gate approval (complete), Cycle self-tools (5 tools — complete), Feed assembler (complete), Surface actions (complete)
 **Unlocks:** Multi-channel analytics, engagement tracking loop, asset pipeline
 
 ## Goal
 
 - **Roadmap phase:** Phase 14: Network Agent (GTM track)
-- **Capabilities:** GTM cycle dashboard, structured GATE review for experiments, posting queue, multiple audience-focused growth plans, perspective-driven research, progress tracking
+- **Capabilities:** GTM cycle dashboard, structured GATE review for experiments, automated content publishing, multiple audience-focused growth plans, perspective-driven research, progress tracking
 
 ## Context
 
@@ -31,8 +31,7 @@ The workspace UI is built:
 1. See a running GTM cycle's progress
 2. Review experiments at the GATE with structured presentation (ReviewCardBlock shows generic outputText)
 3. Read the BRIEF output as a dashboard
-4. Queue and track manual posts
-5. Create audience-focused plans that configure cycle inputs
+4. Create audience-focused plans that configure cycle inputs
 
 ### Architecture insight: Plan = Process Instance
 
@@ -45,7 +44,7 @@ A Social Growth Plan is **not** a new first-class object. It's a configured inst
 | Language bank, learnings | `memories` table (scope: process, type: context) |
 | Experiments + verdicts | Step outputs from ASSESS/LEARN phases |
 | Schedule (M/Th 8am) | `schedules` table entry (cron) |
-| Posting queue | GATE step's `waiting_review` state |
+| Content approval | GATE step's `waiting_review` state |
 | Multiple plans | Multiple process instances of the same template |
 | Pause/resume | `pause_cycle` / `resume_cycle` self-tools |
 | Progress tracking | `feedback.metrics` on the process definition |
@@ -56,7 +55,7 @@ No new DB tables. No parallel object model. The process system IS the plan syste
 ### What's actually new
 
 1. **A `growth` composition intent** — sidebar entry + composition function that renders GTM process instances as plan dashboards
-2. **GTM-aware block composition** — the composition function reads step outputs and renders them as structured blocks (experiments, posting queue, metrics) instead of generic text
+2. **GTM-aware block composition** — the composition function reads step outputs and renders them as structured blocks (experiments, published content, metrics) instead of generic text
 3. **Unipile Posts API adapter** — extends channel layer to publish LinkedIn feed posts via `client.users.createPost()` (not the DM adapter)
 4. **X API v2 adapter** — new `XApiClient` for tweets, threads, and X DMs ($0.01/tweet pay-per-use)
 5. **Structured `gtmContext` input schema** — so audience/channels/goals are typed, not freeform JSON
@@ -220,118 +219,13 @@ SIDEBAR
 └─ Settings
 ```
 
-**Composition function** (`packages/web/lib/compositions/growth.ts`):
+**Composition function:** See `packages/web/lib/compositions/growth.ts` for the implementation. Pure, synchronous. Renders per plan:
+- Summary metrics (plans, active, experiments, published)
+- Pending reviews filtered to GTM pipeline runs
+- Per-plan: metric (name + cycle number), status_card (current step), data table (experiments), checklist (published content with post URLs), record (target channels), text (last brief)
+- Empty state: suggestion block prompting plan creation
 
-```typescript
-export function composeGrowth(context: CompositionContext): ContentBlock[] {
-  const blocks: ContentBlock[] = []
-
-  // 1. Find all active GTM pipeline process instances
-  const gtmRuns = context.activeRuns.filter(r => r.processSlug === "gtm-pipeline")
-
-  if (gtmRuns.length === 0) {
-    // Empty state — suggest creating a plan
-    blocks.push({
-      type: "suggestion",
-      title: "No growth plans yet",
-      body: "Tell me about an audience you want to reach and I'll create a growth plan.",
-      actions: [{ id: "suggest-create-plan", label: "Create a plan", style: "primary" }]
-    })
-    return blocks
-  }
-
-  // 2. For each plan (GTM process instance), render a plan section
-  for (const run of gtmRuns) {
-    const gtmContext = run.inputs?.gtmContext as GTMContext
-
-    // Plan header — metric block with progress
-    blocks.push({
-      type: "metric",
-      label: gtmContext.planName,
-      value: gtmContext.goals.metrics[0]?.current ?? 0,
-      target: gtmContext.goals.metrics[0]?.target,
-      trend: "up",  // computed from historical
-      subtitle: `Cycle ${run.cycleNumber} · ${channelLabels(gtmContext.channels)}`
-    })
-
-    // Current cycle phase — status_card
-    blocks.push({
-      type: "status_card",
-      title: `Current: ${run.currentStepId?.toUpperCase() ?? "starting"}`,
-      status: run.status === "running" ? "in_progress" : run.status,
-      body: stepDescription(run.currentStepId)
-    })
-
-    // Pending reviews at GATE — review_card blocks (from feed assembler)
-    const pendingForPlan = context.pendingReviews
-      .filter(r => r.data.processRunId === run.id)
-    for (const review of pendingForPlan) {
-      blocks.push(review.data.blocks?.[0] ?? {
-        type: "review_card",
-        ...review.data
-      })
-    }
-
-    // Published content — checklist of what's been posted with links
-    const published = run.publishedContent ?? []
-    if (published.length > 0) {
-      blocks.push({
-        type: "checklist",
-        title: "Published This Cycle",
-        items: published.map(post => ({
-          label: `${post.platform}: "${post.content.slice(0, 60)}..."`,
-          status: "done",
-          detail: post.postUrl
-        }))
-      })
-    }
-
-    // Experiments — data block (table format)
-    const experiments = getExperiments(run)
-    if (experiments.length > 0) {
-      blocks.push({
-        type: "data",
-        title: "Experiments",
-        format: "table",
-        columns: ["Track", "Experiment", "Result", "Verdict"],
-        rows: experiments.map(e => [
-          e.track, e.description,
-          e.evidence ?? "pending",
-          e.verdict ?? "running"
-        ])
-      })
-    }
-
-    // Asset recommendations — record blocks with generation prompt action
-    const assets = gtmContext.strategy?.assetRecommendations ?? []
-    for (const asset of assets) {
-      blocks.push({
-        type: "record",
-        title: asset.type,
-        fields: [
-          { label: "Why", value: asset.rationale },
-        ],
-        actions: [
-          { id: `asset.generate.${asset.type}`, label: "Generate with prompt", style: "secondary" }
-        ]
-      })
-    }
-
-    // Last brief — text block with cycle digest
-    const lastBrief = getLastBrief(run)
-    if (lastBrief) {
-      blocks.push({
-        type: "text",
-        content: `### Last Cycle Brief\n\n${lastBrief}`
-      })
-    }
-  }
-
-  return blocks
-}
-```
-
-**Key insight:** This composition function uses **only existing block types**. No new React components. The block registry already renders metric, status_card, review_card, checklist, data, record, and text blocks.
+Uses only existing block types — no new React components.
 
 ### 5. Structured GATE Presentation
 
@@ -553,7 +447,7 @@ CYCLE N+1...
 ### Growth Composition Intent
 - [ ] "Growth" appears in sidebar navigation
 - [ ] `composeGrowth()` returns blocks for all active GTM pipeline instances
-- [ ] Each plan shows: metric (progress toward goal), status (current cycle phase), pending reviews, posting queue, experiments, asset recommendations, last brief
+- [ ] Each plan shows: metric (progress toward goal), status (current cycle phase), pending reviews, published content, experiments, last brief
 - [ ] Empty state suggests creating a plan via conversation
 - [ ] All rendering uses existing block types — no new BlockRegistry entries
 

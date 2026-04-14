@@ -1,0 +1,125 @@
+# Ditto — Template Process: Outreach Strategy
+#
+# Strategy sub-process that sits between ASSESS and ACT in cycle YAMLs.
+# Thin template (ADR-027): 2 steps — research-and-propose + user-approval.
+# Self handles conversational iteration during user-approval.
+#
+# Pattern: connecting-research.yaml's present-candidates human step,
+# extended with volume budget and previous results awareness.
+#
+# Provenance: Brief 149, Insight-182 (plan-approve-execute),
+# ADR-027 (thin processes, smart Self), connecting-research.yaml
+
+name: Outreach Strategy
+id: outreach-strategy
+version: 1
+status: active
+template: true
+callable_as: sub-process
+
+operator: alex-or-mira
+
+description: >
+  Research outreach targets and present a concrete strategy to the user
+  before any outreach is sent. The user iterates conversationally
+  (email or workspace) until they approve. No outreach without explicit
+  "go ahead." Volume budget caps the batch size.
+
+trigger:
+  type: manual
+  description: >
+    Triggered as a sub-process from cycle steps (sales-marketing strategy,
+    network-connecting strategy). Never activated directly.
+
+inputs:
+  - name: icp
+    type: text
+    source: cycle
+    required: false
+    description: >
+      Ideal customer/connection profile from the cycle config.
+  - name: goals
+    type: text
+    source: cycle
+    required: false
+    description: >
+      What the user is trying to achieve with this outreach.
+  - name: volumeBudget
+    type: number
+    source: cycle
+    required: false
+    description: >
+      Maximum number of outreach targets for this batch.
+      Defaults to 5 for first cycle, scales with results.
+  - name: previousResults
+    type: json
+    source: cycle
+    required: false
+    description: >
+      Response metrics from the previous cycle's LEARN step.
+      Contains: responseRate, positiveCount, totalSent, adjustments.
+
+steps:
+  - id: research-and-propose
+    name: Research & Propose Targets
+    executor: ai-agent
+    description: >
+      Research prospects matching the ICP. For each, provide:
+      name, company, fit rationale, proposed outreach angle.
+      Respect volumeBudget — propose at most that many targets.
+      If previousResults exist, incorporate learnings into targeting.
+    config:
+      model_hint: capable
+    inputs:
+      - icp
+      - goals
+      - volumeBudget
+      - previousResults
+    outputs:
+      - proposed-targets
+
+  - id: user-approval
+    name: Strategy Approval
+    executor: human
+    description: >
+      Present the target list to the user with rationale and proposed
+      angles. The user reviews and iterates conversationally — via
+      email reply or workspace chat, both route through selfConverse().
+      Process pauses in waiting_human until explicit approval.
+      Self can revise and re-present (step stays waiting_human)
+      or approve (step resumes with approved targets).
+    config:
+      trustOverride: supervised
+    inputs:
+      - proposed-targets
+    outputs:
+      - approved-targets
+
+outputs:
+  - name: approved-targets
+    type: json
+    description: >
+      User-approved outreach targets. Array of:
+      { name, company, fitRationale, proposedAngle }.
+      Fed into the ACT step of the parent cycle.
+
+quality_criteria:
+  - "No outreach targets proposed without fit rationale"
+  - "Volume budget respected — never propose more than budget allows"
+  - "Previous results incorporated when available"
+  - "User explicitly approved before any outreach begins"
+
+feedback:
+  metrics:
+    - target_acceptance_rate
+    - targets_modified_by_user
+  capture:
+    - which_targets_removed_and_why
+    - user_adjustments_to_angles
+
+trust:
+  initial_tier: supervised
+  upgrade_path: []
+  downgrade_triggers:
+    - "User rejects entire proposed list"
+    - "Proposed targets don't match ICP"

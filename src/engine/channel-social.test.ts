@@ -131,7 +131,7 @@ describe("UnipileAdapter", () => {
 
       const sentText = mockStartNewChat.mock.calls[0][0].text;
       // formatEmailBody adds persona sign-off for non-ghost
-      expect(sentText).toContain("Alex\nDitto");
+      expect(sentText).toContain("— Alex");
     });
   });
 

@@ -53,7 +53,7 @@ export function composeGrowth(context: CompositionContext): ContentBlock[] {
   });
 
   if (gtmReviews.length > 0) {
-    blocks.push({ type: "text", text: "**Pending reviews**" });
+    blocks.push({ type: "text", text: "Pending reviews", variant: "hero-secondary" });
     for (const review of gtmReviews) {
       if (review.itemType !== "review") continue;
       const r = review as ReviewItem;
@@ -142,7 +142,8 @@ export function composeGrowth(context: CompositionContext): ContentBlock[] {
     if (plan.lastBrief) {
       blocks.push({
         type: "text",
-        text: `**Last brief**\n\n${plan.lastBrief}`,
+        text: `Last brief\n\n${plan.lastBrief}`,
+        variant: "hero-secondary",
       });
     }
   }

@@ -3,7 +3,7 @@
 **Date:** 2026-04-11
 **Trigger:** Research into LinkedIn ghost mode support (Brief 124 follow-on)
 **Layers affected:** L3 Harness (channel adapters), L6 Human (multi-channel sending)
-**Status:** provisional — needs validation of unified API provider maturity and alternatives
+**Status:** active — validated by Brief 133 (social DMs via Unipile) and Brief 141 (social publishing via Unipile Posts API + X API v2). Landscape doc updated with evaluations.
 
 ## The Insight
 

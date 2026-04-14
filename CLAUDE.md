@@ -31,6 +31,7 @@ Ditto is a harness creator for human-agent collaboration. It creates the evolvin
 3. **Plan before build** — define the framework thoroughly before building agents
 4. **Process as primitive** — the atomic unit is a process, not a task or agent
 5. **The harness is the product** — agents are pluggable, processes are durable, the harness is unique value
+6. **Boil the ocean** — the marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Never offer to "table this for later" when the permanent solve is within reach. Never present a workaround when the real fix exists. The standard isn't "good enough" — it's "holy shit, that's done." Within the scope of what you're building, ship the complete thing.
 
 ## How Work Gets Done
 

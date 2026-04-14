@@ -39,7 +39,7 @@ export function composeInbox(context: CompositionContext): ContentBlock[] {
 
   // Urgent items first — as RecordBlocks
   if (actionItems.length > 0) {
-    blocks.push({ type: "text", text: "**Needs your action**" });
+    blocks.push({ type: "text", text: "Needs your action", variant: "hero-secondary" });
 
     for (const item of actionItems) {
       blocks.push(feedItemToRecord(item, "error"));
@@ -48,7 +48,7 @@ export function composeInbox(context: CompositionContext): ContentBlock[] {
 
   // Informational items
   if (infoItems.length > 0) {
-    blocks.push({ type: "text", text: "**Updates**" });
+    blocks.push({ type: "text", text: "Updates", variant: "hero-secondary" });
 
     for (const item of infoItems.slice(0, 10)) {
       blocks.push(feedItemToRecord(item));
@@ -64,7 +64,7 @@ export function composeInbox(context: CompositionContext): ContentBlock[] {
   );
 
   if (unrouted.length > 0) {
-    blocks.push({ type: "text", text: "**Unrouted captures**" });
+    blocks.push({ type: "text", text: "Unrouted captures", variant: "hero-secondary" });
 
     for (const item of unrouted) {
       blocks.push({

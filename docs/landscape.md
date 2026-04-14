@@ -482,6 +482,12 @@ New category added for Brief 079 (Network Agent MVP). Full report: `docs/researc
 - Purpose-built email infrastructure for AI agents. Programmatic inbox creation via API. Native reply handling with `extractedText` (reply content without quoted history). Thread management. Webhooks for inbound messages (`message.received`, `message.bounced`). Custom domains with DNS verification. WebSocket support for real-time. Usage-based pricing with free tier. $6M seed funding. MIT-licensed Node.js and Python SDKs.
 - **Ditto relevance:** HIGH — primary email adapter for Network Agent. Key advantages over Gmail API: per-agent inbox creation (`alex@ditto.partners`), extracted reply text for agent processing, native threading, and inbound webhooks. `depend` level (npm install). Gmail retained as fallback for workspace email (inbox triage). See `integrations/agentmail.yaml`.
 
+**googleapis** — github.com/googleapis/google-api-nodejs-client (12k+ stars, Apache-2.0)
+- Official Google APIs Node.js client. Covers 200+ Google APIs including Gmail, Calendar, Drive, Sheets. OAuth2 client built-in (`google.auth.OAuth2`) with automatic token refresh. Gmail API: `gmail.users.messages.send` for sending, `gmail.users.messages.list`/`.get` for reading. Typed interfaces generated from discovery docs. Maintained by Google (googleapis org). Weekly releases. 2M+ weekly npm downloads.
+- **Ditto relevance:** HIGH — server-side Gmail API access for `agent-of-user` and `ghost` sending identities (Brief 152). CLI (`gws`) is inappropriate for programmatic OAuth token management — the SDK handles token refresh, credential lifecycle, and API call construction. `depend` level (npm install). Mature, official, heavily used.
+- **Why not alternatives:** `gmail-api-parse-message` (low maintenance), `nodemailer` with OAuth2 (adds unnecessary SMTP layer), raw REST (reimplements what the SDK provides). The official SDK is the obvious choice for server-side Google API access.
+- **Scopes needed:** `gmail.send` (send as user), `gmail.readonly` (read sent mail for voice learning + contact extraction), `userinfo.email` (verify account).
+
 ### Market Signal
 
 AI SDR market in correction: 50-70% churn within 3 months. Hybrid (AI+human) model: 2.3x more revenue than AI-only. Warm intros: 3-5x conversion vs cold. Ditto's low-volume, relationship-first, trust-progressive model is validated by market data.
