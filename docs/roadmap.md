@@ -782,6 +782,13 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 | Dual-surface outreach table (HTML email + InteractiveTableBlock) | done | Brief 149 | Stripe/Linear digest emails (pattern) | `src/engine/outreach-table.ts` |
 | htmlBlocks pipeline (notifyUser→sendAndRecord→adapter) | done | Brief 149 | Original | `src/engine/channel.ts`, `src/engine/notify-user.ts` |
 | Sales cycle strategy step between ASSESS and ACT | done | Brief 149 | Operating cycle archetype (Insight-168) | `processes/cycles/sales-marketing.yaml` |
+| **Outreach Deliberation Infrastructure (Brief 151)** | | | | |
+| Outreach dedup safety net (per-run + per-person daily cap) | done | Brief 151, Insight-184 | `hasInteractionSince` pattern (adopt) | `src/engine/channel.ts`, `src/engine/people.ts` |
+| Cycle auto-restart context injection (recentOutreach) | done | Brief 151 | Original | `src/engine/heartbeat.ts` |
+| `dispatchStagedAction` wiring (staged→send pipeline) | done | Brief 151 | `@ditto/core` outbound-quality-gate (adopt) | `src/engine/heartbeat.ts` |
+| Status email per-person aggregation | done | Brief 151 | `outreach-table.ts` grouping (pattern) | `src/engine/status-composer.ts` |
+| Relationship pulse time gate 24h→4h | done | Brief 151 | Original | `src/engine/relationship-pulse.ts` |
+| `stepRunId` threading through tool-resolver | done | Brief 151, Insight-180 | Step-run guard pattern | `src/engine/tool-resolver.ts` |
 | **Network Service Deployment (Briefs 086-089)** | | | | |
 | Brief 086: Network Service deployment (Railway — was Fly.io, needs brief update) | not started | ADR-025, Brief 086 | Railway patterns | — |
 | Brief 088: Network API + Auth | not started | ADR-025, Brief 088 | Standard REST API | — |

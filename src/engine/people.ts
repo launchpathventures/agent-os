@@ -286,6 +286,58 @@ export async function hasAnyInteractionSince(
   return !!match;
 }
 
+/**
+ * Get recent interactions for a person, optionally filtered by type.
+ * Returns full interaction records with person name context.
+ * Used by outreach dedup (Brief 151) and cycle auto-restart context injection.
+ *
+ * @param personId - The person to query
+ * @param type - Interaction type filter (e.g. "outreach_sent")
+ * @param since - Only return interactions after this date
+ * @param processRunId - Optional: filter to a specific process run
+ */
+export async function getRecentInteractionsForPerson(
+  personId: string,
+  type: InteractionType,
+  since: Date,
+  processRunId?: string,
+): Promise<Array<{
+  id: string;
+  personId: string;
+  personName: string | null;
+  channel: string;
+  sentAt: Date;
+  subject: string | null;
+  processRunId: string | null;
+}>> {
+  const conditions = [
+    eq(schema.interactions.personId, personId),
+    eq(schema.interactions.type, type),
+    gte(schema.interactions.createdAt, since),
+  ];
+
+  if (processRunId) {
+    conditions.push(eq(schema.interactions.processRunId, processRunId));
+  }
+
+  const rows = await db
+    .select({
+      id: schema.interactions.id,
+      personId: schema.interactions.personId,
+      personName: schema.people.name,
+      channel: schema.interactions.channel,
+      sentAt: schema.interactions.createdAt,
+      subject: schema.interactions.subject,
+      processRunId: schema.interactions.processRunId,
+    })
+    .from(schema.interactions)
+    .leftJoin(schema.people, eq(schema.interactions.personId, schema.people.id))
+    .where(and(...conditions))
+    .orderBy(desc(schema.interactions.createdAt));
+
+  return rows;
+}
+
 export async function listInteractionsByUser(userId: string) {
   return db
     .select()

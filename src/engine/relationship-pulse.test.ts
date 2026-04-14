@@ -70,6 +70,16 @@ vi.mock("./cognitive-core", () => ({
   getCognitiveCore: () => "Mock cognitive core framework",
 }));
 
+// Mock alex-voice (dynamically imported by relationship-pulse — Brief 144)
+vi.mock("./alex-voice", () => ({
+  getAlexEmailPrompt: () => "Mock Alex email voice prompt",
+}));
+
+// Mock email-quality-gate (dynamically imported by relationship-pulse — Brief 144)
+vi.mock("./email-quality-gate", () => ({
+  validateEmailVoice: vi.fn(async (body: string) => ({ passed: true, body, failedChecks: [], latencyMs: 5, wasRewritten: false })),
+}));
+
 // Mock channel (transitively needed)
 vi.mock("./channel", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./channel")>();
@@ -247,19 +257,14 @@ describe("runRelationshipPulse — outreach", () => {
     expect(result.details[0].action).toBe("skipped_no_person");
   });
 
-  it("skips if outreach was sent too recently (< 24h)", async () => {
-    const { userId, personId } = await createTestUser();
+  it("skips if outreach was sent too recently (< 4h, Brief 151 AC9)", async () => {
+    const { userId } = await createTestUser();
 
-    // Record a recent outreach interaction
-    await testDb.insert(schema.interactions).values({
-      personId,
-      userId,
-      type: "follow_up",
-      channel: "email",
-      mode: "connecting",
-      summary: "Recent outreach",
-      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
-    });
+    // Set lastNotifiedAt to 2 hours ago — within the 4-hour floor
+    await testDb
+      .update(schema.networkUsers)
+      .set({ lastNotifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) })
+      .where(eq(schema.networkUsers.id, userId));
 
     const result = await runRelationshipPulse(emptyStatusResult());
 
@@ -269,8 +274,14 @@ describe("runRelationshipPulse — outreach", () => {
     expect(mockCreateCompletion).not.toHaveBeenCalled();
   });
 
-  it("proceeds if last outreach was > 24h ago", async () => {
+  it("proceeds if last outreach was > 4h ago (Brief 151 AC9)", async () => {
     const { userId, personId } = await createTestUser();
+
+    // Set lastNotifiedAt to 5 hours ago — beyond the 4-hour floor
+    await testDb
+      .update(schema.networkUsers)
+      .set({ lastNotifiedAt: new Date(Date.now() - 5 * 60 * 60 * 1000) })
+      .where(eq(schema.networkUsers.id, userId));
 
     // Record an old outreach interaction
     await testDb.insert(schema.interactions).values({

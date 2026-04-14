@@ -80,7 +80,23 @@ vi.mock("./suggestion-dismissals", () => ({
   isDismissed: mockIsDismissed,
 }));
 
-import { shouldSendStatus, composeStatusEmail, runStatusComposition } from "./status-composer";
+// Mock LLM — force fallback template in status composer tests (Brief 144)
+vi.mock("./llm", () => ({
+  createCompletion: vi.fn(async () => { throw new Error("mock LLM disabled in test"); }),
+  extractText: vi.fn(() => ""),
+}));
+
+// Mock alex-voice (loaded dynamically by composeStatusEmail)
+vi.mock("./alex-voice", () => ({
+  getAlexEmailPrompt: vi.fn(() => "Mock Alex voice prompt"),
+}));
+
+// Mock email-quality-gate (loaded dynamically by composeStatusEmail)
+vi.mock("./email-quality-gate", () => ({
+  validateEmailVoice: vi.fn(async (body: string) => ({ passed: true, body, failedChecks: [], latencyMs: 5, wasRewritten: false })),
+}));
+
+import { shouldSendStatus, composeStatusEmail, runStatusComposition, gatherStatusData } from "./status-composer";
 import type { StatusData } from "./status-composer";
 
 beforeEach(() => {
@@ -200,7 +216,7 @@ describe("shouldSendStatus", () => {
 // ============================================================
 
 describe("composeStatusEmail", () => {
-  it("composes email with highlights", () => {
+  it("composes email with highlights (fallback template)", async () => {
     const data = makeStatusData({
       userName: "Alice",
       newInteractions: 3,
@@ -214,21 +230,21 @@ describe("composeStatusEmail", () => {
       ],
     });
 
-    const { subject, body } = composeStatusEmail(data);
+    const { subject, body } = await composeStatusEmail(data);
 
     expect(subject).toContain("3 new replies received");
-    expect(body).toContain("Hi Alice");
+    expect(body).toContain("Alice");
     expect(body).toContain("3 new replies received");
     expect(body).toContain("1 process completed");
     expect(body).toContain("2 pending approvals");
-    expect(body).toContain("2 items waiting for your review");
-    expect(body).toContain("1 process is currently active");
+    expect(body).toContain("need");
+    expect(body).toContain("still in progress");
   });
 
-  it("uses 'there' when no name", () => {
+  it("uses 'mate' when no name", async () => {
     const data = makeStatusData({ userName: undefined, highlights: ["test"] });
-    const { body } = composeStatusEmail(data);
-    expect(body).toContain("Hi there");
+    const { body } = await composeStatusEmail(data);
+    expect(body).toContain("mate");
   });
 });
 
@@ -381,27 +397,22 @@ describe("workspace suggestion — multi-cycle no-nag guarantee", () => {
     // Reset mocks for cycle 2
     mockNotifyUser.mockClear();
 
-    // Record a new interaction so silence threshold is met again
+    // Record new activity so the silence threshold is met
     await testDb.insert(schema.interactions).values({
       personId,
       userId,
-      type: "outreach_sent",
+      type: "reply_received",
       channel: "email",
-      mode: "selling",
-      summary: "Follow up sent",
+      mode: "connecting",
+      summary: "Another reply from contact",
     });
 
-    // Record a follow_up interaction 4 days ago to simulate the previous
-    // status email (must be >3 days old so silence threshold passes)
-    await testDb.insert(schema.interactions).values({
-      personId,
-      userId,
-      type: "follow_up",
-      channel: "email",
-      mode: "nurture",
-      summary: "Status email sent",
-      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    });
+    // Set lastNotifiedAt to 4 days ago so the 3-day recency gate passes.
+    // This is the single source of truth — notifyUser stamps this on send.
+    await testDb
+      .update(schema.networkUsers)
+      .set({ lastNotifiedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) })
+      .where(require("drizzle-orm").eq(schema.networkUsers.id, userId));
 
     // === Cycle 2: should NOT include workspace suggestion ===
     // Readiness is still true, but workspaceSuggestedAt blocks it
@@ -458,5 +469,56 @@ describe("workspace suggestion — multi-cycle no-nag guarantee", () => {
     const call = mockNotifyUser.mock.calls[0][0];
     expect(call.body).toContain("By the way");
     expect(call.body).toContain("4 active processes");
+  });
+});
+
+// ============================================================
+// Brief 151 AC14: Outreach highlights aggregate by person
+// ============================================================
+
+describe("gatherStatusData — outreach highlight aggregation", () => {
+  it("aggregates multiple outreach to same person into one highlight line", async () => {
+    // Create a network user with a person record
+    const userId = randomUUID();
+    const personId = randomUUID();
+    const targetPersonId = randomUUID();
+
+    await testDb.insert(schema.people).values({
+      id: personId,
+      name: "Test User",
+      email: "test@example.com",
+      userId,
+    });
+
+    await testDb.insert(schema.people).values({
+      id: targetPersonId,
+      name: "Tim",
+      email: "tim@example.com",
+      organization: "BuildCo",
+      userId,
+    });
+
+    // Create 5 outreach_sent interactions to the same person
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    for (let i = 0; i < 5; i++) {
+      await testDb.insert(schema.interactions).values({
+        personId: targetPersonId,
+        userId,
+        type: "outreach_sent",
+        channel: "email",
+        mode: "selling",
+        summary: `Outreach ${i + 1}`,
+        subject: `Hello ${i + 1}`,
+        createdAt: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000 + 1000),
+      });
+    }
+
+    const data = await gatherStatusData(userId, "test@example.com", "Test User", personId, since);
+
+    // Should have 1 highlight for Tim (aggregated), not 5 separate lines
+    const outreachHighlights = data.highlights.filter((h: string) => h.includes("Reached out to Tim"));
+    expect(outreachHighlights).toHaveLength(1);
+    expect(outreachHighlights[0]).toContain("(5 messages)");
+    expect(outreachHighlights[0]).toContain("BuildCo");
   });
 });

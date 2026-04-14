@@ -179,16 +179,32 @@ async function gatherStatusData(
     }
   }
 
-  // Outreach with contact names
+  // Outreach with contact names — aggregated by person (Brief 151 AC8)
   const outreach = recentInteractions.filter((i) => i.type === "outreach_sent");
   if (outreach.length > 0) {
-    for (const o of outreach.slice(0, 5)) {
-      const who = o.personName || "Someone";
-      const org = o.personOrg ? ` at ${o.personOrg}` : "";
-      highlights.push(`Reached out to ${who}${org}`);
+    // Group by personId to aggregate per-person
+    const byPerson = new Map<string, { name: string; org: string; count: number }>();
+    for (const o of outreach) {
+      const key = o.personId ?? o.personName ?? "unknown";
+      const existing = byPerson.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        byPerson.set(key, {
+          name: o.personName || "Someone",
+          org: o.personOrg ? ` at ${o.personOrg}` : "",
+          count: 1,
+        });
+      }
     }
-    if (outreach.length > 5) {
-      highlights.push(`...and ${outreach.length - 5} more outreach ${outreach.length - 5 === 1 ? "message" : "messages"}`);
+
+    const people = Array.from(byPerson.values());
+    for (const p of people.slice(0, 5)) {
+      const countSuffix = p.count > 1 ? ` (${p.count} messages)` : "";
+      highlights.push(`Reached out to ${p.name}${p.org}${countSuffix}`);
+    }
+    if (people.length > 5) {
+      highlights.push(`...and ${people.length - 5} more ${people.length - 5 === 1 ? "person" : "people"} contacted`);
     }
   }
 

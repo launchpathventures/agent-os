@@ -41,7 +41,7 @@ export interface ResolvedTools {
 
 interface BuiltInTool {
   definition: LlmToolDefinition;
-  execute: (input: Record<string, unknown>) => Promise<string>;
+  execute: (input: Record<string, unknown>, stepRunId?: string) => Promise<string>;
   /** If true, tool calls queue to stagedOutboundActions instead of dispatching (Brief 129) */
   staged?: boolean;
   /** Extract content/channel/recipientId from args for quality gate checking */
@@ -101,7 +101,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         required: ["to", "subject", "body", "personId", "mode"],
       },
     },
-    execute: async (input: Record<string, unknown>): Promise<string> => {
+    execute: async (input: Record<string, unknown>, executionStepRunId?: string): Promise<string> => {
       const { sendAndRecord } = await import("./channel");
       const result = await sendAndRecord({
         to: input.to as string,
@@ -113,6 +113,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         userId: "founder", // single-user MVP
         processRunId: input.processRunId as string | undefined,
         includeOptOut: true,
+        stepRunId: executionStepRunId,
       });
       return JSON.stringify(result, null, 2);
     },
@@ -378,7 +379,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         required: ["to", "body", "platform", "personId", "mode"],
       },
     },
-    execute: async (input: Record<string, unknown>): Promise<string> => {
+    execute: async (input: Record<string, unknown>, executionStepRunId?: string): Promise<string> => {
       const { sendAndRecord } = await import("./channel");
       const platform = input.platform as string;
 
@@ -424,6 +425,7 @@ const builtInTools: Record<string, BuiltInTool> = {
         platform: input.platform as import("./channel").SocialPlatform,
         unipileAccountId: input.unipileAccountId as string | undefined,
         includeOptOut: false, // social DMs don't have opt-out footers
+        stepRunId: executionStepRunId,
       });
       return JSON.stringify(result, null, 2);
     },
@@ -1098,9 +1100,8 @@ export function resolveTools(
         });
         return JSON.stringify({ status: "queued", draftId }, null, 2);
       }
-      // Inject stepRunId for tools that need harness pipeline proof (ADR-029)
-      const enrichedInput = stepRunId ? { ...input, _stepRunId: stepRunId } : input;
-      return builtIn.execute(enrichedInput);
+      // Pass stepRunId as second parameter for Insight-180 invocation guard (Brief 151)
+      return builtIn.execute(input, stepRunId);
     }
 
     const entry = toolMap.get(name);

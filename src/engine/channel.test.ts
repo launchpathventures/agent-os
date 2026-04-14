@@ -32,10 +32,19 @@ vi.mock("agentmail", () => {
   };
 });
 
+// Mock db for activity logging (Brief 151 — logOutreachSuppressed)
+const mockDbInsert = vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }) });
+vi.mock("../db", () => ({
+  db: { insert: (...args: unknown[]) => mockDbInsert(...args) },
+  schema: { activities: "activities" },
+}));
+
 // Mock people module for sendAndRecord tests
 const mockRecordInteraction = vi.fn();
+const mockGetRecentInteractionsForPerson = vi.fn();
 vi.mock("./people", () => ({
   recordInteraction: (...args: unknown[]) => mockRecordInteraction(...args),
+  getRecentInteractionsForPerson: (...args: unknown[]) => mockGetRecentInteractionsForPerson(...args),
 }));
 
 import {
@@ -61,7 +70,7 @@ describe("formatEmailBody", () => {
       mode: "selling",
     };
     const formatted = formatEmailBody(msg);
-    expect(formatted).toContain("Alex\nDitto");
+    expect(formatted).toContain("— Alex");
   });
 
   it("adds Mira sign-off to email body", () => {
@@ -73,20 +82,20 @@ describe("formatEmailBody", () => {
       mode: "connecting",
     };
     const formatted = formatEmailBody(msg);
-    expect(formatted).toContain("Mira\nDitto");
+    expect(formatted).toContain("— Mira");
   });
 
   it("does not duplicate sign-off if already present", () => {
     const msg: OutboundMessage = {
       to: "test@example.com",
       subject: "Hello",
-      body: "Some text.\n\nAlex\nDitto",
+      body: "Some text.\n\n— Alex",
       personaId: "alex",
       mode: "selling",
     };
     const formatted = formatEmailBody(msg);
     // Should only appear once
-    const count = (formatted.match(/Alex\nDitto/g) ?? []).length;
+    const count = (formatted.match(/— Alex/g) ?? []).length;
     expect(count).toBe(1);
   });
 
@@ -247,7 +256,7 @@ describe("GmailChannelAdapter", () => {
     expect(mockExecute).toHaveBeenCalledWith("send_message", {
       to: "recipient@example.com",
       subject: "Intro",
-      body: expect.stringContaining("Alex\nDitto"),
+      body: expect.stringContaining("— Alex"),
     });
   });
 
@@ -325,7 +334,7 @@ describe("AgentMailAdapter", () => {
     expect(mockSend).toHaveBeenCalledWith("inbox-1", expect.objectContaining({
       to: ["recipient@example.com"],
       subject: "Hello from Alex",
-      text: expect.stringContaining("Alex\nDitto"),
+      text: expect.stringContaining("— Alex"),
     }));
   });
 
@@ -350,7 +359,7 @@ describe("AgentMailAdapter", () => {
     expect(mockReply).toHaveBeenCalledWith(
       "inbox-1",
       "am-msg-123",
-      expect.objectContaining({ text: expect.stringContaining("Mira\nDitto") }),
+      expect.objectContaining({ text: expect.stringContaining("— Mira") }),
     );
   });
 
@@ -405,7 +414,7 @@ describe("AgentMailAdapter", () => {
     expect(mockReply).toHaveBeenCalledWith(
       "inbox-1",
       "am-msg-1",
-      { text: expect.stringContaining("Alex\nDitto") },
+      { text: expect.stringContaining("— Alex") },
     );
   });
 });
@@ -421,6 +430,9 @@ describe("sendAndRecord", () => {
   beforeEach(() => {
     mockSend.mockReset();
     mockRecordInteraction.mockReset();
+    mockGetRecentInteractionsForPerson.mockReset();
+    // Default: no recent interactions (dedup passes)
+    mockGetRecentInteractionsForPerson.mockResolvedValue([]);
     // Set up AgentMail env so the adapter can be created
     process.env.AGENTMAIL_API_KEY = "test-key";
     process.env.AGENTMAIL_ALEX_INBOX = "inbox-alex";
@@ -559,5 +571,57 @@ describe("sendAndRecord", () => {
 
     expect(mockRecordInteraction).toHaveBeenCalledTimes(1);
     expect(result.interactionId).toBe("int-4");
+  });
+
+  // Brief 151 AC12: Duplicate suppression within same process run
+  it("suppresses duplicate outreach to same person in same process run", async () => {
+    // First call for dedup check (same processRunId) returns existing interaction
+    mockGetRecentInteractionsForPerson
+      .mockResolvedValueOnce([{ id: "existing-1", personId: "person-1", channel: "email", sentAt: new Date(), subject: "Hello", processRunId: "run-42" }]);
+
+    const result = await sendAndRecord({
+      to: "test@example.com",
+      subject: "Hello again",
+      body: "Duplicate",
+      personaId: "alex",
+      mode: "nurture",
+      personId: "person-1",
+      userId: "founder",
+      processRunId: "run-42",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("duplicate_outreach_suppressed");
+    // Should NOT call recordInteraction or send
+    expect(mockRecordInteraction).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  // Brief 151 AC13: Per-person daily cap
+  it("enforces per-person daily cap of 3 outreach in 24h", async () => {
+    // First call (dedup by processRunId) — no processRunId so skips
+    // Second call (daily cap) returns 3 existing interactions
+    mockGetRecentInteractionsForPerson
+      .mockResolvedValueOnce([
+        { id: "i1", personId: "person-5", channel: "email", sentAt: new Date(), subject: "S1", processRunId: "run-a" },
+        { id: "i2", personId: "person-5", channel: "email", sentAt: new Date(), subject: "S2", processRunId: "run-b" },
+        { id: "i3", personId: "person-5", channel: "email", sentAt: new Date(), subject: "S3", processRunId: "run-c" },
+      ]);
+
+    const result = await sendAndRecord({
+      to: "test@example.com",
+      subject: "Fourth outreach",
+      body: "Too many",
+      personaId: "alex",
+      mode: "selling",
+      personId: "person-5",
+      userId: "founder",
+      // No processRunId — so dedup check is skipped, daily cap check runs
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("daily_person_cap_exceeded");
+    expect(mockRecordInteraction).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

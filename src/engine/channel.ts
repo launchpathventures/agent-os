@@ -17,6 +17,7 @@
 import { AgentMailClient } from "agentmail";
 import { UnipileClient } from "unipile-node-sdk";
 import type { PersonaId } from "../db/schema";
+import { db, schema } from "../db";
 
 // ============================================================
 // Social Platform Types
@@ -57,6 +58,11 @@ export interface OutboundMessage {
    * `to` becomes a platform-specific identifier (Unipile attendee ID or handle).
    */
   platform?: SocialPlatform;
+  /**
+   * Pre-rendered HTML blocks (tables, charts) spliced into the email
+   * after the text body, outside textToHtml(). (Brief 149 AC18)
+   */
+  htmlBlocks?: string[];
 }
 
 export interface SendResult {
@@ -152,8 +158,8 @@ function isSocialTestModeSuppressed(recipientId: string): boolean {
 // ============================================================
 
 const PERSONA_SIGNOFFS: Record<PersonaId, string> = {
-  alex: "Alex\nDitto",
-  mira: "Mira\nDitto",
+  alex: "— Alex",
+  mira: "— Mira",
 };
 
 const OPT_OUT_FOOTER = "\n\n---\nIf you'd prefer not to hear from me, just reply with 'unsubscribe' and I won't reach out again.";
@@ -211,7 +217,15 @@ function buildReferralFooter(userId: string): string {
  *   the opt-out line (or at the end of the body). Omitted when
  *   `includeOptOut === false` (internal/system emails).
  */
-export function formatEmailBody(message: OutboundMessage): string {
+/**
+ * Format an outbound message body with persona sign-off and footers.
+ *
+ * @param htmlBlocks Optional pre-rendered HTML blocks (tables, charts)
+ *   to splice into the email template after the text body, outside
+ *   the textToHtml() pipeline. Keeps textToHtml pure — always escapes.
+ *   (Brief 149 AC18)
+ */
+export function formatEmailBody(message: OutboundMessage, htmlBlocks?: string[]): string {
   // Ghost mode (Brief 124): no Ditto branding, no persona sign-off,
   // no opt-out footer, no referral footer, no magic link footer.
   // The email must appear to come entirely from the user.
@@ -247,6 +261,39 @@ export function formatEmailBody(message: OutboundMessage): string {
   return body;
 }
 
+/**
+ * Convert a plain text body + optional pre-rendered HTML blocks into
+ * a complete HTML email. Text goes through textToHtml() (escaped),
+ * then htmlBlocks are appended raw (already safe HTML from our renderers).
+ *
+ * This keeps textToHtml() pure — it always escapes — while allowing
+ * structured HTML content (outreach tables, charts) to be included
+ * without double-escaping. (Brief 149 AC18)
+ */
+export function textToHtmlWithBlocks(text: string, htmlBlocks?: string[]): string {
+  const baseHtml = textToHtml(text);
+
+  if (!htmlBlocks || htmlBlocks.length === 0) {
+    return baseHtml;
+  }
+
+  // Insert htmlBlocks before the closing </div> of the textToHtml wrapper
+  const closingDiv = "</div>";
+  const lastDivIndex = baseHtml.lastIndexOf(closingDiv);
+  if (lastDivIndex === -1) {
+    // Fallback: just append
+    return baseHtml + "\n" + htmlBlocks.join("\n");
+  }
+
+  return (
+    baseHtml.slice(0, lastDivIndex) +
+    "\n" +
+    htmlBlocks.join("\n") +
+    "\n" +
+    baseHtml.slice(lastDivIndex)
+  );
+}
+
 // ============================================================
 // AgentMail Channel Adapter (Primary)
 // ============================================================
@@ -280,7 +327,9 @@ export class AgentMailAdapter implements ChannelAdapter {
     }
 
     const body = formatEmailBody(message);
-    const html = textToHtml(body);
+    const html = message.htmlBlocks?.length
+      ? textToHtmlWithBlocks(body, message.htmlBlocks)
+      : textToHtml(body);
 
     // Ghost mode (Brief 124): BCC the user on ghost sends.
     const isGhostSend = message.sendingIdentity === "ghost";
@@ -799,6 +848,13 @@ export interface SendAndRecordInput {
   platform?: SocialPlatform;
   /** Unipile account ID for the connected social account (Brief 133). Required when platform is set. */
   unipileAccountId?: string;
+  /**
+   * Pre-rendered HTML blocks (tables, charts) spliced into the email
+   * after the text body, outside textToHtml(). (Brief 149 AC18)
+   */
+  htmlBlocks?: string[];
+  /** Step run ID for invocation guard (Insight-180, Brief 151) */
+  stepRunId?: string;
 }
 
 export interface SendAndRecordResult {
@@ -808,15 +864,70 @@ export interface SendAndRecordResult {
   error?: string;
 }
 
+/** Max outreach_sent interactions to same person in 24 hours (Brief 151 AC2) */
+const MAX_OUTREACH_PER_PERSON_PER_DAY = 3;
+
+/**
+ * Log outreach suppression to activities table (Brief 151 AC3, Insight-184 corollary 3).
+ * Records what was decided, not just what was done.
+ */
+async function logOutreachSuppressed(
+  personId: string,
+  processRunId: string | undefined,
+  reason: string,
+): Promise<void> {
+  try {
+    await db.insert(schema.activities).values({
+      action: "outreach.suppressed",
+      actorType: "system",
+      entityType: "person",
+      entityId: personId,
+      metadata: { reason, processRunId: processRunId ?? null },
+    });
+  } catch {
+    // Non-critical — don't fail the outreach path if logging fails
+  }
+}
+
 /**
  * Atomically send an email via channel adapter AND record it as an interaction.
  * This is the single path for all outreach — no email goes untracked.
  *
  * In test mode (DITTO_TEST_MODE=true), the channel adapter suppresses real sends
  * but the interaction is still recorded and processes still advance.
+ *
+ * Brief 151: Dedup safety net — rejects duplicate outreach to the same person
+ * within the same process run, and enforces a per-person daily cap.
  */
 export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndRecordResult> {
-  const { recordInteraction } = await import("./people");
+  const { recordInteraction, getRecentInteractionsForPerson } = await import("./people");
+
+  // Brief 151 AC1: Dedup — reject duplicate outreach to same person in same run
+  if (input.processRunId) {
+    const dupes = await getRecentInteractionsForPerson(
+      input.personId,
+      "outreach_sent",
+      new Date(Date.now() - 24 * 60 * 60 * 1000),
+      input.processRunId,
+    );
+    if (dupes.length > 0) {
+      console.log(`[channel] DUPLICATE SUPPRESSED: already sent outreach to ${input.personId} in run ${input.processRunId}`);
+      await logOutreachSuppressed(input.personId, input.processRunId, "duplicate_outreach_suppressed");
+      return { success: false, error: "duplicate_outreach_suppressed" };
+    }
+  }
+
+  // Brief 151 AC2: Per-person daily cap
+  const recentToday = await getRecentInteractionsForPerson(
+    input.personId,
+    "outreach_sent",
+    new Date(Date.now() - 24 * 60 * 60 * 1000),
+  );
+  if (recentToday.length >= MAX_OUTREACH_PER_PERSON_PER_DAY) {
+    console.log(`[channel] DAILY CAP: ${recentToday.length} outreach to ${input.personId} in 24h (max ${MAX_OUTREACH_PER_PERSON_PER_DAY})`);
+    await logOutreachSuppressed(input.personId, input.processRunId, "daily_person_cap_exceeded");
+    return { success: false, error: "daily_person_cap_exceeded" };
+  }
 
   // Ghost mode (Brief 124): map "ghost" to "connecting" for interaction records
   const interactionMode = input.mode === "ghost" ? "connecting" as const : input.mode;
@@ -935,6 +1046,7 @@ export async function sendAndRecord(input: SendAndRecordInput): Promise<SendAndR
     magicLinkUrl: isGhost ? undefined : magicLinkUrl,
     sendingIdentity: input.sendingIdentity,
     bccAddress: isGhost ? input.userEmail : undefined,
+    htmlBlocks: input.htmlBlocks,
   });
 
   // Record the interaction regardless of send success
