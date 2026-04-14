@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createTestDb, type TestDb } from "../test-utils";
 import * as schema from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 // ============================================================
 // Prompt Tests (no DB or LLM needed)
@@ -693,6 +693,176 @@ describe("network-chat integration", () => {
       // The pill message should NOT be passed as the "need" to startIntake
       const call = mockStartIntake.mock.calls[0];
       expect(call[2]).not.toBe("I need help organizing my work");
+    });
+  });
+
+  // ============================================================
+  // Brief 148: persistLearnedContext
+  // ============================================================
+
+  describe("persistLearnedContext", () => {
+    it("creates person-scoped memories from learned context (one per field)", async () => {
+      const { persistLearnedContext } = await import("./memory-bridge");
+
+      // Create a person record
+      const [person] = await testDb.insert(schema.people).values({
+        name: "Sarah",
+        email: "sarah@example.com",
+        userId: "test-user",
+        source: "manual",
+        visibility: "internal",
+      }).returning();
+
+      // Create a chat session with learned context
+      const sessionId = `test-session-${Date.now()}`;
+      await testDb.insert(schema.chatSessions).values({
+        sessionId,
+        messages: [],
+        context: "front-door",
+        ipHash: "test",
+        authenticatedEmail: "sarah@example.com",
+        learned: {
+          name: "Sarah",
+          business: "Sarah's Plumbing",
+          role: "Owner",
+          location: "Melbourne",
+          problem: "quoting takes too long",
+        },
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      await persistLearnedContext(sessionId);
+
+      // Check memories were created
+      const memories = await testDb
+        .select()
+        .from(schema.memories)
+        .where(
+          and(
+            eq(schema.memories.scopeType, "person"),
+            eq(schema.memories.scopeId, person.id),
+            eq(schema.memories.type, "user_model"),
+          ),
+        );
+
+      expect(memories.length).toBe(5);
+      const contents = memories.map((m) => m.content).sort();
+      expect(contents).toContain("Business: Sarah's Plumbing");
+      expect(contents).toContain("Location: Melbourne");
+      expect(contents).toContain("Name: Sarah");
+      expect(contents).toContain("Problem: quoting takes too long");
+      expect(contents).toContain("Role: Owner");
+
+      // All should have correct metadata
+      for (const mem of memories) {
+        expect(mem.source).toBe("conversation");
+        expect(mem.active).toBeTruthy();
+        expect(mem.confidence).toBe(0.7);
+      }
+    });
+
+    it("called twice with same data → no duplicate memories", async () => {
+      const { persistLearnedContext } = await import("./memory-bridge");
+
+      const [person] = await testDb.insert(schema.people).values({
+        name: "Bob",
+        email: "bob@example.com",
+        userId: "test-user",
+        source: "manual",
+        visibility: "internal",
+      }).returning();
+
+      const sessionId = `test-session-dedup-${Date.now()}`;
+      await testDb.insert(schema.chatSessions).values({
+        sessionId,
+        messages: [],
+        context: "front-door",
+        ipHash: "test",
+        authenticatedEmail: "bob@example.com",
+        learned: { name: "Bob", business: "Bob's Bakery" },
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      await persistLearnedContext(sessionId);
+      await persistLearnedContext(sessionId);
+
+      const memories = await testDb
+        .select()
+        .from(schema.memories)
+        .where(
+          and(
+            eq(schema.memories.scopeType, "person"),
+            eq(schema.memories.scopeId, person.id),
+            eq(schema.memories.type, "user_model"),
+          ),
+        );
+
+      expect(memories.length).toBe(2); // Not 4
+    });
+
+    it("called with updated data → memory content updated, not duplicated", async () => {
+      const { persistLearnedContext } = await import("./memory-bridge");
+
+      const [person] = await testDb.insert(schema.people).values({
+        name: "Eve",
+        email: "eve@example.com",
+        userId: "test-user",
+        source: "manual",
+        visibility: "internal",
+      }).returning();
+
+      const sessionId = `test-session-update-${Date.now()}`;
+      await testDb.insert(schema.chatSessions).values({
+        sessionId,
+        messages: [],
+        context: "front-door",
+        ipHash: "test",
+        authenticatedEmail: "eve@example.com",
+        learned: { business: "Eve's Flowers" },
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      await persistLearnedContext(sessionId);
+
+      // Update the session learned data
+      await testDb
+        .update(schema.chatSessions)
+        .set({ learned: { business: "Eve's Flower Emporium" } })
+        .where(eq(schema.chatSessions.sessionId, sessionId));
+
+      await persistLearnedContext(sessionId);
+
+      const memories = await testDb
+        .select()
+        .from(schema.memories)
+        .where(
+          and(
+            eq(schema.memories.scopeType, "person"),
+            eq(schema.memories.scopeId, person.id),
+            eq(schema.memories.type, "user_model"),
+          ),
+        );
+
+      expect(memories.length).toBe(1); // Updated, not duplicated
+      expect(memories[0].content).toBe("Business: Eve's Flower Emporium");
+    });
+
+    it("returns gracefully when no person record exists", async () => {
+      const { persistLearnedContext } = await import("./memory-bridge");
+
+      const sessionId = `test-session-noperson-${Date.now()}`;
+      await testDb.insert(schema.chatSessions).values({
+        sessionId,
+        messages: [],
+        context: "front-door",
+        ipHash: "test",
+        authenticatedEmail: "nobody@example.com",
+        learned: { name: "Nobody" },
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      // Should not throw
+      await expect(persistLearnedContext(sessionId)).resolves.toBeUndefined();
     });
   });
 });
