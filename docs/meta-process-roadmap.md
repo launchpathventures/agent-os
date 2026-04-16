@@ -419,3 +419,20 @@ The meta processes have natural dependencies and priority ordering:
 7. **MP-1.4 + MP-1.5** (goal decomposition progress)
 8. **Remaining MP-3, MP-5, MP-7** (daily quality layer)
 9. **MP-8, MP-9, MP-10** (power user features)
+
+---
+
+## Open Briefs Closing These Gaps
+
+Briefs drafted 2026-04-16 to close the remaining meta-process gaps:
+
+| Brief | Gap it closes | Priority |
+|-------|---------------|----------|
+| Brief 147 | MP-4.2 "Teach this?" learning loop closure | P1 |
+| Brief 148 | MP-2.1 / MP-2.2 frontdoor → workspace memory bridge | P0 |
+| Brief 155 | MP-1.4 orchestrator decomposition progress events | P0 |
+| Brief 156 | MP-6 safety — email send outcome fidelity | P0 |
+| Brief 157 | MP-3.2 stuck-state visibility in ProgressBlock | P1 |
+| Brief 158 | MP-7.2 guidance-to-memory bridge for escalations | P1 |
+| Brief 159 | MP-9.1 / MP-9.3 permanent process edit tool | P2 |
+| Brief 160 | MP-3.1 / MP-5.3 autonomous "while you were away" digest | P1 |
