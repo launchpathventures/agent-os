@@ -53,6 +53,7 @@ vi.mock("../heartbeat", async () => {
       status: "completed",
       message: "mock",
     })),
+    runHeartbeatDetached: vi.fn(),
   };
 });
 

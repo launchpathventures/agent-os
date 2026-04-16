@@ -1121,9 +1121,7 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
             });
 
             // Fire-and-forget: kick off the new cycle iteration
-            fullHeartbeat(newRunId).catch((err) => {
-              console.error(`Cycle auto-restart heartbeat failed for ${newRunId.slice(0, 8)}:`, err);
-            });
+            runHeartbeatDetached(newRunId, "cycle.auto-restart");
 
             console.log(`Cycle auto-restart: ${run.cycleType} → new run ${newRunId.slice(0, 8)}`);
           }
@@ -1252,6 +1250,14 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
         const lastFailedRun = existingStepRuns.find(
           (s) => s.stepId === nextWork.step.id && s.status === "failed"
         );
+        // MP-7.1: include the actual error from the last failed attempt so the
+        // user sees "rate limit 429 after 3 retries" instead of the generic
+        // "paused for review". Trim to keep the pause message scannable.
+        const lastError = (lastFailedRun?.error ?? result.message ?? "").trim();
+        const errorSnippet = lastError.length > 200 ? `${lastError.slice(0, 200)}…` : lastError;
+        const diagnostic = errorSnippet
+          ? `exhausted ${retryConfig.max_retries} retries — last error: ${errorSnippet}`
+          : `exhausted ${retryConfig.max_retries} retries`;
         await db.update(schema.stepRuns)
           .set({
             status: "waiting_review",
@@ -1263,15 +1269,26 @@ export async function heartbeat(processRunId: string): Promise<HeartbeatResult> 
           .set({ status: "waiting_review" })
           .where(eq(schema.processRuns.id, processRunId));
 
+        await logActivity("step.retry.exhausted", lastFailedRun!.id, "step_run", {
+          stepName: nextWork.step.name,
+          maxRetries: retryConfig.max_retries,
+          lastError: errorSnippet,
+        });
+
         harnessEvents.emit({
           type: "gate-pause",
           processRunId,
           stepId: nextWork.step.id,
           reason: `max retries (${retryConfig.max_retries}) exceeded`,
-          output: result.message,
+          output: lastError || result.message,
         });
 
-        return { processRunId, stepsExecuted: 1, status: "waiting_review", message: `Step "${nextWork.step.name}" exhausted retries — paused for review` };
+        return {
+          processRunId,
+          stepsExecuted: 1,
+          status: "waiting_review",
+          message: `Step "${nextWork.step.name}" ${diagnostic} — paused for review`,
+        };
       }
 
       await db.update(schema.processRuns)
@@ -1387,6 +1404,96 @@ export async function fullHeartbeat(processRunId: string): Promise<HeartbeatResu
     ...lastResult,
     stepsExecuted: totalSteps,
   };
+}
+
+/**
+ * Fire-and-forget heartbeat with failure surfacing.
+ *
+ * Call sites that kick off a pipeline without awaiting (start_pipeline,
+ * activate_cycle, scheduler, cycle auto-restart) must not let an uncaught
+ * throw disappear into console.error — the user would see the run stuck
+ * "running" forever. This helper catches any error, marks the run as
+ * failed, writes the error into run_metadata.lastError, emits run-failed,
+ * and logs an activity so the UI can surface a real failure state.
+ */
+export function runHeartbeatDetached(processRunId: string, context: string = "heartbeat"): void {
+  setImmediate(() => {
+    fullHeartbeat(processRunId).catch(async (err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      console.error(`[${context}] Pipeline ${processRunId} failed:`, err);
+
+      try {
+        const [run] = await db
+          .select({
+            id: schema.processRuns.id,
+            status: schema.processRuns.status,
+            processId: schema.processRuns.processId,
+            runMetadata: schema.processRuns.runMetadata,
+          })
+          .from(schema.processRuns)
+          .where(eq(schema.processRuns.id, processRunId))
+          .limit(1);
+
+        if (!run) return;
+
+        // Only transition if run is still in-flight. Completed/failed/paused
+        // runs should not be overwritten by a stray later throw.
+        const inFlight: RunStatus[] = ["queued", "running"];
+        const nextMetadata = {
+          ...(run.runMetadata ?? {}),
+          lastError: {
+            message,
+            context,
+            occurredAt: new Date().toISOString(),
+          },
+        };
+
+        if (inFlight.includes(run.status as RunStatus)) {
+          await db
+            .update(schema.processRuns)
+            .set({
+              status: "failed",
+              completedAt: new Date(),
+              runMetadata: nextMetadata,
+            })
+            .where(eq(schema.processRuns.id, processRunId));
+        } else {
+          // Not in-flight but we still want the error recorded for audit.
+          await db
+            .update(schema.processRuns)
+            .set({ runMetadata: nextMetadata })
+            .where(eq(schema.processRuns.id, processRunId));
+        }
+
+        // Look up process slug for event payload.
+        const [proc] = await db
+          .select({ slug: schema.processes.slug, name: schema.processes.name })
+          .from(schema.processes)
+          .where(eq(schema.processes.id, run.processId))
+          .limit(1);
+
+        harnessEvents.emit({
+          type: "run-failed",
+          processRunId,
+          processName: proc?.name ?? proc?.slug ?? "unknown",
+          error: message,
+        });
+
+        await logActivity("process.run.failed", processRunId, "process_run", {
+          context,
+          error: message,
+          stack: stack?.slice(0, 2000),
+        });
+      } catch (surfaceErr) {
+        // Last-resort fallback — never throw from the detached handler.
+        console.error(
+          `[${context}] Failed to surface pipeline failure for ${processRunId}:`,
+          surfaceErr,
+        );
+      }
+    });
+  });
 }
 
 /**

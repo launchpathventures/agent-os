@@ -36,6 +36,7 @@ vi.mock("./heartbeat", () => ({
     status: "completed",
     message: "mock completed",
   })),
+  runHeartbeatDetached: vi.fn(),
 }));
 
 // Mock integration registry (needed by process-loader if pulled in transitively)

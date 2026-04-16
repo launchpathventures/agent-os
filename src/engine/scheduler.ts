@@ -20,7 +20,7 @@ import type { ScheduledTask } from "node-cron";
 import { db, schema } from "../db";
 import type { RunStatus, TrustTier } from "../db/schema";
 import { eq, and, notInArray, isNotNull, lte } from "drizzle-orm";
-import { startProcessRun, fullHeartbeat, resumeHumanStep } from "./heartbeat";
+import { startProcessRun, fullHeartbeat, runHeartbeatDetached, resumeHumanStep } from "./heartbeat";
 import type { ProcessDefinition } from "./process-loader";
 
 // Active cron tasks keyed by schedule ID (or "also:<scheduleId>" for dual triggers)
@@ -142,10 +142,9 @@ export async function triggerManually(processSlug: string): Promise<string | nul
     .where(eq(schema.schedules.processId, proc.id));
 
   const runId = await startProcessRun(processSlug, {}, "schedule");
-  // Fire and forget the heartbeat — don't block on it for manual triggers
-  fullHeartbeat(runId).catch((err) => {
-    console.error(`Schedule heartbeat error for run ${runId}:`, err);
-  });
+  // Fire and forget the heartbeat — don't block on it for manual triggers.
+  // Failures surface via runHeartbeatDetached (run marked failed + event).
+  runHeartbeatDetached(runId, `schedule:${processSlug}`);
 
   return runId;
 }
@@ -184,9 +183,7 @@ export async function fireEvent(
         `event:${eventName}`,
         options?.parentTrustTier ? { parentTrustTier: options.parentTrustTier } : undefined,
       );
-      fullHeartbeat(runId).catch((err) => {
-        console.error(`Event "${eventName}" heartbeat error for run ${runId}:`, err);
-      });
+      runHeartbeatDetached(runId, `event:${eventName}`);
       runIds.push(runId);
     } catch (err) {
       console.error(`Event "${eventName}": error triggering ${listener.processSlug}:`, err);

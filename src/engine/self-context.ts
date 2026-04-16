@@ -108,6 +108,69 @@ export async function loadWorkStateSummary(userId: string = "default"): Promise<
 }
 
 // ============================================================
+// Connected Services
+// ============================================================
+
+/**
+ * Summarise which external services the user has credentials for, so Alex
+ * knows what channels are actually available before promising to check
+ * Gmail, post to Slack, etc. Surface-agnostic: reads the shared credential
+ * vault. Expired credentials are marked so Alex can prompt a reconnect
+ * rather than failing silently mid-execution.
+ *
+ * Returns an empty string if nothing is connected — caller should still
+ * inject the section so the model knows the absence is explicit.
+ */
+export async function loadConnectedServicesSummary(): Promise<string> {
+  const rows = await db
+    .select({
+      service: schema.credentials.service,
+      expiresAt: schema.credentials.expiresAt,
+    })
+    .from(schema.credentials);
+
+  if (rows.length === 0) {
+    return "No external services connected. If the user asks to check email/calendar/etc., offer to connect it first via connect_service.";
+  }
+
+  // Dedup by service name (different processes can share credentials for the
+  // same service — we only care whether the service is reachable at all).
+  // expires_at is a raw epoch millis integer in the credentials table.
+  const now = Date.now();
+  const byService = new Map<string, { expired: boolean; expiresAt: number | null }>();
+  for (const row of rows) {
+    const expiresAtMs = row.expiresAt ?? null;
+    const expired = expiresAtMs !== null && expiresAtMs <= now;
+    const existing = byService.get(row.service);
+    // If any credential for the service is non-expired, the service is reachable.
+    if (!existing || (existing.expired && !expired)) {
+      byService.set(row.service, {
+        expired,
+        expiresAt: expiresAtMs,
+      });
+    }
+  }
+
+  const active: string[] = [];
+  const expired: string[] = [];
+  for (const [service, info] of byService.entries()) {
+    if (info.expired) expired.push(service);
+    else active.push(service);
+  }
+
+  const lines: string[] = [];
+  if (active.length > 0) {
+    lines.push(`Connected: ${active.sort().join(", ")}`);
+  }
+  if (expired.length > 0) {
+    lines.push(
+      `Expired (reconnect needed): ${expired.sort().join(", ")}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+// ============================================================
 // Self-Scoped Memories
 // ============================================================
 

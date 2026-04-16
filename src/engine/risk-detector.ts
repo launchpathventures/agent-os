@@ -21,7 +21,11 @@ import { getPollingStatus } from "./process-io";
 // Types
 // ============================================================
 
-export type RiskType = "temporal" | "data_staleness" | "correction_pattern";
+export type RiskType =
+  | "temporal"
+  | "data_staleness"
+  | "correction_pattern"
+  | "stale_review";
 export type RiskSeverity = "low" | "medium" | "high";
 
 export interface DetectedRisk {
@@ -48,6 +52,8 @@ export interface RiskThresholds {
   correctionRateBaseline: number;
   /** Minimum runs in window before correction pattern is meaningful */
   correctionMinRuns: number;
+  /** Hours a process run can sit in waiting_review before it's stale (MP-7.3) */
+  staleReviewHours: number;
 }
 
 const DEFAULT_THRESHOLDS: RiskThresholds = {
@@ -55,6 +61,7 @@ const DEFAULT_THRESHOLDS: RiskThresholds = {
   dataStalenessHours: 48,
   correctionRateBaseline: 0.3,
   correctionMinRuns: 5,
+  staleReviewHours: 24,
 };
 
 // ============================================================
@@ -260,6 +267,76 @@ async function detectCorrectionPatternRisks(
 }
 
 /**
+ * Detect stale reviews (MP-7.3): process runs that have been sitting in
+ * `waiting_review` or `waiting_human` for more than the threshold.
+ *
+ * The original temporal detector only looks at work items. Process runs paused
+ * by the trust gate or a human step are just as urgent — if a user doesn't
+ * review an output for days, the cycle stalls and outbound timing drifts.
+ */
+async function detectStaleReviewRisks(
+  thresholds: RiskThresholds,
+): Promise<DetectedRisk[]> {
+  const cutoff = new Date(
+    Date.now() - thresholds.staleReviewHours * 60 * 60 * 1000,
+  );
+
+  const stalled = await db
+    .select({
+      id: schema.processRuns.id,
+      processId: schema.processRuns.processId,
+      status: schema.processRuns.status,
+      startedAt: schema.processRuns.startedAt,
+      createdAt: schema.processRuns.createdAt,
+    })
+    .from(schema.processRuns)
+    .where(
+      and(
+        inArray(schema.processRuns.status, ["waiting_review", "waiting_human"]),
+        lt(schema.processRuns.createdAt, cutoff),
+      ),
+    );
+
+  if (stalled.length === 0) return [];
+
+  // Batch-load process names rather than N+1 lookups.
+  const processIds = Array.from(new Set(stalled.map((r) => r.processId)));
+  const processRows = await db
+    .select({ id: schema.processes.id, name: schema.processes.name })
+    .from(schema.processes)
+    .where(inArray(schema.processes.id, processIds));
+  const nameById = new Map(processRows.map((p) => [p.id, p.name]));
+
+  return stalled.map((run) => {
+    const ref = run.startedAt ?? run.createdAt;
+    const waitingSince = ref instanceof Date ? ref : new Date(Number(ref));
+    const hoursWaiting = Math.floor(
+      (Date.now() - waitingSince.getTime()) / (60 * 60 * 1000),
+    );
+    const severity: RiskSeverity =
+      hoursWaiting > thresholds.staleReviewHours * 3 ? "high" : "medium";
+    const processName = nameById.get(run.processId) ?? run.processId;
+    const humanLabel =
+      run.status === "waiting_human"
+        ? "waiting on human step"
+        : "waiting on review";
+    return {
+      type: "stale_review" as const,
+      severity,
+      entityId: run.id,
+      entityLabel: processName,
+      detail: `${humanLabel} for ${hoursWaiting}h`,
+      data: {
+        hoursWaiting,
+        status: run.status,
+        waitingSince: waitingSince.toISOString(),
+        processId: run.processId,
+      },
+    };
+  });
+}
+
+/**
  * Run all risk detectors and return combined results.
  * Sorted by severity (high first), then by type.
  */
@@ -268,13 +345,14 @@ export async function detectAllRisks(
 ): Promise<DetectedRisk[]> {
   const config = { ...DEFAULT_THRESHOLDS, ...thresholds };
 
-  const [temporal, staleness, correction] = await Promise.all([
+  const [temporal, staleness, correction, staleReview] = await Promise.all([
     detectTemporalRisks(config),
     detectDataStalenessRisks(config),
     detectCorrectionPatternRisks(config),
+    detectStaleReviewRisks(config),
   ]);
 
-  const allRisks = [...temporal, ...staleness, ...correction];
+  const allRisks = [...temporal, ...staleness, ...correction, ...staleReview];
 
   // Sort: high > medium > low
   const severityOrder: Record<RiskSeverity, number> = { high: 0, medium: 1, low: 2 };

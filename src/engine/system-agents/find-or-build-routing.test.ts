@@ -69,6 +69,7 @@ vi.mock("../heartbeat", () => ({
     status: "completed",
     message: "All steps complete",
   }),
+  runHeartbeatDetached: vi.fn(),
   goalHeartbeatLoop: vi.fn().mockResolvedValue({
     goalWorkItemId: "mock-goal-id",
     status: "completed",

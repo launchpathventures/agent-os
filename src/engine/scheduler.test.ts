@@ -43,6 +43,8 @@ vi.mock("./heartbeat", () => ({
     status: "completed",
     message: "mock completed",
   })),
+  runHeartbeatDetached: vi.fn(),
+  resumeHumanStep: vi.fn(),
 }));
 
 import { syncProcessesToDb, validateCronExpression } from "./process-loader";

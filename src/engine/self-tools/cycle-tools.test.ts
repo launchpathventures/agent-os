@@ -23,6 +23,15 @@ vi.mock("../../db", async () => {
 });
 
 // Mock heartbeat to avoid actual process execution
+const heartbeatMocks = vi.hoisted(() => ({
+  fullHeartbeat: vi.fn(async (_runId?: string) => ({
+    processRunId: "mock",
+    stepsExecuted: 0,
+    status: "completed",
+    message: "mock",
+  })),
+}));
+
 vi.mock("../heartbeat", () => ({
   startProcessRun: vi.fn(async (slug: string, inputs: Record<string, unknown>, triggeredBy: string, options?: { cycleType?: string; cycleConfig?: Record<string, unknown> }) => {
     // Look up the real process ID from the test DB
@@ -47,12 +56,12 @@ vi.mock("../heartbeat", () => ({
 
     return runId;
   }),
-  fullHeartbeat: vi.fn(async () => ({
-    processRunId: "mock",
-    stepsExecuted: 0,
-    status: "completed",
-    message: "mock",
-  })),
+  fullHeartbeat: heartbeatMocks.fullHeartbeat,
+  runHeartbeatDetached: vi.fn((runId: string) => {
+    setImmediate(() => {
+      void heartbeatMocks.fullHeartbeat(runId);
+    });
+  }),
 }));
 
 // Import after mocks

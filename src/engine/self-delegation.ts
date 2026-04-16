@@ -28,7 +28,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { LlmToolDefinition, LlmMessage, LlmToolResultBlock } from "./llm";
 import { createCompletion, extractText, extractToolUse } from "./llm";
-import { startProcessRun, fullHeartbeat, pauseGoal, goalHeartbeatLoop, startSystemAgentRun } from "./heartbeat";
+import { startProcessRun, fullHeartbeat, runHeartbeatDetached, pauseGoal, goalHeartbeatLoop, startSystemAgentRun } from "./heartbeat";
 import { approveRun, editRun, rejectRun, getWaitingStepOutput } from "./review-actions";
 import { readOnlyTools, executeTool } from "./tools";
 import { recordSelfDecision } from "./self-context";
@@ -1103,12 +1103,10 @@ async function handleStartPipeline(params: {
       }
     }
 
-    // Kick off fullHeartbeat in a detached async context (non-blocking)
-    setImmediate(() => {
-      fullHeartbeat(runId).catch((err) => {
-        console.error(`Pipeline ${runId} failed:`, err);
-      });
-    });
+    // Kick off fullHeartbeat in a detached async context (non-blocking).
+    // Failures are surfaced as run-failed (status + event + activity) — not
+    // silently logged — so the UI can show the user a real failure state.
+    runHeartbeatDetached(runId, `pipeline:${processSlug}`);
 
     const result: Record<string, unknown> = {
       runId,

@@ -18,7 +18,7 @@ import { db, schema } from "../../db";
 import type { RunStatus } from "../../db/schema";
 import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
 import type { DelegationResult } from "../self-delegation";
-import { startProcessRun, fullHeartbeat } from "../heartbeat";
+import { startProcessRun, fullHeartbeat, runHeartbeatDetached } from "../heartbeat";
 
 // ============================================================
 // Types
@@ -206,11 +206,7 @@ export async function handleActivateCycle(
     // MP-1.3: Kick off fullHeartbeat immediately — matches start_pipeline pattern
     // (self-delegation.ts:1107-1111). Without this, cycles sit in "queued" state
     // until the scheduler picks them up.
-    setImmediate(() => {
-      fullHeartbeat(runId).catch((err) => {
-        console.error(`Cycle ${runId} failed:`, err);
-      });
-    });
+    runHeartbeatDetached(runId, `cycle:${cycleType}`);
 
     const cycleLabel = cycleType === "sales-marketing"
       ? "sales pipeline"

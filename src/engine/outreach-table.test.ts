@@ -28,6 +28,7 @@ vi.mock("../db", async () => {
 vi.mock("./heartbeat", () => ({
   startProcessRun: vi.fn(async () => "mock-run-id"),
   fullHeartbeat: vi.fn(async () => ({ processRunId: "mock-run-id", stepsExecuted: 1, status: "completed", message: "mock" })),
+  runHeartbeatDetached: vi.fn(),
 }));
 
 // Mock integration registry (transitive dep)

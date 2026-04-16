@@ -24,7 +24,7 @@ import type { ScheduledTask } from "node-cron";
 import { db, schema } from "../db";
 import type { TrustTier } from "../db/schema";
 import { eq, and, lte } from "drizzle-orm";
-import { startProcessRun, fullHeartbeat } from "./heartbeat";
+import { startProcessRun, fullHeartbeat, runHeartbeatDetached } from "./heartbeat";
 import { processChains } from "./chain-executor";
 import { runStatusComposition } from "./status-composer";
 import { runRelationshipPulse } from "./relationship-pulse";
@@ -146,13 +146,8 @@ async function processDueDelayedRuns(): Promise<number> {
         `[pulse] Started delayed run: ${delayedRun.processSlug} → run ${runId.slice(0, 8)}`,
       );
 
-      // Fire and forget heartbeat — don't block the pulse on process execution
-      fullHeartbeat(runId).catch((err) => {
-        console.error(
-          `[pulse] Heartbeat error for delayed run ${runId.slice(0, 8)}:`,
-          err,
-        );
-      });
+      // Fire and forget heartbeat — failures surface via runHeartbeatDetached
+      runHeartbeatDetached(runId, `pulse:${delayedRun.processSlug}`);
 
       started++;
     } catch (error) {

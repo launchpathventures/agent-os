@@ -479,6 +479,27 @@ export async function sendActionEmail(
     ? `\nHere's what I've got from our conversation:\n${conversationContext}`
     : "";
 
+  // Full-proof memory: load any person-scoped memories we already have about
+  // this recipient (prior business context, stated preferences, past outcomes)
+  // so Alex doesn't start cold on someone she has history with. Gracefully
+  // degrades if personId is unknown or the lookup fails.
+  let personMemoryContext = "";
+  if (personId) {
+    try {
+      const { getPersonMemories } = await import("../people");
+      const memories = await getPersonMemories(personId);
+      if (memories.length > 0) {
+        const lines = memories
+          .slice(0, 8)
+          .map((m) => `- (${m.type}) ${m.content}`)
+          .join("\n");
+        personMemoryContext = `\n\nWhat I already know about this person:\n${lines}`;
+      }
+    } catch (err) {
+      console.warn("[intake] Failed to load person memories:", (err as Error).message);
+    }
+  }
+
   // Generate the action email using LLM with Alex voice spec + conversation context.
   // This ensures Alex never asks for information already provided.
   const { createCompletion, extractText } = await import("../llm");
@@ -508,7 +529,7 @@ export async function sendActionEmail(
       messages: [
         {
           role: "user",
-          content: `Write the follow-up email based on this conversation:\n\n${conversationContext || "No conversation context available."}`,
+          content: `Write the follow-up email based on this conversation:\n\n${conversationContext || "No conversation context available."}${personMemoryContext}`,
         },
       ],
       maxTokens: 400,
@@ -622,6 +643,25 @@ export async function sendCosActionEmail(
     ? `\nFrom our conversation, here's what I've picked up:\n${conversationContext}`
     : "";
 
+  // Full-proof memory: inject person-scoped memories so the CoS action email
+  // builds on what we already know, not from a blank slate.
+  let personMemoryContext = "";
+  if (personId) {
+    try {
+      const { getPersonMemories } = await import("../people");
+      const memories = await getPersonMemories(personId);
+      if (memories.length > 0) {
+        const lines = memories
+          .slice(0, 8)
+          .map((m) => `- (${m.type}) ${m.content}`)
+          .join("\n");
+        personMemoryContext = `\n\nWhat I already know about this person:\n${lines}`;
+      }
+    } catch (err) {
+      console.warn("[intake] Failed to load person memories:", (err as Error).message);
+    }
+  }
+
   const { createCompletion, extractText } = await import("../llm");
 
   let body: string;
@@ -644,7 +684,7 @@ export async function sendCosActionEmail(
       messages: [
         {
           role: "user",
-          content: `Write the follow-up email based on this conversation:\n\n${conversationContext || "No conversation context available."}`,
+          content: `Write the follow-up email based on this conversation:\n\n${conversationContext || "No conversation context available."}${personMemoryContext}`,
         },
       ],
       maxTokens: 400,

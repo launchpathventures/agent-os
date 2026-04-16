@@ -30,6 +30,7 @@ import {
 import {
   loadWorkStateSummary,
   loadSelfMemories,
+  loadConnectedServicesSummary,
   loadSessionTurns,
   getOrCreateSession,
   appendSessionTurn,
@@ -135,6 +136,19 @@ export async function assembleSelfContext(
   sections.push(
     `<work_state>\n${workState.details}\n</work_state>`,
   );
+
+  // Connected services — what channels/integrations Alex can actually reach.
+  // Without this the model can promise "I'll check your calendar" when
+  // Google Calendar isn't connected, which is the exact trust-breaking
+  // failure mode we're trying to close.
+  try {
+    const services = await loadConnectedServicesSummary();
+    if (services) {
+      sections.push(`<connected_services>\n${services}\n</connected_services>`);
+    }
+  } catch {
+    // Non-critical — Self still works without the services hint.
+  }
 
   // Delegation guidance — when to use tools vs respond directly
   // Token efficiency (Insight-170): compact guidance for established users,

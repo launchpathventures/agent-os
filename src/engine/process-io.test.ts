@@ -73,6 +73,7 @@ vi.mock("./heartbeat", () => ({
     status: "completed",
     message: "Mock heartbeat complete",
   })),
+  runHeartbeatDetached: vi.fn(),
 }));
 
 const { deliverOutput, startPolling, stopPolling, getPollingStatus, stopAllPolling } =

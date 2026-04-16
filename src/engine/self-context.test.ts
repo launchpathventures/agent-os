@@ -197,4 +197,118 @@ describe("self-context", () => {
       expect(result).not.toContain("A Corp");
     });
   });
+
+  describe("loadConnectedServicesSummary — service awareness", () => {
+    it("returns empty-state hint when no credentials are stored", async () => {
+      const { loadConnectedServicesSummary } = await import("./self-context");
+      const result = await loadConnectedServicesSummary();
+      expect(result).toContain("No external services connected");
+      expect(result).toContain("connect_service");
+    });
+
+    it("lists connected services alphabetically", async () => {
+      const { loadConnectedServicesSummary } = await import("./self-context");
+
+      const [proc1] = await testDb.insert(schema.processes).values({
+        slug: "svc-test-1",
+        name: "Svc Test 1",
+        definition: {},
+      }).returning();
+
+      await testDb.insert(schema.credentials).values([
+        {
+          processId: proc1.id,
+          service: "slack",
+          encryptedValue: "v",
+          iv: "i",
+          authTag: "t",
+        },
+        {
+          processId: proc1.id,
+          service: "gmail",
+          encryptedValue: "v",
+          iv: "i",
+          authTag: "t",
+        },
+      ]);
+
+      const result = await loadConnectedServicesSummary();
+      expect(result).toContain("Connected: gmail, slack");
+    });
+
+    it("flags expired credentials separately from active ones", async () => {
+      const { loadConnectedServicesSummary } = await import("./self-context");
+
+      const [proc1] = await testDb.insert(schema.processes).values({
+        slug: "svc-test-2",
+        name: "Svc Test 2",
+        definition: {},
+      }).returning();
+      const [proc2] = await testDb.insert(schema.processes).values({
+        slug: "svc-test-3",
+        name: "Svc Test 3",
+        definition: {},
+      }).returning();
+
+      // Expired credential — raw epoch ms in the past
+      await testDb.insert(schema.credentials).values({
+        processId: proc1.id,
+        service: "gmail",
+        encryptedValue: "v",
+        iv: "i",
+        authTag: "t",
+        expiresAt: Date.now() - 60_000,
+      });
+
+      // Active credential
+      await testDb.insert(schema.credentials).values({
+        processId: proc2.id,
+        service: "slack",
+        encryptedValue: "v",
+        iv: "i",
+        authTag: "t",
+      });
+
+      const result = await loadConnectedServicesSummary();
+      expect(result).toContain("Connected: slack");
+      expect(result).toContain("Expired (reconnect needed): gmail");
+    });
+
+    it("dedups multiple credentials for the same service (any non-expired → connected)", async () => {
+      const { loadConnectedServicesSummary } = await import("./self-context");
+
+      const [proc1] = await testDb.insert(schema.processes).values({
+        slug: "svc-test-4",
+        name: "Svc Test 4",
+        definition: {},
+      }).returning();
+      const [proc2] = await testDb.insert(schema.processes).values({
+        slug: "svc-test-5",
+        name: "Svc Test 5",
+        definition: {},
+      }).returning();
+
+      await testDb.insert(schema.credentials).values([
+        {
+          processId: proc1.id,
+          service: "gmail",
+          encryptedValue: "v",
+          iv: "i",
+          authTag: "t",
+          expiresAt: Date.now() - 60_000,
+        },
+        {
+          processId: proc2.id,
+          service: "gmail",
+          encryptedValue: "v",
+          iv: "i",
+          authTag: "t",
+        },
+      ]);
+
+      const result = await loadConnectedServicesSummary();
+      expect(result).toContain("Connected: gmail");
+      expect(result).not.toContain("Expired");
+    });
+  });
 });
