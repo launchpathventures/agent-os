@@ -68,6 +68,18 @@ const SESSION_KEY = "ditto-chat-session";
 const EMAIL_KEY = "ditto-email-captured";
 /** Brief 152: persistent persona selection across reloads. Cleared in test mode. */
 const PERSONA_KEY = "ditto-persona-chosen";
+/** Brief (main): once the visitor has seen the preamble, skip it on subsequent
+ *  navigations within the same browser session. Persona picker still shows. */
+const PREAMBLE_COOKIE = "ditto-preamble-seen";
+
+function hasPreambleCookie(): boolean {
+  return document.cookie.split("; ").some((c) => c.startsWith(`${PREAMBLE_COOKIE}=`));
+}
+
+function setPreambleCookie(): void {
+  // Session cookie — no max-age/expires so it clears when the browser closes
+  document.cookie = `${PREAMBLE_COOKIE}=1; path=/; SameSite=Lax`;
+}
 
 type Phase = "preamble" | "picker" | "interview" | "main";
 
@@ -77,7 +89,6 @@ type Phase = "preamble" | "picker" | "interview" | "main";
 
 export function DittoConversation() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [introCount, setIntroCount] = useState(1);
   const [showIntro, setShowIntro] = useState(true);
   // Brief 152: persona selection flow.
   const [phase, setPhase] = useState<Phase>("preamble");
@@ -253,13 +264,28 @@ export function DittoConversation() {
   useEffect(() => {
     if (phase !== "preamble") return;
     if (!showIntro) return;
+
+    // Brief 152: if the visitor already saw the preamble this session, skip
+    // straight to the persona picker — they don't need to watch the pain-point
+    // loop again just to re-enter the chat.
+    if (hasPreambleCookie()) {
+      setPreamble(5);
+      setShowIntro(false);
+      setPhase("picker");
+      return;
+    }
+
     const timers = [
       setTimeout(() => setPreamble(1), 1600),       // "AI can do more for you and your business than it currently does."
       setTimeout(() => setPreamble(2), 5200),       // "You know it. You just don't have time to figure it out."
       setTimeout(() => setPreamble(3), 8000),       // "What if AI just worked?"
       setTimeout(() => setPreamble(4), 11400),      // Fade out all
+      // Brief 152: preamble hands off to the persona picker instead of the
+      // Alex-hardcoded intro. Mark the preamble as seen so repeat visitors
+      // skip it and go straight to the picker.
       setTimeout(() => {
         setPreamble(5);
+        setPreambleCookie();
         setShowIntro(false);
         setPhase("picker");
       }, 12200),
