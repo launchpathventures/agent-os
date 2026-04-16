@@ -72,7 +72,7 @@ describe("adaptive composition evaluator", () => {
     const blocks = evaluateAdaptiveComposition(schema, makeContext(), "Clients", "client-outreach");
     expect(blocks.length).toBe(2);
     expect(blocks[0].type).toBe("text");
-    expect(blocks[1].type).toBe("action");
+    expect(blocks[1].type).toBe("actions");
   });
 
   it("populates data block from context query", () => {

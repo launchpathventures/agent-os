@@ -40,7 +40,7 @@ CREATE TABLE `__new_credentials` (
 	FOREIGN KEY (`process_id`) REFERENCES `processes`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-INSERT INTO `__new_credentials`("id", "process_id", "user_id", "service", "encrypted_value", "iv", "auth_tag", "expires_at", "created_at") SELECT "id", "process_id", "user_id", "service", "encrypted_value", "iv", "auth_tag", "expires_at", "created_at" FROM `credentials`;--> statement-breakpoint
+INSERT INTO `__new_credentials`("id", "process_id", "service", "encrypted_value", "iv", "auth_tag", "expires_at", "created_at") SELECT "id", "process_id", "service", "encrypted_value", "iv", "auth_tag", "expires_at", "created_at" FROM `credentials`;--> statement-breakpoint
 DROP TABLE `credentials`;--> statement-breakpoint
 ALTER TABLE `__new_credentials` RENAME TO `credentials`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
