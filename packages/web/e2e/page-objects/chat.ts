@@ -70,8 +70,10 @@ export class ChatPage {
 
   /** Wait for an assistant response to appear */
   async waitForResponse(timeout = 15_000): Promise<void> {
-    // Wait for any text from the assistant to appear in the message area
-    await this.page.locator(".space-y-1 > div").last().waitFor({ state: "visible", timeout });
+    // Wait for an assistant message to render. Previously this waited for
+    // `.space-y-1 > div:last-child`, but that selector resolves to the empty
+    // `messagesEndRef` scroll anchor at the end of the list — always hidden.
+    await this.assistantMessages.first().waitFor({ state: "visible", timeout });
   }
 
   /** Check if a progress block is visible */
