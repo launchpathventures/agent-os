@@ -168,6 +168,69 @@ describe("cli-handler", () => {
         }),
       ).rejects.toThrow(/executeCli requires/);
     });
+
+    it("scrubs credentials from the parsed result before returning (Brief 171)", async () => {
+      const original = process.env.GH_TOKEN;
+      process.env.GH_TOKEN = "ghp_VERY_SECRET_TOKEN_1234567890";
+      try {
+        // Simulated external CLI that echoes the token in an error body.
+        execAsync.fn = async () => ({
+          stdout: JSON.stringify({
+            error: "invalid_credential",
+            token_prefix: "ghp_VERY_SECRET_TOKEN_1234567890",
+          }),
+          stderr: "",
+        });
+
+        const result = await executeCli({
+          service: "github",
+          executable: "gh",
+          args: ["issue", "list"],
+          cliInterface: testCliInterface,
+        });
+
+        expect(result.confidence).toBe("high");
+        const outputStr = JSON.stringify(result.outputs.result);
+        expect(outputStr).not.toContain("ghp_VERY_SECRET_TOKEN_1234567890");
+        expect(outputStr).toContain("[REDACTED:github]");
+      } finally {
+        if (original !== undefined) process.env.GH_TOKEN = original;
+        else delete process.env.GH_TOKEN;
+      }
+    });
+
+    it("scrubs credentials from nested object responses (Brief 171)", async () => {
+      const original = process.env.GH_TOKEN;
+      process.env.GH_TOKEN = "ghp_NESTED_TOKEN_9876543210";
+      try {
+        execAsync.fn = async () => ({
+          stdout: JSON.stringify({
+            data: {
+              user: "alex",
+              details: {
+                auth: "ghp_NESTED_TOKEN_9876543210",
+                flag: true,
+              },
+            },
+          }),
+          stderr: "",
+        });
+
+        const result = await executeCli({
+          service: "github",
+          executable: "gh",
+          args: ["api", "/user"],
+          cliInterface: testCliInterface,
+        });
+
+        const serialised = JSON.stringify(result.outputs.result);
+        expect(serialised).not.toContain("ghp_NESTED_TOKEN_9876543210");
+        expect(serialised).toContain("[REDACTED:github]");
+      } finally {
+        if (original !== undefined) process.env.GH_TOKEN = original;
+        else delete process.env.GH_TOKEN;
+      }
+    });
   });
 
   describe("resolveAuth", () => {

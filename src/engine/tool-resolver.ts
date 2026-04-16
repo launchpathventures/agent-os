@@ -25,6 +25,11 @@ import {
   tokenizeCommandTemplate,
   substituteArgv,
 } from "./integration-handlers/shell-tokenizer";
+import {
+  scrubCredentialsFromValue,
+  secretsFromAuthEnv,
+} from "./integration-handlers/scrub";
+import { resolveServiceAuth } from "./credential-vault";
 // Dynamic import to avoid pulling LanceDB native binary into webpack bundle
 // import { searchKnowledge, formatResultsForPrompt } from "./knowledge/search";
 
@@ -1119,11 +1124,16 @@ async function executeCliTool(
   });
 
   // Return the result text for the LLM
+  let text: string;
   if (result.confidence === "low") {
-    return `Error: ${JSON.stringify(result.outputs)}`;
+    text = `Error: ${JSON.stringify(result.outputs)}`;
+  } else {
+    const output = result.outputs.result;
+    text = typeof output === "string" ? output : JSON.stringify(output, null, 2);
   }
-  const output = result.outputs.result;
-  return typeof output === "string" ? output : JSON.stringify(output, null, 2);
+  // Brief 171 safety net: scrub the final string at the dispatch boundary —
+  // defence in depth in case a future handler variant forgets to scrub.
+  return scrubToolOutput(text, service, processId, { envVars: cliInterface.env_vars });
 }
 
 /**
@@ -1165,11 +1175,41 @@ async function executeRestTool(
   });
 
   // Check for error
+  let text: string;
   if (result && typeof result === "object" && "error" in result) {
-    return `Error: ${JSON.stringify(result)}\n${logs.join("\n")}`;
+    text = `Error: ${JSON.stringify(result)}\n${logs.join("\n")}`;
+  } else {
+    text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
   }
+  // Brief 171 safety net: scrub at the dispatch boundary.
+  return scrubToolOutput(text, service, processId, {
+    authType: restInterface.auth,
+  });
+}
 
-  return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+/**
+ * Brief 171 safety net: scrub the final text returned to the LLM against the
+ * known credential values for this (processId, service). Handlers already
+ * scrub their own output; this exists so a future handler variant that
+ * forgets to scrub still cannot leak a credential past this boundary.
+ */
+async function scrubToolOutput(
+  text: string,
+  service: string,
+  processId: string | undefined,
+  authConfig: { envVars?: string[]; authType?: string },
+): Promise<string> {
+  try {
+    const { envVars } = await resolveServiceAuth(processId, service, authConfig);
+    const secrets = secretsFromAuthEnv(envVars);
+    if (secrets.length === 0) return text;
+    return scrubCredentialsFromValue(text, secrets, service);
+  } catch {
+    // Auth resolution failed (e.g. DB not ready in a test). Return unscrubbed
+    // text rather than failing the tool — the handler-level scrub has
+    // already run.
+    return text;
+  }
 }
 
 /**

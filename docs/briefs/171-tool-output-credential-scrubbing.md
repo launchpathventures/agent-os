@@ -1,7 +1,7 @@
 # Brief: Tool Output Credential Scrubbing (P0 security)
 
 **Date:** 2026-04-16
-**Status:** draft
+**Status:** complete
 **Depends on:** Brief 169 (parent)
 **Unlocks:** Safe reflection of tool results into LLM context without credential leakage.
 

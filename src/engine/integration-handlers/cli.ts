@@ -31,6 +31,7 @@ import {
   substituteArgv,
   formatArgvForLog,
 } from "./shell-tokenizer";
+import { scrubCredentialsFromValue, secretsFromAuthEnv } from "./scrub";
 
 type ExecFileOpts = {
   timeout?: number;
@@ -181,8 +182,15 @@ export async function executeCli(
       }
 
       const parsed = parseOutput(stdout);
+      // Brief 171: scrub the PARSED result (not just the log line) so any
+      // secret echoed by the external CLI in its response cannot reach the
+      // LLM via `outputs.result`.
+      const secrets = secretsFromAuthEnv(authEnv);
+      const scrubbedResult = scrubCredentialsFromValue(parsed, secrets, service);
       const scrubbedStdout = scrubCredentials(
-        typeof parsed === "string" ? parsed : JSON.stringify(parsed),
+        typeof scrubbedResult === "string"
+          ? scrubbedResult
+          : JSON.stringify(scrubbedResult),
         authEnv,
       );
       logs.push(
@@ -191,7 +199,7 @@ export async function executeCli(
 
       return {
         outputs: {
-          result: parsed,
+          result: scrubbedResult,
           service,
           protocol: "cli",
         },
