@@ -43,6 +43,22 @@ export function roundTripValidate(
     };
   }
 
+  // Brief 179 P1-4: reject explicit `undefined` values. `JSON.stringify`
+  // and `YAML.stringify` both silently drop undefined, so a definition
+  // where the LLM set a field to `undefined` to mean "unset" would pass
+  // the deep-equal round-trip but the intent — "this field was present
+  // but explicitly blank" — is lost. Force the caller to be explicit:
+  // use `null` if you mean "absent value", or omit the key entirely.
+  const undefinedPath = findExplicitUndefined(definition);
+  if (undefinedPath !== null) {
+    return {
+      ok: false,
+      reason:
+        "Definition contains an explicit `undefined` value. Use `null` to represent an absent value, or omit the key entirely — `undefined` is not preserved through YAML serialisation.",
+      path: undefinedPath || undefined,
+    };
+  }
+
   let yaml: string;
   try {
     yaml = YAML.stringify(definition);
@@ -94,6 +110,36 @@ export function roundTripValidate(
   }
 
   return { ok: true, yaml };
+}
+
+/** Walk the tree and return the dot-path to the first explicit `undefined` key, or null.
+ * Brief 179 P1-4. Uses `k in value` to distinguish "key present with
+ * undefined value" from "key not present at all". */
+function findExplicitUndefined(value: unknown, prefix = ""): string | null {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      // Arrays: `in` checks whether the index was assigned. An explicit
+      // hole (`[,1,2]`) OR an explicit undefined (`[undefined,1,2]`) are
+      // both suspect — YAML flows drop them either way.
+      if (i in value && value[i] === undefined) {
+        return `${prefix}[${i}]`;
+      }
+      const p = findExplicitUndefined(value[i], `${prefix}[${i}]`);
+      if (p !== null) return p;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const k of Object.keys(obj)) {
+      if (obj[k] === undefined) {
+        return prefix ? `${prefix}.${k}` : k;
+      }
+      const p = findExplicitUndefined(obj[k], prefix ? `${prefix}.${k}` : k);
+      if (p !== null) return p;
+    }
+  }
+  return null;
 }
 
 /** Walk the tree and return the dot-path to the first NUL-containing string, or null. */

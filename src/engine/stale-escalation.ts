@@ -108,6 +108,7 @@ export async function sweepStaleEscalations(
       status: schema.processRuns.status,
       currentStepId: schema.processRuns.currentStepId,
       createdAt: schema.processRuns.createdAt,
+      waitingStateSince: schema.processRuns.waitingStateSince,
       staleEscalationTier: schema.processRuns.staleEscalationTier,
     })
     .from(schema.processRuns)
@@ -133,7 +134,12 @@ export async function sweepStaleEscalations(
 
   for (const run of rows) {
     const fromTier = (run.staleEscalationTier ?? 0) as StaleTier;
-    const toTier = classifyStaleTier(run.createdAt, now);
+    // Brief 179 P0: measure from when the run entered the waiting state,
+    // not from when it was created. Fallback to createdAt for runs that
+    // predate the column (conservative — may escalate slightly earlier than
+    // ideal, but never misses).
+    const waitingAnchor = run.waitingStateSince ?? run.createdAt;
+    const toTier = classifyStaleTier(waitingAnchor, now);
     if (toTier <= fromTier) continue;
 
     // Fire the transition action based on the NEW tier. Tier 1 is

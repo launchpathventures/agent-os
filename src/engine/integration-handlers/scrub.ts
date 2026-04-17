@@ -1,5 +1,5 @@
 /**
- * Ditto — Credential Scrubber (Brief 171)
+ * Ditto — Credential Scrubber (Brief 171, hardened Brief 179)
  *
  * Recursively walks tool-result values (strings, arrays, plain objects) and
  * replaces any occurrence of a known credential value with
@@ -12,11 +12,26 @@
  * only redacts values we already know (from the credential vault and env).
  * A future brief can add heuristic detection if needed.
  *
- * Provenance: Brief 171. Same approach as the existing log scrubber in
- * `cli.ts:scrubCredentials`, extended to structured values.
+ * Known limitation: credentials shorter than MIN_CREDENTIAL_LENGTH (5
+ * chars) are NOT redacted. This is an explicit trade-off to avoid false
+ * positives on common 1-4 char substrings appearing in tool output.
+ * Deployments using short credentials must either rotate to longer
+ * values or accept that they may appear in LLM context. Brief 179 P0-2
+ * harmonised this threshold between `scrubCredentialsFromValue` and
+ * `secretsFromAuthEnv` — both now agree on > 4.
+ *
+ * Provenance: Brief 171 (original module). Same approach as the existing
+ * log scrubber in `cli.ts:scrubCredentials`, extended to structured values.
  */
 
 const MAX_STRING_BYTES = 1 * 1024 * 1024; // 1MB cap per string leaf
+
+/**
+ * Minimum credential length to redact. Values shorter than this are
+ * treated as "likely a false-positive substring of normal text" and
+ * skipped. Documented limitation — see module header.
+ */
+export const MIN_CREDENTIAL_LENGTH = 5;
 
 /** Walk `value` and redact every occurrence of any active secret string. */
 export function scrubCredentialsFromValue<T>(
@@ -25,7 +40,8 @@ export function scrubCredentialsFromValue<T>(
   serviceLabel = "secret",
 ): T {
   const active = secrets.filter(
-    (s): s is string => typeof s === "string" && s.length > 4,
+    (s): s is string =>
+      typeof s === "string" && s.length >= MIN_CREDENTIAL_LENGTH,
   );
   if (active.length === 0) return value;
   const token = `[REDACTED:${serviceLabel}]`;
@@ -77,11 +93,14 @@ function redactString(s: string, secrets: string[], token: string): string {
   return out;
 }
 
-/** Convenience: pull the set of secret *values* from a resolved authEnv map. */
+/** Convenience: pull the set of secret *values* from a resolved authEnv map.
+ * Brief 179 P0-2: filters to length >= MIN_CREDENTIAL_LENGTH so the set
+ * returned is exactly the set `scrubCredentialsFromValue` would act on —
+ * no more collecting values the scrubber will silently drop. */
 export function secretsFromAuthEnv(authEnv: Record<string, string>): string[] {
   const values: string[] = [];
   for (const value of Object.values(authEnv)) {
-    if (typeof value === "string" && value.length > 0) {
+    if (typeof value === "string" && value.length >= MIN_CREDENTIAL_LENGTH) {
       values.push(value);
     }
   }

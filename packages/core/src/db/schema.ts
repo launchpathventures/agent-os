@@ -319,6 +319,14 @@ export const processRuns = sqliteTable("process_runs", {
   staleEscalationLastActionAt: integer("stale_escalation_last_action_at", {
     mode: "timestamp_ms",
   }),
+  /** When the run entered its current waiting state (Brief 179 — fixes
+   * Brief 178 P0 which anchored escalation on `createdAt`). Populated on
+   * any transition to waiting_human/waiting_review; cleared on transition
+   * out. Stale classification reads this, with `createdAt` as fallback for
+   * runs that predate the column. */
+  waitingStateSince: integer("waiting_state_since", {
+    mode: "timestamp_ms",
+  }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

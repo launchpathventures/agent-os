@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "01a9c142-bd69-4850-9c91-2ea118c3acae",
-  "prevId": "2cb29521-e916-4616-b69b-57ec358d35a9",
+  "id": "a3c02b81-057c-4ec6-9ac3-a5c953678d2e",
+  "prevId": "01a9c142-bd69-4850-9c91-2ea118c3acae",
   "tables": {
     "activities": {
       "name": "activities",
@@ -1391,6 +1391,13 @@
         },
         "stale_escalation_last_action_at": {
           "name": "stale_escalation_last_action_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "waiting_state_since": {
+          "name": "waiting_state_since",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

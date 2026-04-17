@@ -108,14 +108,32 @@ describe("scrubCredentialsFromValue", () => {
 
 describe("secretsFromAuthEnv", () => {
   it("returns just the values, ignoring names", () => {
-    const secrets = secretsFromAuthEnv({ GH_TOKEN: "ghp_123", GH_USER: "alex" });
-    expect(secrets).toContain("ghp_123");
-    expect(secrets).toContain("alex");
+    const secrets = secretsFromAuthEnv({
+      GH_TOKEN: "ghp_VERY_LONG_TOKEN_12345",
+      GH_USER: "alex_user",
+    });
+    expect(secrets).toContain("ghp_VERY_LONG_TOKEN_12345");
+    expect(secrets).toContain("alex_user");
     expect(secrets).not.toContain("GH_TOKEN");
   });
 
   it("skips empty values", () => {
-    const secrets = secretsFromAuthEnv({ A: "sk_real", B: "" });
-    expect(secrets).toEqual(["sk_real"]);
+    const secrets = secretsFromAuthEnv({ A: "sk_real_value", B: "" });
+    expect(secrets).toEqual(["sk_real_value"]);
+  });
+
+  it("filters out short values below MIN_CREDENTIAL_LENGTH (Brief 179 P0-2)", () => {
+    // Harmonised with scrubCredentialsFromValue — if the scrubber won't
+    // redact them, the collector shouldn't emit them either.
+    const secrets = secretsFromAuthEnv({
+      A: "abc", // 3 chars — below threshold
+      B: "abcd", // 4 chars — below threshold
+      C: "abcde", // 5 chars — at threshold
+      D: "long_real_secret",
+    });
+    expect(secrets).not.toContain("abc");
+    expect(secrets).not.toContain("abcd");
+    expect(secrets).toContain("abcde");
+    expect(secrets).toContain("long_real_secret");
   });
 });

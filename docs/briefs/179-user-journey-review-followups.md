@@ -1,7 +1,7 @@
 # Brief: User Journey Robustness — Review Follow-Ups
 
 **Date:** 2026-04-16
-**Status:** draft
+**Status:** complete
 **Depends on:** Brief 169 (parent) — closes residuals from dev-reviewer on briefs 170-178
 **Unlocks:** Production-readiness for the Brief 169 set.
 

@@ -107,4 +107,45 @@ describe("roundTripValidate", () => {
       expect(r.yaml).toContain("s1");
     }
   });
+
+  describe("Brief 179 P1-4 — explicit undefined rejection", () => {
+    it("rejects an explicit undefined value on a step field", () => {
+      const def = validDef() as unknown as Record<string, unknown>;
+      // Explicitly set undefined — not absent, actually `undefined` as a
+      // value. YAML would silently drop it, losing intent.
+      (def.steps as unknown as Array<Record<string, unknown>>)[0]!.description = undefined;
+      const r = roundTripValidate(def as unknown as ProcessDefinition);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toMatch(/undefined/i);
+        expect(r.path).toMatch(/description/);
+      }
+    });
+
+    it("rejects explicit undefined inside a nested object", () => {
+      const def = validDef() as unknown as Record<string, unknown>;
+      (def.steps as unknown as Array<Record<string, unknown>>)[0]!.config = {
+        trust_tier: undefined,
+      };
+      const r = roundTripValidate(def as unknown as ProcessDefinition);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toMatch(/undefined/i);
+      }
+    });
+
+    it("accepts explicit null (null round-trips cleanly; intent preserved)", () => {
+      const def = validDef() as unknown as Record<string, unknown>;
+      (def.steps as unknown as Array<Record<string, unknown>>)[0]!.description = null;
+      const r = roundTripValidate(def as unknown as ProcessDefinition);
+      expect(r.ok).toBe(true);
+    });
+
+    it("accepts fully absent keys (the clean way to signal 'no value')", () => {
+      const def = validDef();
+      // steps[0] already has no `config` key — that's fine
+      const r = roundTripValidate(def);
+      expect(r.ok).toBe(true);
+    });
+  });
 });

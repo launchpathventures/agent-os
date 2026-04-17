@@ -89,7 +89,10 @@ const TEMPORAL_PATTERNS = [
   /\bthis (?:week|month|quarter)\b/i,
   /\bnext (?:week|month|quarter|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
   /\bby (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|eod|cob)\b/i,
-  /\bon \w+(?:day)?\b/i,
+  // Brief 179 P1-2: previously `/\bon \w+(?:day)?\b/i` — matched "on track",
+  // "on hold", "on schedule". Tightened to only match weekday names or a
+  // day-of-month number.
+  /\bon (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?:st|nd|rd|th)?)\b/i,
   /\b\d{1,2}(?:st|nd|rd|th)?\b/,
   /\b\d{4}-\d{2}-\d{2}\b/,
   /\bin \d+ (?:minutes?|hours?|days?|weeks?|months?)\b/i,
@@ -109,26 +112,36 @@ export function scoreSpecificity(
     knownProcessSlugs?: string[];
     /** Known integration service names from the registry (optional). */
     knownServices?: string[];
+    /** Brief 179 P1-2: the user's last message in the session, if any.
+     * Prior context often resolves ambiguity ("send an email" on its own
+     * is vague; "send an email" following "quote for Sarah Thompson" is
+     * clear). When present, signals from the combined text count. */
+    priorTurnText?: string;
   } = {},
 ): SpecificityScore {
-  const lower = message.toLowerCase();
+  // Brief 179 P1-2: score against current message + prior turn, so the
+  // probe doesn't re-ask when context already answered the question.
+  const combined = context.priorTurnText
+    ? `${context.priorTurnText}\n${message}`
+    : message;
+  const lower = combined.toLowerCase();
 
   const action = ACTION_VERBS.some((v) => lower.includes(v));
-  const temporal = TEMPORAL_PATTERNS.some((p) => p.test(message));
-  const artefact = ARTEFACTS.some((a) => new RegExp(`\\b${a}\\b`, "i").test(message));
-  const outcome = OUTCOME_PATTERNS.some((p) => p.test(message));
+  const temporal = TEMPORAL_PATTERNS.some((p) => p.test(combined));
+  const artefact = ARTEFACTS.some((a) => new RegExp(`\\b${a}\\b`, "i").test(combined));
+  const outcome = OUTCOME_PATTERNS.some((p) => p.test(combined));
 
   // Named person: capitalised word >= 3 chars that's NOT at a sentence start
   // AND isn't a common domain word. Crude but deterministic; good enough for
   // a specificity gate.
-  const named = detectNamedEntity(message);
+  const named = detectNamedEntity(combined);
 
   const domain =
     (context.knownProcessSlugs?.some((s) =>
-      new RegExp(`\\b${escapeRegExp(s)}\\b`, "i").test(message),
+      new RegExp(`\\b${escapeRegExp(s)}\\b`, "i").test(combined),
     ) ?? false) ||
     (context.knownServices?.some((s) =>
-      new RegExp(`\\b${escapeRegExp(s)}\\b`, "i").test(message),
+      new RegExp(`\\b${escapeRegExp(s)}\\b`, "i").test(combined),
     ) ?? false);
 
   const signals: SpecificitySignals = {

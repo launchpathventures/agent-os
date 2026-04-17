@@ -70,4 +70,16 @@ describe("buildStaleReminder", () => {
     });
     expect(r.body).toMatch(/1 day/);
   });
+
+  it("Brief 179 P0-1: anchor differs from createdAt (sanity check)", () => {
+    // This is just a documentation test that `classifyStaleTier` takes an
+    // arbitrary Date, not specifically `createdAt`. The heartbeat now
+    // passes `waitingStateSince ?? createdAt` (fallback for legacy runs),
+    // so a run that ran for 8 days and just entered waiting state yields
+    // tier 0 on the first sweep after that transition.
+    const createdAt = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+    const waitingStateSince = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1h ago
+    expect(classifyStaleTier(createdAt, now)).toBe(3); // would-be bug
+    expect(classifyStaleTier(waitingStateSince, now)).toBe(0); // correct
+  });
 });
