@@ -460,13 +460,30 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 
 ### Phase 9: Self-Improvement Meta-Process
 
-**Re-entry condition:** Layer 5 (Learning) is live
+**Re-entry condition:** Layer 5 (Learning) is live ✓ (Brief 060 knowledge-compounding shipped; correction → solution memory bridge operational).
+**Status (2026-04-17): re-opened as network-scale learning loop.** Brief 181 (`docs/briefs/181-recursive-self-improvement.md`) is the parent plan. ADR-033 (`docs/adrs/033-network-scale-rsi-architecture.md`) resolves the five architecture-layer questions; ADR-034 (`docs/adrs/034-release-distribution-model.md`) resolves the three distribution-layer questions. Research report: `docs/research/network-scale-rsi-tech-choices.md`. Seven sub-briefs described in Brief 181 §Phasing, pending renumbering (originally 182–188, collide with browser/OAuth/autopilot briefs that shipped in parallel; will renumber to 189+ when detailed).
 
-| Capability | Source doc | Build from |
-|-----------|-----------|------------|
-| `improvement-scanner` system agent | architecture.md (Self-Improvement), ADR-008 | compound-product analyse → propose cycle |
-| Improvement proposals in review queue | architecture.md L5 | compound-product |
-| Approved improvements → feature-implementation handoff | architecture.md (Process 3) | Process YAML exists |
+| Capability | Status | Source doc | Build from |
+|-----------|--------|-----------|------------|
+| **Parent plan + architectural decisions (2026-04-17)** | | | |
+| Brief 181 parent — network-scale RSI plan | done | Brief 181 | Original + DGM/HGM/Promptbreeder/STOP/TextGrad/DSPy/compound-product |
+| ADR-033 — network-scale RSI architecture | done (proposed) | Brief 181, research report | Original (composed from Brief 091 canary primitive + Insight-111/156 constraints + surveyed options) |
+| ADR-034 — release distribution model | done (proposed) | Brief 181, research report | TUF-lite + optional Rekor + in-toto; air-gapped YubiKey ceremony; cause-attributed rollback; adaptive cadence |
+| Research report — 25 signing/privacy/canary options surveyed | done | — | WebSearch + WebFetch audit, neutrality review |
+| 18 landscape entries for RSI external deps | done | Insight-043 | Live metadata verified |
+| **Sub-briefs (pending renumbering + detailing)** | | | |
+| Evidence harvest pipeline (node→network emitter + network receiver + privacy layer) | draft (outlined in Brief 181 §182) | Brief 181, ADR-033 §1 | Original |
+| Network scanner + sandbox + archive | draft (outlined in Brief 181 §183) | Brief 181, ADR-033 §2/§4 | DGM archive + probabilistic selection pattern |
+| Signed release distribution pipeline | draft (outlined in Brief 181 §184) | Brief 181, ADR-034 | TUF walk-forward, cause-attributed rollback |
+| Scanner self-evolution + cognitive layer (L5 × LC) | draft (outlined in Brief 181 §185) | Brief 181, ADR-033 §3 | Promptbreeder mutation-prompt pattern |
+| Adversarial node detection + meta-observability | draft (outlined in Brief 181 §186) | Brief 181, ADR-033 §1a | Original (reputation-weighted aggregation) |
+| Dev pipeline integration for engine-level changes | draft (outlined in Brief 181 §187) | Brief 181 | Existing dev-pipeline.yaml; new staged engine-release flow |
+| **Legacy/prior single-node capabilities (absorbed)** | | | |
+| `improvement-scanner` system agent (single-node framing) | superseded by ADR-033 network-scale model | architecture.md, ADR-008 | — |
+| Improvement proposals in review queue (single-node framing) | superseded by ADR-033 Improvement Card + release manifest model | architecture.md L5 | — |
+| Approved improvements → feature-implementation handoff (single-node framing) | superseded by ADR-034 release distribution model | architecture.md (Process 3) | — |
+
+**Downstream prerequisites:** Brief 181 sub-briefs cannot start until renumbered and detailed into standalone briefs. Architect session scope. Sequential dependency: evidence harvest → scanner+sandbox+archive → release distribution → scanner self-evolution + cognitive → adversarial detection + meta-observability → engine-level dev pipeline integration.
 
 ### Phase 10: Web Dashboard — The Living Workspace
 
