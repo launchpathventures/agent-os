@@ -1017,6 +1017,14 @@ const builtInTools: Record<string, BuiltInTool> = {
 };
 
 /**
+ * True if the qualified name matches a built-in engine tool (crm.*, web-search, knowledge.search, etc.).
+ * Used by the process loader so built-ins don't get flagged as missing from the integration registry.
+ */
+export function isBuiltInTool(qualifiedName: string): boolean {
+  return Object.prototype.hasOwnProperty.call(builtInTools, qualifiedName);
+}
+
+/**
  * Interpolate template strings with parameter values.
  * Replaces {param} with the value. No eval() — simple string replacement.
  * Used for REST endpoints/bodies/queries where the target is a URL or JSON

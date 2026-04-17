@@ -270,11 +270,22 @@
 
 **ElevenLabs Conversational AI** — elevenlabs.io
 - Industry-leading TTS quality. Conversational AI SDK supports sub-second voice interactions (~600ms total latency: STT ~200ms + LLM ~232ms + TTS ~200ms).
-- Server SDK (`elevenlabs` npm, depend level): programmatic agent creation/update, signed URL generation for private agents. React SDK (`@elevenlabs/react`, depend level): `useConversation` hook with `startSession`, `endSession`, `sendUserMessage`, `sendContextualUpdate`, `onMessage`.
+- Server SDK (`elevenlabs` npm, depend level): programmatic agent creation/update, signed URL generation for private agents. React SDK (`@elevenlabs/react`, depend level): `useConversation` hook with `startSession`, `endSession`, `sendUserMessage`, `sendContextualUpdate`, `sendUserActivity`, `onMessage`, `onModeChange`, `onVadScore`.
 - Server tools (webhooks): agent calls back to your server during conversation. Supports `constant_value` and `dynamic_variable` in request schemas. Tool timeout configurable (default 10s).
 - LLM options: hosted fast models (GLM-4.5-Air, Qwen3) for speed, or custom LLM endpoint for intelligence. Fast models are unreliable at complex tool calling (Insight 178).
 - **Ditto relevance:** HIGH — adopted as voice transport layer. Harness owns intelligence via server tools (Insight 178: voice as transport, harness as brain). Used for front door voice channel (Brief 142b). SDK quality is excellent; API docs are clear.
 - **Limitation:** Fast LLM can't follow complex process instructions — intelligence must be pushed via contextual updates. No built-in transcript persistence. Agent config update via SDK is buggy (REST API used directly).
+
+**SDK method semantics — Brief 180 findings:**
+
+| Method | Behaviour | Source | Ditto use |
+|--------|-----------|--------|-----------|
+| `sendContextualUpdate(text)` | Injects a system-role message into the agent's next-turn context. Does NOT interrupt mid-speech. Fires no message back to the client. | `@elevenlabs/react` SDK surface (`ConversationControls.d.ts`) + matches observed behaviour in front-door. **CONFIRMED.** | Primary push channel. `voice-call.tsx` emits one per guidance delta (push_fired). |
+| `sendUserMessage(text)` | Treated as a user turn — triggers an agent response. | SDK surface + Brief 150 integration testing. **CONFIRMED.** | Reserved for text-side messages the user sends during a voice call. |
+| `sendUserActivity()` | Undocumented. Name implies "user is still speaking/typing" — may defer agent turn. **UNVERIFIED.** See probe below. | SDK surface only. | **NOT SHIPPED.** Gated on `VOICE_PATIENCE_HEARTBEAT_ENABLED` flag, which is off until probe returns `CONFIRMED_DEFERS_TURN`. |
+| `onModeChange({mode})` | Fires when agent transitions `listening` ↔ `speaking`. **CONFIRMED** via event-handler wiring. | SDK surface + Brief 180 integration. | Used as the push trigger: when agent transitions `speaking → listening`, we refresh guidance so the next agent turn starts from current harness state. |
+
+**SDK probe status (Brief 180 AC 22):** `sendUserActivity` probe is `PROBE_NOT_RUN` — automated probe requires a live ElevenLabs session and ElevenLabs credits (browser-only SDK, no Node transport). Procedure documented in `scripts/voice-sdk-probe.ts`. Until the human operator runs the probe and updates this row, the patience-heartbeat feature does not ship. The brief's explicit fallback (AC 24) permits this: shipping the rest of Brief 180 while the heartbeat stays disabled is the correct path.
 
 ---
 

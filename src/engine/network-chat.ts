@@ -659,6 +659,8 @@ export interface VoiceEvaluation {
   learned: LearnedContext;
   guidance: string;
   stage: string;
+  /** True when `validateAndCleanResponse` modified the guidance (Brief 180). */
+  validateRewrote?: boolean;
 }
 
 /**
@@ -671,6 +673,7 @@ export interface VoiceEvaluation {
 async function evaluateVoiceCore(
   sessionId: string,
   persistLearned: boolean,
+  signal?: AbortSignal,
 ): Promise<VoiceEvaluation | null> {
   const [existing] = await db
     .select()
@@ -697,13 +700,26 @@ async function evaluateVoiceCore(
 
   if (session.messages.length === 0) return null;
 
+  // Brief 180 AC 7-8: thread visitor context into voice evaluation so returning
+  // visitors are recognized (same as text chat). Cached per session for 60s.
+  let visitorContext: VisitorContext | undefined;
+  if (session.authenticatedEmail && !isTestMode()) {
+    try {
+      const cached = await assembleVisitorContextCached(sessionId, session.authenticatedEmail);
+      visitorContext = cached.context;
+    } catch {
+      // Data layer unavailable — proceed without visitor context
+      visitorContext = { email: session.authenticatedEmail, isReturning: true };
+    }
+  }
+
   try {
     // Build the SAME prompt + tools as text chat
     const conversationStage = inferConversationStage(session);
     const evalPromptMode: PromptMode = session.stage === "interview" ? "interview" : "main";
     const systemPrompt = buildFrontDoorPrompt(
       session.context as ChatContext,
-      undefined,
+      visitorContext,
       conversationStage,
       "voice",
       { personaId: session.personaId ?? "alex", promptMode: evalPromptMode },
@@ -722,12 +738,16 @@ async function evaluateVoiceCore(
       llmMessages = [...llmMessages, { role: "user", content: "[Voice call active — evaluate the conversation so far and produce guidance for the next turn.]" }];
     }
 
-    // Run the SAME LLM call as text chat — same model, same tool schema
+    // Run the SAME LLM call as text chat — same model, same tool schema.
+    // Forward the caller's AbortSignal so a timeout on the guidance route
+    // cancels the provider fetch instead of leaving it to finish in the
+    // background (otherwise tokens are burned on orphaned completions).
     const response = await createCompletion({
       system: systemPrompt,
       messages: llmMessages,
       tools: [ALEX_RESPONSE_TOOL],
       maxTokens: 400,
+      signal,
     });
 
     // Extract using the SAME extraction as text chat
@@ -747,22 +767,42 @@ async function evaluateVoiceCore(
         .update(schema.chatSessions)
         .set({ learned: session.learned, updatedAt: new Date() })
         .where(eq(schema.chatSessions.sessionId, sessionId));
+      // Brief 180 AC 12: learned advanced → ETag changes → stale guidance
+      // cached under the prior transcriptHash must not be replayed.
+      const { voiceDedup } = await import("./voice-dedup");
+      voiceDedup.invalidate(sessionId);
     }
 
     // The harness reply IS the guidance
-    const guidance = gated.reply || "Continue the conversation.";
+    const rawGuidance = gated.reply || "Continue the conversation.";
+
+    // Brief 180 AC 9-11: run the same validator as text chat so voice guidance
+    // strips filler, enforces one-question, and appends the declared question
+    // when the reply accidentally shipped no question. `validateAndCleanResponse`
+    // already skips when the reply is short or in test mode, so calling it here
+    // is safe.
+    let validateRewrote = false;
+    let guidance = rawGuidance;
+    try {
+      const validated = await validateAndCleanResponse(rawGuidance, gated.question);
+      if (validated.cleanedReply !== rawGuidance) validateRewrote = true;
+      guidance = validated.cleanedReply;
+    } catch (err) {
+      console.warn("[evaluateVoice] Validator failed:", (err as Error).message);
+    }
 
     let stage = "gathering";
     if (gated.done) stage = "complete";
     else if (gated.requestEmail) stage = "activating";
     else if (rawExtracted.detectedMode) stage = "proposing";
 
-    console.log(`[evaluateVoice] Stage: ${stage}, mode: ${rawExtracted.detectedMode || "?"}, learned: ${JSON.stringify(session.learned)}, persist: ${persistLearned}`);
+    console.log(`[evaluateVoice] Stage: ${stage}, mode: ${rawExtracted.detectedMode || "?"}, learned: ${JSON.stringify(session.learned)}, persist: ${persistLearned}, rewrote: ${validateRewrote}`);
 
     return {
       learned: (session.learned as LearnedContext) || {},
       stage,
       guidance,
+      validateRewrote,
     };
   } catch (err) {
     console.warn("[evaluateVoice] Failed:", (err as Error).message);
@@ -776,8 +816,9 @@ async function evaluateVoiceCore(
  */
 export async function evaluateVoiceConversation(
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<VoiceEvaluation | null> {
-  return evaluateVoiceCore(sessionId, true);
+  return evaluateVoiceCore(sessionId, true, signal);
 }
 
 /**
@@ -786,8 +827,9 @@ export async function evaluateVoiceConversation(
  */
 export async function evaluateVoiceConversationReadOnly(
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<VoiceEvaluation | null> {
-  return evaluateVoiceCore(sessionId, false);
+  return evaluateVoiceCore(sessionId, false, signal);
 }
 
 /**
@@ -926,6 +968,59 @@ export async function loadSessionForVoice(
  * Queries the people table, interactions, and person memories.
  * Returns structured context that gets injected into the system prompt.
  */
+// Per-session cache for visitor context (Brief 180). Keyed by sessionId so
+// the 2s safety-net poll does not re-load Ditto's people/interactions/memories
+// on every tick. TTL is 60s — long enough to amortize cost across a call,
+// short enough that a mid-call authenticatedEmail change is picked up.
+interface VisitorContextCacheEntry {
+  context: VisitorContext;
+  expiresAt: number;
+  source: "fresh" | "cached";
+}
+const visitorContextCache = new Map<string, VisitorContextCacheEntry>();
+const VISITOR_CACHE_TTL_MS = 60_000;
+
+export interface VisitorContextCacheStats {
+  hits: number;
+  misses: number;
+}
+const visitorCacheStats: VisitorContextCacheStats = { hits: 0, misses: 0 };
+
+export function getVisitorContextCacheStats(): Readonly<VisitorContextCacheStats> {
+  return visitorCacheStats;
+}
+
+export function clearVisitorContextCache(): void {
+  visitorContextCache.clear();
+  visitorCacheStats.hits = 0;
+  visitorCacheStats.misses = 0;
+}
+
+/**
+ * Cached visitor-context loader for the voice path (Brief 180 AC 8).
+ * Keyed by sessionId (not email) so the same session reuses one lookup
+ * for the life of the call. Re-derives on email change.
+ */
+export async function assembleVisitorContextCached(
+  sessionId: string,
+  email: string,
+): Promise<{ context: VisitorContext; cacheHit: boolean }> {
+  const now = Date.now();
+  const cached = visitorContextCache.get(sessionId);
+  if (cached && cached.expiresAt > now && cached.context.email === email) {
+    visitorCacheStats.hits += 1;
+    return { context: cached.context, cacheHit: true };
+  }
+  visitorCacheStats.misses += 1;
+  const context = await assembleVisitorContext(email);
+  visitorContextCache.set(sessionId, {
+    context,
+    expiresAt: now + VISITOR_CACHE_TTL_MS,
+    source: "fresh",
+  });
+  return { context, cacheHit: false };
+}
+
 async function assembleVisitorContext(email: string): Promise<VisitorContext> {
   const person = await getPersonByEmail(email, "founder");
   if (!person) {

@@ -12,6 +12,7 @@ import { db, schema } from "../db";
 import type { ProcessStatus, TrustTier, AgentCategory } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { getIntegration } from "./integration-registry";
+import { isBuiltInTool } from "./tool-resolver";
 import { isValidDuration } from "@ditto/core";
 import cron from "node-cron";
 
@@ -138,7 +139,9 @@ export interface ProcessDefinition {
   callable_as?: string;
   /** Default sending identity for outbound steps: 'principal', 'agent-of-user', 'ghost' (Brief 116) */
   defaultIdentity?: string;
-  trigger: {
+  // Sub-processes (e.g. front-door-conversation, callable_as: sub-process) have
+  // no independent trigger — they're invoked by their parent process.
+  trigger?: {
     type: string;
     cron?: string;
     event?: string;
@@ -265,6 +268,12 @@ export function validateStepTools(definition: ProcessDefinition): string[] {
   for (const step of allSteps) {
     if (step.tools && step.tools.length > 0) {
       for (const toolName of step.tools) {
+        // Built-in engine tools (crm.*, web-search, knowledge.search, etc.) are
+        // registered in tool-resolver.ts, not the integration YAML registry.
+        if (isBuiltInTool(toolName)) {
+          continue;
+        }
+
         const dotIndex = toolName.indexOf(".");
         if (dotIndex === -1) {
           errors.push(
@@ -553,9 +562,9 @@ export async function syncProcessesToDb(
       throw new Error(`Process "${def.name}" has model hint errors`);
     }
 
-    // Validate step-level tools (Brief 025: service.tool_name format)
-    // Warn on errors instead of throwing — built-in tools (web-search, web-fetch)
-    // don't have integration entries and would block sync otherwise.
+    // Validate step-level tools (Brief 025: service.tool_name format).
+    // Built-in engine tools (crm.*, web-search, knowledge.search) are allow-listed
+    // via isBuiltInTool() inside validateStepTools so they don't trip the registry check.
     const stepToolErrors = validateStepTools(def);
     if (stepToolErrors.length > 0) {
       console.warn(`  Step tool warnings in ${def.name}:`);
@@ -600,6 +609,11 @@ export async function syncProcessesToDb(
       .where(eq(schema.processes.slug, def.id))
       .limit(1);
 
+    if (!def.trust?.initial_tier) {
+      throw new Error(
+        `Process "${def.name}" (${def.id}) is missing required trust.initial_tier`,
+      );
+    }
     const trustTier = def.trust.initial_tier.replace(
       "-",
       "_"
@@ -742,7 +756,13 @@ async function syncSchedules(definitions: ProcessDefinition[]): Promise<void> {
   const scheduledSlugs = new Set<string>();
 
   for (const def of definitions) {
-    if (def.trigger.type === "schedule") {
+    if (def.trigger?.type === "schedule") {
+      // Templates declare scheduled intent but don't run directly — they're
+      // instantiated per-user with a concrete cron. Skip them here.
+      if (def.template) {
+        continue;
+      }
+
       if (!def.trigger.cron) {
         console.error(`  Schedule error: process "${def.name}" has trigger.type=schedule but no trigger.cron`);
         throw new Error(`Process "${def.name}" has schedule trigger but no cron expression`);

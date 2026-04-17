@@ -12,6 +12,7 @@
 import fs from "fs";
 import path from "path";
 import YAML from "yaml";
+import { PROJECT_ROOT } from "../paths";
 
 // ============================================================
 // Types
@@ -246,7 +247,7 @@ export function loadIntegrationFile(filePath: string): IntegrationDefinition {
  * Skips schema files (00-*.yaml).
  */
 export function loadAllIntegrations(
-  integrationDir: string = path.join(process.cwd(), "integrations")
+  integrationDir: string = path.join(PROJECT_ROOT, "integrations")
 ): IntegrationDefinition[] {
   if (!fs.existsSync(integrationDir)) {
     return [];

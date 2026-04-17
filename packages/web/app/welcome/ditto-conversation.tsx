@@ -73,10 +73,14 @@ const PERSONA_KEY = "ditto-persona-chosen";
 const PREAMBLE_COOKIE = "ditto-preamble-seen";
 
 function hasPreambleCookie(): boolean {
+  // In dev, always re-show the preamble — the cookie outlives server restarts,
+  // which makes iterating on the intro flow confusing.
+  if (process.env.NODE_ENV !== "production") return false;
   return document.cookie.split("; ").some((c) => c.startsWith(`${PREAMBLE_COOKIE}=`));
 }
 
 function setPreambleCookie(): void {
+  if (process.env.NODE_ENV !== "production") return;
   // Session cookie — no max-age/expires so it clears when the browser closes
   document.cookie = `${PREAMBLE_COOKIE}=1; path=/; SameSite=Lax`;
 }
@@ -329,39 +333,42 @@ export function DittoConversation() {
   }, [showIntro, done, requestEmail, loading]);
 
   // ============================================================
-  // Voice call: poll for live session updates (learned context + safety-net guidance)
+  // Voice call: poll for live session updates (Brief 180)
   // ============================================================
-  // Primary guidance delivery is now in voice-call.tsx (client tool + eager pre-computation).
-  // This poll is a safety net: updates the UI learned-context card and pushes guidance
-  // via sendContextualUpdate as reinforcement (no dedup — always send, even if unchanged).
+  // Primary guidance delivery is voice-call.tsx (user-final + agent-turn-end push).
+  // This poll is the safety net so backend state changes (e.g. a chat-during-call
+  // message) reach the live agent within ~2s instead of only on the next user turn.
+  //
+  // Brief 180 AC 4 + 15: delegate to voiceCallRef.refreshGuidance() so polling
+  // uses the same ETag-aware, dedup-aware code path as the push triggers. The
+  // server returns 304 when state is unchanged → no sendContextualUpdate fires.
+  // Separately, we still hit session-updates to refresh the learned-context UI.
 
-  // Fetch learned context + push guidance as safety-net reinforcement
-  const pushGuidance = useCallback(async () => {
-    if (!sessionId || !voiceToken || !voiceCallRef.current) return;
+  const refreshLearnedCard = useCallback(async () => {
+    if (!sessionId || !voiceToken) return;
     try {
       const res = await fetch(
         `/api/v1/network/chat/session-updates?sessionId=${sessionId}&voiceToken=${voiceToken}`,
       );
       if (!res.ok) return;
       const data = await res.json();
-
       if (data.learned) setLearned(data.learned);
-
-      // Always send guidance (no dedup) — the agent may have ignored it last time
-      if (data.guidance) {
-        voiceCallRef.current.sendContextualUpdate(
-          `SYSTEM INSTRUCTION: ${data.guidance}`,
-        );
-      }
     } catch { /* non-fatal */ }
   }, [sessionId, voiceToken]);
 
-  // Safety-net poll: 10s interval (primary delivery is eager pre-computation in voice-call.tsx)
+  // Safety-net poll: 2s interval (Brief 180 AC 4). Guarded against pushing
+  // before the call is connected or after it has ended.
   useEffect(() => {
     if (!callActive || !sessionId || !voiceToken) return;
-    const interval = setInterval(pushGuidance, 10000);
+    const interval = setInterval(() => {
+      const handle = voiceCallRef.current;
+      if (!handle) return;
+      if (handle.getCallState && handle.getCallState() !== "active") return;
+      handle.refreshGuidance?.("poll");
+      refreshLearnedCard();
+    }, 2000);
     return () => clearInterval(interval);
-  }, [callActive, sessionId, voiceToken, pushGuidance]);
+  }, [callActive, sessionId, voiceToken, refreshLearnedCard]);
 
   // ============================================================
   // Persona selection flow (Brief 152)

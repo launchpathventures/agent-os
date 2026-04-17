@@ -73,6 +73,14 @@ export interface LlmCompletionRequest {
   maxTokens?: number;
   /** Hints for Anthropic prompt caching — byte offsets into system prompt where cache breakpoints should be placed */
   cacheBreakpoints?: number[];
+  /**
+   * Abort the underlying provider request when the signal fires. Lets
+   * callers with a deadline (e.g. the voice guidance route's 6s budget)
+   * free the HTTP connection instead of leaving an orphaned LLM call
+   * burning tokens. Anthropic and OpenAI cancel server-side; Google
+   * aborts client-side only (service still counts usage).
+   */
+  signal?: AbortSignal;
 }
 
 // ============================================================
@@ -395,13 +403,16 @@ class AnthropicProvider implements LlmProvider {
     // Build system content with cache_control breakpoints for token efficiency (Insight-170)
     const systemContent = buildAnthropicSystemContent(request.system, request.cacheBreakpoints);
 
-    const response = await this.client.messages.create({
-      model,
-      max_tokens: request.maxTokens || 8192,
-      system: systemContent,
-      messages: toAnthropicMessages(request.messages),
-      ...(request.tools ? { tools: toAnthropicTools(request.tools) } : {}),
-    });
+    const response = await this.client.messages.create(
+      {
+        model,
+        max_tokens: request.maxTokens || 8192,
+        system: systemContent,
+        messages: toAnthropicMessages(request.messages),
+        ...(request.tools ? { tools: toAnthropicTools(request.tools) } : {}),
+      },
+      request.signal ? { signal: request.signal } : undefined,
+    );
 
     const inputTokens = response.usage.input_tokens;
     const outputTokens = response.usage.output_tokens;
@@ -434,14 +445,17 @@ class AnthropicProvider implements LlmProvider {
     // Build system content with cache_control breakpoints (Insight-170)
     const systemContent = buildAnthropicSystemContent(request.system, request.cacheBreakpoints);
 
-    const stream = this.client.messages.stream({
-      model,
-      max_tokens: supportsThinking ? Math.max(8192, thinkingBudget * 2) : (request.maxTokens || 8192),
-      system: systemContent,
-      messages,
-      ...(tools && tools.length > 0 ? { tools } : {}),
-      ...(supportsThinking && thinkingBudget > 0 ? { thinking: { type: "enabled", budget_tokens: thinkingBudget } } : {}),
-    });
+    const stream = this.client.messages.stream(
+      {
+        model,
+        max_tokens: supportsThinking ? Math.max(8192, thinkingBudget * 2) : (request.maxTokens || 8192),
+        system: systemContent,
+        messages,
+        ...(tools && tools.length > 0 ? { tools } : {}),
+        ...(supportsThinking && thinkingBudget > 0 ? { thinking: { type: "enabled", budget_tokens: thinkingBudget } } : {}),
+      },
+      request.signal ? { signal: request.signal } : undefined,
+    );
 
     for await (const event of stream) {
       if (event.type === "content_block_delta") {
@@ -506,7 +520,10 @@ class OpenAIProvider implements LlmProvider {
       params.tools = toOpenAITools(request.tools);
     }
 
-    const response = await this.client.chat.completions.create(params);
+    const response = await this.client.chat.completions.create(
+      params,
+      request.signal ? { signal: request.signal } : undefined,
+    );
 
     const choice = response.choices[0];
     if (!choice) {
@@ -546,13 +563,16 @@ class OpenAIProvider implements LlmProvider {
       ? toOpenAITools(request.tools)
       : undefined;
 
-    const stream = await this.client.chat.completions.create({
-      model,
-      messages: openaiMessages,
-      max_tokens: request.maxTokens || 8192,
-      stream: true,
-      ...(tools ? { tools } : {}),
-    });
+    const stream = await this.client.chat.completions.create(
+      {
+        model,
+        messages: openaiMessages,
+        max_tokens: request.maxTokens || 8192,
+        stream: true,
+        ...(tools ? { tools } : {}),
+      },
+      request.signal ? { signal: request.signal } : undefined,
+    );
 
     let fullText = "";
     const toolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
@@ -705,11 +725,14 @@ class GoogleProvider implements LlmProvider {
         }]
       : undefined;
 
-    const result: GenerateContentResult = await genModel.generateContent({
-      contents,
-      ...(googleTools ? { tools: googleTools } : {}),
-      generationConfig: { maxOutputTokens: request.maxTokens || 8192 },
-    });
+    const result: GenerateContentResult = await genModel.generateContent(
+      {
+        contents,
+        ...(googleTools ? { tools: googleTools } : {}),
+        generationConfig: { maxOutputTokens: request.maxTokens || 8192 },
+      },
+      request.signal ? { signal: request.signal } : undefined,
+    );
 
     const response = result.response;
     const contentBlocks: LlmContentBlock[] = [];

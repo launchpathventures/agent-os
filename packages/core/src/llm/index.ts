@@ -60,6 +60,14 @@ export interface LlmCompletionRequest {
   messages: LlmMessage[];
   tools?: LlmToolDefinition[];
   maxTokens?: number;
+  /**
+   * Abort the underlying provider request when the signal fires. Aborting
+   * frees the HTTP connection immediately so upstream timeouts don't leave
+   * orphaned LLM calls burning tokens. All three SDK adapters (Anthropic,
+   * OpenAI, Google) forward this to their fetch layer; Google aborts
+   * client-side only (the service still counts usage).
+   */
+  signal?: AbortSignal;
 }
 
 export interface LlmCompletionResponse {

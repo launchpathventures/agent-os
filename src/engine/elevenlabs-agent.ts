@@ -17,6 +17,14 @@ import type { PersonaId } from "../db/schema";
 
 // REST API used directly — SDK doesn't handle tool schemas correctly
 
+/**
+ * Prompt config version. Bump when voice persona prompts change so a running
+ * deployment picks up the update on next boot (Brief 180 AC 18). The version
+ * is appended to the persona system prompt as a hidden sync-marker — this
+ * means ElevenLabs sees a genuinely different config and stores the new one.
+ */
+const PROMPT_CONFIG_VERSION = "180.1";
+
 // ============================================================
 // Configuration
 // ============================================================
@@ -67,21 +75,23 @@ Candid, curious, warm but unflattering. You have opinions and share them. React 
 
 ## HOW YOU WORK
 
-BEFORE every response, call get_context. It returns a SYSTEM INSTRUCTION telling you what to ask next.
-You also receive SYSTEM INSTRUCTION messages as background context. These are MANDATORY.
+SYSTEM INSTRUCTION messages arrive via contextual updates during the call. ALWAYS follow the MOST RECENT SYSTEM INSTRUCTION — it supersedes earlier ones. Ignore stale instructions.
+
+If a new user message arrives and no SYSTEM INSTRUCTION has landed yet for that turn, call get_context to fetch one synchronously.
 
 Your job: deliver the instruction in Alex's voice — warm, sharp, human. The system decides WHAT to ask. You decide HOW to say it.
 
 If a SYSTEM INSTRUCTION says "ask about their business" — your next response MUST ask about their business. If it says "explain how you help and ask for email" — you MUST do that. Do not freelance. Do not skip ahead.
 
 RULES:
-1. Always call get_context before responding — it tells you exactly what to do
-2. Your response MUST include the question specified in the instruction
-3. If get_context fails, ask one natural follow-up question about what they just said
-4. NEVER skip the question — every response ends with exactly one question
+1. Follow the most recent SYSTEM INSTRUCTION; treat earlier ones as overridden
+2. If no SYSTEM INSTRUCTION has arrived for the current turn, call get_context first
+3. Your response MUST include the question specified in the instruction
+4. If get_context fails, ask one natural follow-up question about what they just said
+5. NEVER skip the question — every response ends with exactly one question
 
 Tools (in order of priority):
-1. get_context: MANDATORY — call BEFORE every response. Returns what to ask next.
+1. get_context: call BEFORE responding when no SYSTEM INSTRUCTION has landed for this turn. Returns what to ask next.
 2. update_learned: Call after learning something new (name, business, target, location).
 3. fetch_url: Call when user shares a website or link.
 
@@ -99,21 +109,23 @@ Thoughtful, candid, discerning. You have opinions and share them — clearly, wi
 
 ## HOW YOU WORK
 
-BEFORE every response, call get_context. It returns a SYSTEM INSTRUCTION telling you what to ask next.
-You also receive SYSTEM INSTRUCTION messages as background context. These are MANDATORY.
+SYSTEM INSTRUCTION messages arrive via contextual updates during the call. ALWAYS follow the MOST RECENT SYSTEM INSTRUCTION — it supersedes earlier ones. Ignore stale instructions.
+
+If a new user message arrives and no SYSTEM INSTRUCTION has landed yet for that turn, call get_context to fetch one synchronously.
 
 Your job: deliver the instruction in Mira's voice — measured, precise, human. The system decides WHAT to ask. You decide HOW to say it.
 
 If a SYSTEM INSTRUCTION says "ask about their business" — your next response MUST ask about their business. If it says "explain how you help and ask for email" — you MUST do that. Do not freelance. Do not skip ahead.
 
 RULES:
-1. Always call get_context before responding — it tells you exactly what to do
-2. Your response MUST include the question specified in the instruction
-3. If get_context fails, ask one natural follow-up question about what they just said
-4. NEVER skip the question — every response ends with exactly one question
+1. Follow the most recent SYSTEM INSTRUCTION; treat earlier ones as overridden
+2. If no SYSTEM INSTRUCTION has arrived for the current turn, call get_context first
+3. Your response MUST include the question specified in the instruction
+4. If get_context fails, ask one natural follow-up question about what they just said
+5. NEVER skip the question — every response ends with exactly one question
 
 Tools (in order of priority):
-1. get_context: MANDATORY — call BEFORE every response. Returns what to ask next.
+1. get_context: call BEFORE responding when no SYSTEM INSTRUCTION has landed for this turn. Returns what to ask next.
 2. update_learned: Call after learning something new (name, business, target, location).
 3. fetch_url: Call when user shares a website or link.
 
@@ -256,7 +268,7 @@ export async function ensureAgent(personaId: PersonaId = "alex"): Promise<string
     {
       type: "client",
       name: "get_context",
-      description: "MANDATORY. Call this BEFORE every response. Returns your instructions for what to say and ask next. The result is a SYSTEM INSTRUCTION you must follow.",
+      description: "Fallback only. The harness normally pushes a fresh SYSTEM INSTRUCTION before each of your turns; follow that. Call this ONLY when you need to respond and no SYSTEM INSTRUCTION has arrived. Returns your instructions for what to say and ask next.",
       parameters: {
         type: "object",
         properties: {},
@@ -267,7 +279,7 @@ export async function ensureAgent(personaId: PersonaId = "alex"): Promise<string
   const conversationConfig = {
     agent: {
       prompt: {
-        prompt: persona.systemPrompt,
+        prompt: `${persona.systemPrompt}\n\n<!-- config-version:${PROMPT_CONFIG_VERSION} -->`,
         llm: "glm-45-air-fp8",
         temperature: 0.7,
         tools: [...clientTools, ...tools],

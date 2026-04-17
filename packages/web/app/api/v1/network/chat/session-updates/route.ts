@@ -9,13 +9,9 @@
  */
 
 import { NextResponse } from "next/server";
-import type { VoiceEvaluation } from "../../../../../../../../src/engine/network-chat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Cache latest evaluation per session — populated async, served on next poll
-const voiceEvalCache = new Map<string, VoiceEvaluation>();
 
 export async function GET(request: Request) {
   try {
@@ -29,7 +25,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
     const voiceToken = searchParams.get("voiceToken");
-    const after = searchParams.get("after"); // ISO timestamp — skip if nothing changed
 
     if (!sessionId || !voiceToken) {
       return NextResponse.json({ error: "Missing sessionId or voiceToken" }, { status: 400 });
@@ -42,36 +37,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    // Filter to only user + assistant messages (skip internal markers)
+    // Filter to only user + assistant messages (skip internal markers).
+    // Brief 180: guidance delivery moved to voice-call.tsx's push path (via
+    // /voice/guidance + voiceDedup). This endpoint now only feeds the
+    // learned-context UI card; stage/guidance are no longer computed here.
     const messages = session.messages
       .filter((m) => !m.content.startsWith("["))
       .map((m) => ({ role: m.role, text: m.content }));
-
-    // Return current state — guidance is populated async by evaluateVoiceConversation
-    // The frontend polls this and pushes guidance to the voice agent
-    const { evaluateVoiceConversation } = await import(
-      "../../../../../../../../src/engine/network-chat"
-    );
-
-    // Run evaluation in parallel — don't block the response
-    // Store result in a module-level cache keyed by sessionId
-    const evalResult = voiceEvalCache.get(sessionId) || null;
-
-    // Kick off fresh evaluation async (result available on next poll)
-    const llm = await import("../../../../../../../../src/engine/llm");
-    if (!llm.isMockLlmMode()) {
-      try { llm.initLlm(); } catch { /* already initialized */ }
-    }
-    evaluateVoiceConversation(sessionId).then((result) => {
-      if (result) voiceEvalCache.set(sessionId, result);
-    }).catch(() => {});
 
     return NextResponse.json({
       messages,
       learned: session.learned,
       messageCount: session.messageCount,
-      stage: evalResult?.stage || "gathering",
-      guidance: evalResult?.guidance || "",
     });
   } catch (err) {
     console.error("[session-updates] Error:", (err as Error).message);
@@ -127,19 +104,12 @@ export async function POST(request: Request) {
       })
       .where(eq(schema.chatSessions.sessionId, sessionId));
 
-    // Fire-and-forget: evaluate conversation in parallel via Haiku
-    const { evaluateVoiceConversation } = await import(
-      "../../../../../../../../src/engine/network-chat"
+    // Invalidate voice dedup cache: transcript just advanced (Brief 180 AC 12).
+    // The next /voice/guidance call will recompute against fresh state.
+    const { voiceDedup } = await import(
+      "../../../../../../../../src/engine/voice-dedup"
     );
-    const llm = await import("../../../../../../../../src/engine/llm");
-    if (!llm.isMockLlmMode()) {
-      try { llm.initLlm(); } catch { /* already initialized */ }
-    }
-    evaluateVoiceConversation(session.sessionId).then((result) => {
-      if (result) voiceEvalCache.set(session.sessionId, result);
-    }).catch((err) => {
-      console.warn("[session-updates] Evaluation failed:", (err as Error).message);
-    });
+    voiceDedup.invalidate(sessionId);
 
     return NextResponse.json({ success: true });
   } catch (err) {

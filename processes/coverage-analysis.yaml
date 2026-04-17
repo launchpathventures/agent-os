@@ -17,7 +17,7 @@ description: >
 
 trigger:
   type: schedule
-  schedule: "0 6 * * 1"
+  cron: "0 6 * * 1"
   description: Runs weekly on Monday at 6am. Can also be triggered manually.
 
 inputs:

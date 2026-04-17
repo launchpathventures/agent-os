@@ -20,6 +20,18 @@ callable_as: sub-process
 
 operator: alex
 
+trust:
+  # Context 2: Alex as Ditto's network professional (Insight-160, Insight-164).
+  # The conversation itself is gated by the `enforcement` block below — Alex
+  # cannot skip steps or activate without explicit consent. Trust here governs
+  # whether Alex can run this conversation without turn-by-turn human review.
+  initial_tier: autonomous
+  upgrade_path: []
+  downgrade_triggers:
+    - "Visitor reports Alex was pushy or misrepresented capabilities"
+    - "Activation happens without explicit consent captured"
+    - "Visitor bounces mid-conversation at >40% over 10 consecutive conversations"
+
 description: >
   Real-time conversation process for the front door. Alex meets a visitor,
   understands their situation through natural conversation, proposes an

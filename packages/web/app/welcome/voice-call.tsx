@@ -34,6 +34,14 @@ interface VoiceCallProps {
 export interface VoiceCallHandle {
   sendUserMessage: (text: string) => void;
   sendContextualUpdate: (text: string) => void;
+  /**
+   * Trigger a guidance fetch from outside the component (Brief 180).
+   * Used by the safety-net poll so it goes through the same push path
+   * as user-final/agent-turn-end triggers (ETag-aware, dedup-aware).
+   */
+  refreshGuidance: (trigger?: "poll") => void;
+  /** Current call lifecycle state, for polling guards. */
+  getCallState: () => "idle" | "connecting" | "active" | "ended";
 }
 
 // ============================================================
@@ -94,7 +102,9 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
   // Harness guidance cache — populated eagerly on user speech, consumed by client tool
   const pendingGuidanceRef = useRef<{ guidance: string; stage: string } | null>(null);
   const guidanceAbortRef = useRef<AbortController | null>(null); // Cancel in-flight guidance fetches
-  const lastGuidanceFetchRef = useRef(0); // Throttle: min 4s between guidance fetches
+  // Brief 180 AC 4 + 15: remember the most recent ETag so polling + push can
+  // ask the server "changed?" with If-None-Match and skip work on 304.
+  const lastGuidanceEtagRef = useRef<string | null>(null);
 
   // Transcript persistence buffer — debounced batch sends (Brief 150 AC 1)
   const transcriptBufferRef = useRef<Array<{ role: "user" | "alex"; text: string }>>([]);
@@ -126,9 +136,68 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
     }
   }, [flushTranscript]);
 
+  // Brief 180 AC 19-21: emit client-side telemetry events so push/pull behaviour
+  // is observable server-side. Best-effort — failures must not break the call.
+  const emitTelemetry = useCallback((event: string, metadata?: Record<string, unknown>) => {
+    try {
+      fetch("/api/v1/voice/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, voiceToken, event, metadata }),
+        keepalive: true,
+      }).catch(() => { /* non-fatal */ });
+    } catch { /* non-fatal */ }
+  }, [sessionId, voiceToken]);
+
+  // Refs used by both useConversation callbacks below and triggerGuidanceFetch.
+  // Declared up-front so the reading flow is top-down.
+  const prevModeRef = useRef<string>("");
+  const conversationRef = useRef<ReturnType<typeof useConversation> | null>(null);
+
+  const triggerGuidanceFetch = useCallback((trigger: "user_final" | "agent_turn_end" | "poll") => {
+    guidanceAbortRef.current?.abort();
+    const controller = new AbortController();
+    guidanceAbortRef.current = controller;
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (lastGuidanceEtagRef.current) headers["If-None-Match"] = lastGuidanceEtagRef.current;
+
+    fetch("/api/v1/voice/guidance", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ sessionId, voiceToken }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.status === 304) {
+          // Server-side records push_304 in guidance/route.ts — don't double-log.
+          return null;
+        }
+        if (!res.ok) return null;
+        const etag = res.headers.get("etag");
+        if (etag) lastGuidanceEtagRef.current = etag;
+        const data = await res.json();
+        return data;
+      })
+      .then((data) => {
+        if (data?.guidance) {
+          pendingGuidanceRef.current = data;
+          conversationRef.current?.sendContextualUpdate(`SYSTEM INSTRUCTION: ${data.guidance}`);
+          emitTelemetry("push_fired", {
+            trigger,
+            stage: data.stage,
+            validateRewrote: !!data.validateRewrote,
+          });
+          console.log(`[voice-call] Pushed guidance (${trigger}): ${data.guidance.slice(0, 80)}...`);
+        }
+      })
+      .catch(() => { /* aborted or network error */ });
+  }, [sessionId, voiceToken, emitTelemetry]);
+
   const conversation = useConversation({
     onConnect: () => {
       setCallState("active");
+      emitTelemetry("session_start", { persona: personaName || "alex" });
       onCallStart?.();
     },
     onDisconnect: (details: unknown) => {
@@ -164,52 +233,41 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
         // Buffer for transcript persistence (Brief 150 AC 1)
         bufferTranscriptTurn(role, event.message);
 
-        // Eager guidance pre-computation: when user finishes speaking/typing,
-        // fetch harness guidance NOW (before the agent's reasoning cycle).
-        // The result is cached in pendingGuidanceRef for the client tool AND
-        // pushed via sendContextualUpdate as belt+suspenders.
-        //
-        // Throttled: max 1 guidance call per 4 seconds to control LLM costs.
-        // Cancels in-flight requests when new speech arrives (latest wins).
+        // Brief 180 AC 1-3: on user-final, flush transcript and fire a fresh
+        // guidance compute. Client throttle is removed — server-side dedup in
+        // /voice/guidance deduplicates on transcript-hash. AbortController
+        // cancels any in-flight fetch so only the latest pushes.
         if (event.source === "user") {
-          // Flush transcript so DB has latest turn before guidance reads it
           if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
           flushTranscript();
-
-          const now = Date.now();
-          if (now - lastGuidanceFetchRef.current >= 4000) {
-            lastGuidanceFetchRef.current = now;
-            // Cancel any in-flight guidance request (latest speech wins)
-            guidanceAbortRef.current?.abort();
-            const controller = new AbortController();
-            guidanceAbortRef.current = controller;
-
-            fetch("/api/v1/voice/guidance", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId, voiceToken }),
-              signal: controller.signal,
-            })
-              .then((res) => res.ok ? res.json() : null)
-              .then((data) => {
-                if (data?.guidance) {
-                  pendingGuidanceRef.current = data;
-                  conversation.sendContextualUpdate(`SYSTEM INSTRUCTION: ${data.guidance}`);
-                  console.log(`[voice-call] Pushed guidance: ${data.guidance.slice(0, 80)}...`);
-                }
-              })
-              .catch(() => {});
-          }
+          triggerGuidanceFetch("user_final");
         }
       }
     },
+    // Brief 180 AC 2: when the agent finishes its turn (mode transitions from
+    // speaking → listening), recompute guidance so the next user utterance
+    // starts with fresh context rather than stale state.
+    onModeChange: (evt: { mode: string } | string | unknown) => {
+      const prev = prevModeRef.current;
+      const mode = typeof evt === "string" ? evt : ((evt as { mode?: string })?.mode ?? "");
+      prevModeRef.current = mode;
+      if (prev === "speaking" && mode === "listening") {
+        triggerGuidanceFetch("agent_turn_end");
+      }
+    },
   });
+
+  // Keep the ref in sync with the live conversation handle so
+  // triggerGuidanceFetch (declared above useConversation) can reach it.
+  useEffect(() => { conversationRef.current = conversation; }, [conversation]);
 
   // Expose sendUserMessage and sendContextualUpdate to parent
   useImperativeHandle(ref, () => ({
     sendUserMessage: (text: string) => conversation.sendUserMessage(text),
     sendContextualUpdate: (text: string) => conversation.sendContextualUpdate(text),
-  }), [conversation]);
+    refreshGuidance: (trigger = "poll") => triggerGuidanceFetch(trigger),
+    getCallState: () => callState,
+  }), [conversation, callState, triggerGuidanceFetch]);
 
   // Cleanup: flush remaining transcript on unmount
   useEffect(() => {
@@ -313,13 +371,16 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
         // Slow path: fetches from /voice/guidance endpoint (rule-based ~500ms, LLM ~6s).
         clientTools: {
           get_context: async () => {
+            emitTelemetry("get_context_called");
             // Fast path: return pre-computed guidance from cache
             if (pendingGuidanceRef.current) {
               const cached = pendingGuidanceRef.current;
               pendingGuidanceRef.current = null;
+              emitTelemetry("get_context_cache_hit");
               console.log("[voice-call] get_context: returning cached guidance");
               return `SYSTEM INSTRUCTION: ${cached.guidance}`;
             }
+            emitTelemetry("get_context_cache_miss");
             // Slow path: fetch synchronously (blocks agent until guidance arrives)
             try {
               const res = await fetch("/api/v1/voice/guidance", {
@@ -328,6 +389,8 @@ export const VoiceCall = forwardRef<VoiceCallHandle, VoiceCallProps>(function Vo
                 body: JSON.stringify({ sessionId, voiceToken }),
               });
               if (!res.ok) throw new Error("Guidance fetch failed");
+              const etag = res.headers.get("etag");
+              if (etag) lastGuidanceEtagRef.current = etag;
               const data = await res.json();
               console.log("[voice-call] get_context: fetched fresh guidance");
               return `SYSTEM INSTRUCTION: ${data.guidance}`;

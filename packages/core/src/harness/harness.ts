@@ -164,7 +164,9 @@ export interface ProcessDefinition {
   system?: boolean;
   /** Process operator — who runs this process (e.g. "alex-or-mira", "user-agent", "ditto") */
   operator?: string;
-  trigger: {
+  // Sub-processes (callable_as: sub-process) have no independent trigger —
+  // they're invoked by their parent process.
+  trigger?: {
     type: string;
     cron?: string;
     event?: string;

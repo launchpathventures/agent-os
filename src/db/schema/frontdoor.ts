@@ -128,6 +128,40 @@ export const funnelEvents = sqliteTable("funnel_events", {
 });
 
 // ============================================================
+// Voice Events — push/pull telemetry for live voice calls (Brief 180)
+// ============================================================
+
+/** Telemetry event names emitted by client + server during voice calls. */
+export const voiceEventValues = [
+  "session_start",
+  "push_fired",
+  "push_deduped",
+  "push_304",
+  "get_context_called",
+  "get_context_cache_hit",
+  "get_context_cache_miss",
+  "validate_rewrote",
+  "assemble_visitor_cached",
+  "assemble_visitor_fresh",
+  "heartbeat_started",
+  "heartbeat_stopped",
+] as const;
+export type VoiceEvent = (typeof voiceEventValues)[number];
+
+export const voiceEvents = sqliteTable("voice_events", {
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
+  sessionId: text("session_id").notNull(),
+  event: text("event").notNull().$type<VoiceEvent>(),
+  /** Free-form metadata. MUST NOT contain PII (no raw transcripts, emails, names). */
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+}, (table) => [
+  index("voice_events_session_created").on(table.sessionId, table.createdAt),
+]);
+
+// ============================================================
 // Suggestion Dismissals — proactive guidance feedback loop
 // ============================================================
 

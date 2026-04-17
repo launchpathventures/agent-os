@@ -55,6 +55,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
+    // Brief 180 AC 13: invalidate guidance dedup so the next guidance request
+    // recomputes against the new transcript rather than returning cached output.
+    try {
+      const { voiceDedup } = await import(
+        "../../../../../../../src/engine/voice-dedup"
+      );
+      voiceDedup.invalidate(sessionId);
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({ success: true, saved: sanitized.length });
   } catch (err) {
     console.error("[voice/transcript] Error:", (err as Error).message);
