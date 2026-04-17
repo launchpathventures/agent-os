@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-17
 **Status:** ready — **deferred; held pending evidence, do not build yet** (see §Decision Criterion)
+**Approved:** 2026-04-17 by human after two review passes. Build remains gated on evidence thresholds in §Decision Criterion.
 **Depends on:** Brief 184 (real Playwright runtime + session vault + scrub + SSRF guard), Brief 185 (structural fingerprinting, for any authored process that subsequently runs as a bulk job)
 **Unlocks:** LLM-driven exploration of a never-seen-before SaaS, producing a draft process YAML that the human reviews + edits before saving. Accelerates the find-or-build path (Insight-163) for browser-based work.
 

@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-17
 **Status:** ready
+**Approved:** 2026-04-17 by human after two review passes
 **Depends on:** Brief 183 (skeleton — protocol registered, runtime interface defined, vault discriminator recognised)
 **Unlocks:** Brief 185 (structural fingerprinting + bulk auto-promotion — where the user value actually lands for bulk reconciliation)
 

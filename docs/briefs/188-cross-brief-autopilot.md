@@ -58,8 +58,8 @@ What to read before starting:
 
 - **Brief state lives in markdown bold-prefix lines, NOT YAML frontmatter.** Ditto briefs have no `---` delimiters. The state line looks like `**Status:** ready` (or `draft | in_progress | complete`). The skills MUST parse via line-prefix regex (e.g. `^\*\*Status:\*\*\s+(\w+)`), not via a YAML library. A YAML parser will return zero matches and the queue will appear permanently empty.
 - **The atomic claim is a bold-line edit.** `/drain-queue` step C edits `**Status:** ready` → `**Status:** in_progress` in the chosen brief, commits, and pushes the local `claim-tmp` branch to `origin/main`. Git's non-fast-forward rejection on the push is the mutex — exactly as in Catalyst, but on file content instead of a filename rename. The claim is a single commit (single edit, single `git commit`); do not chain multiple commits inside the claim, because race-loss recovery via `git checkout -B claim-tmp origin/main` discards them all and would leave inconsistent intermediate state in the loser's worktree.
-- **PR-open state is signaled by adding a `**PR:** <url>` bold-line** under `**Status:**`, and this edit MUST be pushed atomically to `origin/main` as a separate commit — NOT to the feature branch. This is a third atomic-push in the brief's lifecycle (after the claim and before GC's complete-flip). Race-loss on this push uses the same recovery as the claim race-loss: `git checkout -B claim-tmp origin/main`, re-edit, retry. **Why the third push to `origin/main` matters:** the dependency-eligibility logic and the GC pass both read `origin/main`, and downstream briefs marked `ready` cannot become eligible if the `**PR:**` signal sits only on the feature branch. Without this third push, AC #5 case (c) is dead code — the entire build window between claim and merge would falsely block downstream work. The brief stays at `**Status:** in_progress` (Status itself is unchanged in this third push; only the `**PR:**` line is added). When the PR is merged, the GC pass flips Status to `complete` and removes the `**PR:**` line — see §GC pass spec below.
-- **`Depends on:` algorithm is intentionally narrow.** `/drain-queue` extracts only `Brief (\d+)` regex matches from the `**Depends on:**` line. ADRs (`ADR-NNN`), phases (`Phase 14 Network Agent complete`), infrastructure references (`credentials table`), and parenthetical descriptions are treated as **informational and not enforced** — the human is responsible for marking only briefs whose non-brief blockers are resolved as `Status: ready`. A `Brief NNN` blocker is **satisfied** iff (a) no file `docs/briefs/NNN-*.md` exists on `origin/main`, OR (b) the file exists with `Status: complete`, OR (c) the file exists with `Status: in_progress` AND a `**PR:**` line is present (the Catalyst `_review-` equivalent). Otherwise the blocker is **unsatisfied** and the brief is skipped at claim time. The `Status: ready` flip remains the human gate confirming non-brief blockers are actually resolved.
+- **PR-open state is discovered via the GitHub PR API, NOT via a marker on `origin/main`.** The autopilot adds a `**PR:** <url>` bold-line under `**Status:**` on the **feature branch** (the line is purely informational documentation; survives merges naturally because it's part of the feature branch's diff under any merge strategy — squash, rebase, or merge-commit). The authoritative "is this brief in flight?" signal is `gh pr list --search "brief:NNN-<slug>"`. `/drain-queue` step A pre-computes the open-PR and merged-PR sets ONCE per iteration via a single `gh pr list --state all --json number,state,title,body --limit 200` call, parses the `brief:<slug>` token from each PR body, and uses that in-memory map for both the GC pass (merged-state lookup) and dependency-eligibility checks (open-state lookup). This is one external API call per `/drain-queue` iteration, not per brief. **Why no marker on `origin/main`:** under GitHub's squash-merge strategy (a common default), the squashed commit replaces the brief file with the feature branch's version, silently REMOVING any line that exists only on `origin/main`. A marker pushed to `origin/main` directly would be destroyed by the merge it's meant to track. Querying the PR API sidesteps the merge-strategy fragility entirely.
+- **`Depends on:` algorithm is intentionally narrow.** `/drain-queue` extracts only `Brief (\d+)` regex matches from the `**Depends on:**` line. ADRs (`ADR-NNN`), phases (`Phase 14 Network Agent complete`), infrastructure references (`credentials table`), and parenthetical descriptions are treated as **informational and not enforced** — the human is responsible for marking only briefs whose non-brief blockers are resolved as `Status: ready`. A `Brief NNN` blocker is **satisfied** iff (a) no file `docs/briefs/NNN-*.md` exists on `origin/main`, OR (b) the file exists with `Status: complete`, OR (c) the file exists with `Status: in_progress` AND a PR with `brief:NNN-<slug>` token exists in the iteration's pre-computed open-PR map (someone is actively building it; downstream can proceed because that PR will eventually merge), OR (d) the file exists with `Status: in_progress` AND a PR with `brief:NNN-<slug>` token exists in the merged-PR map (race condition: PR merged but the GC pass hasn't flipped Status to `complete` in the same iteration yet — count as satisfied). Otherwise the blocker is **unsatisfied** and the brief is skipped at claim time. The `Status: ready` flip remains the human gate confirming non-brief blockers are actually resolved.
 
 ### Substrate
 
@@ -122,7 +122,7 @@ These are Claude Code skills (filesystem-resident SKILL.md files at `.catalyst/s
 | File | Action |
 |------|--------|
 | `.catalyst/skills/drain-queue/SKILL.md` | **Create**: adapted from Catalyst source. Bold-line `**Status:** ready → in_progress` claim instead of filename rename; `main` as integration branch; per-iteration GC pass at step start (see Smoke Test §GC pass for spec); `Brief NNN` regex extraction from `**Depends on:**`; calls `/autobuild`; recursive `/dev-review --fix` pass with 3-attempt cap and non-convergence guard preserved (algorithm verbatim; substrate updated for Ditto scripts). |
-| `.catalyst/skills/autobuild/SKILL.md` | **Create**: adapted from Catalyst source. 10-step pipeline: (1) Resolve brief, (2) Pre-flight hard-stops (drizzle journal scan + DB migration scan), (3) Invoke `/dev-builder` (full role contract; includes its own `pnpm test:e2e`/`test:e2e:auto`/smoke-test set), (4) Spawn fresh-subagent `/dev-reviewer`, (5) Spawn fresh-subagent `/dev-review`, (6) Fix P0/P1 from both; document P2/P3 in PR body, (7) Commit + push feature branch, (8) Open PR against `main` with `brief:NNN-<short-slug>` token, (9) **Atomic-push the `**PR:** <url>` line edit to `origin/main`** (separate commit on its own `claim-tmp`-style branch; rebuild from `origin/main`, edit only the brief file, commit, push to `origin/main`; race-loss recovery via `git checkout -B claim-tmp origin/main` and retry). NOT a commit on the feature branch. (10) Report. |
+| `.catalyst/skills/autobuild/SKILL.md` | **Create**: adapted from Catalyst source. 10-step pipeline: (1) Resolve brief, (2) Pre-flight hard-stops (drizzle journal scan + DB migration scan), (3) Invoke `/dev-builder` (full role contract; includes its own `pnpm test:e2e`/`test:e2e:auto`/smoke-test set), (4) Spawn fresh-subagent `/dev-reviewer`, (5) Spawn fresh-subagent `/dev-review`, (6) Fix P0/P1 from both; document P2/P3 in PR body, (7) Commit + push feature branch, (8) Open PR against `main` with `brief:NNN-<short-slug>` token in body (this is what `/drain-queue`'s GC pass and dependency-eligibility query via `gh pr list --search`), (9) Add a `**PR:** <url>` line under `**Status:**` on the **feature branch** (informational documentation; commit + push to feature branch, NOT to `origin/main` — the line survives any merge strategy because it's part of the feature branch's diff; the merge-state lookup uses `gh pr list`, not this line). (10) Report. |
 | `.claude/skills/drain-queue/SKILL.md` | **Create**: pointer file. YAML frontmatter: four keys — `name`, `description`, `argument-hint`, `disable-model-invocation: true` (the four-key shape comes from Catalyst's source pointer at `/Users/thg/conductor/workspaces/agent-crm/kyoto/.claude/skills/drain-queue/SKILL.md`; `disable-model-invocation: true` prevents the LLM from auto-triggering this skill). Body is a single `@.catalyst/skills/drain-queue/SKILL.md` line. The existing `.claude/skills/dev-review/SKILL.md` is a 3-key pointer (no `disable-model-invocation`) — that's the correct shape for `dev-review` (which CAN be auto-invoked) and stays unchanged. |
 | `.claude/skills/autobuild/SKILL.md` | **Create**: pointer file with same four-key frontmatter shape as `drain-queue`; body is `@.catalyst/skills/autobuild/SKILL.md`. |
 | `.catalyst/skills/dev-review/SKILL.md` | **Modify**: replace `pnpm typecheck` → `pnpm run type-check` at all three current sites (line 9 in "Why This Skill Exists" prose, line 40 in Guardrails, plus any other site grep finds). Line 26: `origin/master...HEAD` → `origin/main...HEAD`. After the patch, `grep -n "pnpm typecheck"` and `grep -n "origin/master"` against the file MUST both return zero. |
@@ -147,20 +147,20 @@ These are Claude Code skills (filesystem-resident SKILL.md files at `.catalyst/s
 2. [ ] Both new skills target `main` as the integration branch and never check it out. Verify by `grep -rE "git checkout( -B [^ ]+)?\s+main(\s|$)" .catalyst/skills/{drain-queue,autobuild} .claude/skills/{drain-queue,autobuild}` returning zero matches (the only allowed checkout is `git checkout -B claim-tmp origin/main`, which is a different ref).
 3. [ ] `/drain-queue` parses brief eligibility from markdown bold-prefix lines using regex (`^\*\*Status:\*\*\s+(\w+)`). Verify no `import yaml`, `parseYaml(`, `front-matter`, or `gray-matter` reference appears in either new skill's body (in any code blocks or inline examples).
 4. [ ] `/drain-queue` extracts dependencies via the regex `\bBrief\s+(\d+)\b` from the `**Depends on:**` line and treats only those as enforced. ADR/Phase/infrastructure references in the same line do NOT cause the brief to be skipped. Spec is documented in the skill body so a Builder reading the skill alone can verify.
-5. [ ] A `Brief NNN` blocker is treated as **satisfied** iff one of: (a) no `docs/briefs/NNN-*.md` file exists on `origin/main`, (b) the file has `**Status:** complete`, or (c) the file has `**Status:** in_progress` AND a `**PR:** <url>` line. Otherwise unsatisfied; brief is skipped at claim time.
+5. [ ] A `Brief NNN` blocker is treated as **satisfied** iff one of: (a) no `docs/briefs/NNN-*.md` file exists on `origin/main`, (b) the file has `**Status:** complete`, (c) the file has `**Status:** in_progress` AND a PR with `brief:NNN-<slug>` token exists in the iteration's pre-computed open-PR map, OR (d) the file has `**Status:** in_progress` AND a PR with `brief:NNN-<slug>` token exists in the merged-PR map (race window between merge and GC). Otherwise unsatisfied; brief is skipped at claim time. The pre-computed maps come from a single `gh pr list --state all --json number,state,title,body --limit 200` call at the top of each `/drain-queue` iteration.
 6. [ ] `/drain-queue`'s atomic claim works: when two simultaneous workspaces race to claim the same brief, exactly one push succeeds (the loser gets `non-fast-forward`) and the loser's recovery via `git checkout -B claim-tmp origin/main` discards its in-progress claim commit and re-runs eligibility. Verified by the concurrency smoke test below.
-7. [ ] `/drain-queue`'s per-iteration GC pass: at step A (after `git fetch origin main`), for every brief on `origin/main` with `**Status:** in_progress` AND a `**PR:** <url>` line, query `gh pr view <url> --json state,mergedAt`. Behavior by PR state:
-   - **MERGED**: atomically (claim-style edit + commit + push to `origin/main`) flip the brief to `**Status:** complete` and remove the `**PR:**` line.
-   - **CLOSED** (not merged): do NOT flip; log a warning to the autopilot's final report listing the brief slug and the closed PR URL so the human can decide whether to reopen, re-mark `ready`, or mark `complete` manually.
-   - **OPEN**: do nothing (build is in progress somewhere; let it finish).
-   - **`gh pr view` fails** (network glitch, deleted PR, permission change): retry once with a 2-second backoff. If it still fails, skip that brief (do NOT flip), log a warning, continue.
-   GC race-loss on the push is treated like a normal claim race-loss (no error; the loser fetches and re-runs the GC pass on the next iteration). Per-iteration cap: process at most 10 briefs in the GC pass; if more candidates exist, leave them for the next iteration.
+7. [ ] `/drain-queue`'s per-iteration GC pass: at step A (after `git fetch origin main` and after the single `gh pr list --state all --json number,state,title,body,mergedAt --limit 200` call that populates the open/merged PR maps), for every brief on `origin/main` with `**Status:** in_progress`, look up the brief's slug in the maps. Behavior by lookup result, processed in **FIFO order by `mergedAt` timestamp** (oldest-merged first, so a backlog clears predictably):
+   - **Slug found in MERGED map**: atomically (claim-style edit + commit + push to `origin/main`) flip the brief to `**Status:** complete`. The `**PR:**` line on the brief file (added by autobuild Step 9 to the feature branch) is already present on `origin/main` because the merge included it; leave it as informational history.
+   - **Slug found in OPEN map**: do nothing (build is in progress somewhere; let it finish).
+   - **Slug not found in either map**: log a warning ("brief X is `Status: in_progress` but no matching PR found — orphan; manual cleanup needed"). Do NOT flip.
+   - **`gh pr list` fails** (network glitch, auth error, rate limit): retry once with a 2-second backoff. If it still fails, skip the GC pass for this iteration (do NOT flip anything), log a warning, continue to step B/C.
+   GC race-loss on the push is treated like a normal claim race-loss (no error; the loser fetches and re-runs the GC pass on the next iteration). Per-iteration cap: process at most 10 briefs in the GC pass; if more candidates exist, leave them for the next iteration (oldest-merged still preferred).
 8. [ ] `/autobuild` invokes `/dev-builder` as a single role-contract delegation for Implement+Verify (Step 3 in the 10-step pipeline). `/autobuild` does NOT enumerate `pnpm run type-check`, `pnpm test`, `pnpm test:e2e`, or `pnpm test:e2e:auto` in its own body — those are `/dev-builder`'s responsibility per `.claude/commands/dev-builder.md` lines 81-86 and the autopilot inherits them by delegation.
 9. [ ] `/autobuild` Step 4 (architecture review via `/dev-reviewer`) and Step 5 (exhaustive bug audit via `/dev-review`) MUST each spawn a fresh subagent (Task / Agent tool) with the relevant role-contract file passed as input, NOT inline the review in the Builder's conversation. Specified explicitly in the skill body.
 10. [ ] `/autobuild` Step 2 (Pre-flight hard-stops) detects: any of `drizzle/meta/_journal.json`, `drizzle/migrations/`, `packages/core/src/db/schema/`, `src/db/schema/` in the brief's §What Changes table → hard-stop with brief left at `Status: in_progress`. Detection runs BEFORE `/dev-builder` is invoked (no work wasted).
 11. [ ] `/autobuild` Step 2 also detects `pnpm db:push`, `pnpm db:migrate`, `drizzle-kit push`, `drizzle-kit migrate`, or `supabase db push` in §What Changes or §Smoke Test → hard-stop.
 12. [ ] `/autobuild` Step 8 opens a PR targeting `main` with body containing a `brief:NNN-<short-slug>` token on its own line (for `/drain-queue`'s belt-and-braces dedup check at claim time).
-13. [ ] `/autobuild` Step 9 atomically pushes the `**PR:** <url>` bold-line edit (placed directly under the brief's `**Status:**` line, Status itself unchanged at `in_progress`) **to `origin/main`** as a third atomic-push commit — NOT to the feature branch. Algorithm: rebuild from `origin/main` via `git checkout -B claim-tmp origin/main`, edit only the brief file, commit, push to `origin/main`. Race-loss recovery is identical to the claim race-loss: re-fetch, re-build claim-tmp, re-edit, retry. This makes the `**PR:**` line visible to GC and to dependency-eligibility checks immediately, satisfying AC #5 case (c) during the build window.
+13. [ ] `/autobuild` Step 9 commits a `**PR:** <url>` bold-line edit (placed directly under the brief's `**Status:**` line, Status itself unchanged at `in_progress`) **on the feature branch** — NOT on `origin/main`. The line is informational documentation; it survives any merge strategy (squash/rebase/merge-commit) because it's part of the feature branch's diff. The autoritative in-flight signal for dependency-eligibility (AC #5 case c) and GC (AC #7) is `gh pr list --search "brief:NNN-<slug>"`, not this line. Branch hygiene: the autopilot stays on `feature/<slug>` after Step 9 (no checkout dance), so Step 10 (Report) runs from the feature branch context. The next `/drain-queue` iteration uses `claim-tmp` from a fresh `git checkout -B claim-tmp origin/main`; no conflict with the autopilot's branch state.
 14. [ ] `/drain-queue`'s recursive `/dev-review --fix` pass preserves Catalyst's algorithm: 3-attempt cap, non-convergence guard (same finding set in two consecutive passes triggers escalation), PR-comment escalation when capped or non-convergent. Substrate substitutions: regression checks call `pnpm run type-check` (no `pnpm typecheck`); lint check is omitted (no `pnpm lint` script in this repo). All other behavior verbatim.
 15. [ ] All script invocations across the three skills use the correct Ditto names. `grep -rn "pnpm typecheck" .catalyst/skills/{drain-queue,autobuild,dev-review} .claude/skills/{drain-queue,autobuild,dev-review}` returns zero. `grep -rn "pnpm lint" .catalyst/skills/{drain-queue,autobuild,dev-review} .claude/skills/{drain-queue,autobuild,dev-review}` returns zero. `grep -rn "origin/master" .catalyst/skills/{drain-queue,autobuild,dev-review} .claude/skills/{drain-queue,autobuild,dev-review}` returns zero. `grep -rn "project/agentcrm-app-dev" .catalyst/skills/{drain-queue,autobuild,dev-review} .claude/skills/{drain-queue,autobuild,dev-review}` returns zero.
 16. [ ] No skill uses `--force`, `--no-verify`, or `reset --hard`. The only "discard local state" operation is `git checkout -B claim-tmp origin/main`, scoped to race-loss recovery (and re-used identically for GC race-loss).
@@ -190,7 +190,7 @@ This proves the skills work end-to-end. Run after the Builder finishes; mandator
 
 ### Bootstrap note (the chicken and the egg)
 
-Brief 188 itself cannot be built by `/drain-queue` because `/drain-queue` doesn't exist yet at build time. The implementing builder (human or `/dev-builder` invoked manually) creates the autopilot. After the implementing PR merges, brief 188 lands at `**Status:** complete` (via the manual `/dev-documenter` flip in §After Completion, since the autopilot's own GC pass is what's just been installed). After that, if anyone re-marks 188 as `**Status:** ready` for any reason (testing, re-build), `/drain-queue` WILL try to autoclaim it — that's expected behavior, not a paradox; just don't do it without intent.
+Brief 188 itself cannot be built by `/drain-queue` because `/drain-queue` doesn't exist yet at build time. The implementing builder (human or `/dev-builder` invoked manually) creates the autopilot. After the implementing PR merges, brief 188's Status must be flipped from `in_progress` to `complete` manually — see §After Completion item 1 for the explicit step (the autopilot's own GC pass is what's just been installed and is not yet trustworthy for self-flip). After that, if anyone re-marks 188 as `**Status:** ready` for any reason (testing, re-build), `/drain-queue` WILL try to autoclaim it — that's expected behavior, not a paradox; just don't do it without intent.
 
 ### Setup verification (one terminal in this Conductor workspace)
 
@@ -246,17 +246,19 @@ git fetch origin main
 /drain-queue 1
 ```
 
-**Expected behavior:**
-- `/drain-queue` step A fetches `origin/main` and runs the GC pass (no `**PR:**` lines yet, so no-op)
-- `/drain-queue` step B/C lists candidate briefs, picks 999 (only one with `Status: ready`), edits its `**Status:**` line to `in_progress`, commits, pushes to `origin/main` atomically
-- Claim branch renamed to `feature/999-autopilot-smoke-test`
-- `/autobuild` step 2 (pre-flight) finds no drizzle/migration hits → continues
-- `/autobuild` step 3 invokes `/dev-builder`, which runs `pnpm run type-check`, `pnpm test`, `pnpm test:e2e`, `pnpm test:e2e:auto`, the brief's smoke test, then makes the trivial doc edit
-- `/autobuild` step 4 spawns fresh-subagent `/dev-reviewer`; step 5 spawns fresh-subagent `/dev-review`
+**Expected behavior** (skill-name prefix on each step disambiguates `/drain-queue`'s outer loop A→F from `/autobuild`'s inner pipeline 1→10):
+- `(/drain-queue step A)` fetches `origin/main`; runs the single `gh pr list --state all --json ... --limit 200` call; populates open/merged PR maps; runs GC pass (no `Status: in_progress` briefs yet, so no-op)
+- `(/drain-queue step B/C)` lists candidate briefs, picks 999 (only one with `Status: ready`), edits its `**Status:**` line to `in_progress`, commits, pushes to `origin/main` atomically
+- `(/drain-queue step D)` claim branch renamed to `feature/999-autopilot-smoke-test`
+- `(/drain-queue step E → /autobuild step 1)` resolves brief 999
+- `(/autobuild step 2)` pre-flight finds no drizzle/migration hits → continues
+- `(/autobuild step 3)` invokes `/dev-builder`, which runs `pnpm run type-check`, `pnpm test`, `pnpm test:e2e`, `pnpm test:e2e:auto`, the brief's smoke test, then makes the trivial doc edit
+- `(/autobuild step 4)` spawns fresh-subagent `/dev-reviewer`; `(/autobuild step 5)` spawns fresh-subagent `/dev-review`
 - Both reviewers come back clean on a one-line trivial diff
-- `/autobuild` step 6 (no fixes needed), step 7 commits + pushes feature branch, step 8 opens PR against main with `brief:999-autopilot-smoke-test` token
-- Step 9 adds `**PR:** <url>` line to brief 999, commits, pushes
-- `/drain-queue` step F runs recursive `/dev-review --fix`; converges in pass 1 (clean diff)
+- `(/autobuild step 6)` no fixes needed; `(step 7)` commits + pushes feature branch; `(step 8)` opens PR against main with `brief:999-autopilot-smoke-test` token in body
+- `(/autobuild step 9)` adds `**PR:** <url>` line to brief 999 on the feature branch (NOT on origin/main), commits + pushes feature branch
+- `(/autobuild step 10)` reports
+- `(/drain-queue step F)` runs recursive `/dev-review --fix`; converges in pass 1 (clean diff)
 - Final report names PR URL
 
 ### Concurrency smoke test (two Conductor workspaces, strongly recommended)
@@ -289,16 +291,16 @@ gh pr create --base main --title "test: re-seed brief 999 for concurrency smoke 
 ### GC-pass smoke test (after the autopilot's PR is merged by a human)
 
 ```bash
-# Human merges the autopilot's PR for brief 999
+# Human merges the autopilot's PR for brief 999 (any merge strategy: squash/rebase/merge-commit)
 # In any workspace:
 /drain-queue 1
 ```
 
-**Expected:** GC pass observes brief 999's `**PR:**` URL is now `MERGED`, atomically flips brief to `**Status:** complete`, removes the `**PR:**` line, commits + pushes. (After this, brief 999's job is done; cleanup below removes it.)
+**Expected:** GC pass step A's `gh pr list` call returns brief 999's PR in the merged map. GC pass atomically flips brief 999 to `**Status:** complete` (commit + push to `origin/main`). The `**PR:**` line on brief 999 (which lived on the feature branch and arrived on `origin/main` via the merge) is left in place as informational history. (After this, brief 999's job is done; cleanup below removes the file entirely.)
 
 ### Cleanup (no `git checkout main`)
 
-Order matters: the autopilot's PR (call it PR-A — the one that implemented brief 999) must be MERGED first so the GC pass can flip brief 999 to `Status: complete` BEFORE the cleanup PR removes the file. If PR-A is closed without merging, the GC pass will log a CLOSED warning per AC #7 and the brief stays at `Status: in_progress`; that's a soft failure to handle manually.
+Order matters: the autopilot's PR (call it PR-A — the one that implemented brief 999) must be MERGED first so the GC pass can flip brief 999 to `Status: complete` BEFORE the cleanup PR removes the file. If PR-A is closed without merging, the GC pass leaves the brief at `Status: in_progress` and logs an "orphan" warning (per AC #7); that's a soft failure to handle manually.
 
 ```bash
 # *** Verify PR-A merged and the GC pass has run (brief 999 should be Status: complete on origin/main) ***
@@ -306,25 +308,27 @@ git fetch origin main
 git show origin/main:docs/briefs/999-autopilot-smoke-test.md | grep '^\*\*Status:\*\*'
 # Expect: **Status:** complete
 
-# Now remove the throwaway brief
+# Now remove the throwaway brief AND undo brief 999's docs/state.md edit (the smoke-test marker)
 git checkout -b cleanup/remove-999-smoke-test origin/main
 rm docs/briefs/999-autopilot-smoke-test.md
-git commit -m "chore: remove brief 999 (autopilot smoke test complete)"
+sed -i '' '/<!-- autopilot smoke test marker -->/d' docs/state.md
+git commit -am "chore: remove brief 999 + smoke-test marker (autopilot smoke test complete)"
 git push -u origin cleanup/remove-999-smoke-test
-gh pr create --base main --title "chore: remove brief 999 (autopilot smoke test complete)" --body "Smoke test passed; remove the throwaway brief."
+gh pr create --base main --title "chore: remove brief 999 + smoke-test marker" --body "Smoke test passed; remove the throwaway brief and the marker line it appended to docs/state.md."
 # *** HUMAN ACTION: merge the cleanup PR ***
 ```
 
 ## After Completion
 
-1. Update `docs/state.md` with the new capability (autopilot dispatch automation now available; recommend `/drain-queue 1` for the next ready brief; escalate to `all` once trust is established; cross-reference Brief 181 as the network-scale follow-up).
-2. Update `docs/roadmap.md` only if a phase boundary moved — this brief is meta and probably doesn't shift roadmap rows.
-3. Phase retrospective:
-   - What worked: did the bold-line-mutex pattern hold under concurrent racing? Did the GC pass correctly observe merges?
-   - What surprised us: any class of brief that broke `/autobuild` (e.g. ones that need DB migrations, or ones with external API spikes per Insight-180, or ones whose `**Depends on:**` line confused the `Brief NNN` regex)?
-   - What to change: tune the 3-pass `--fix` cap if it routinely caps out or routinely converges in 1.
-4. ADR-035 is part of the work products — write it as the doctrine record (not a follow-up).
-5. Capture insights — likely candidates: "Bold-line content mutation as a distributed mutex," "Narrow regex over freeform prose deps as a safe-by-default ignore policy," or "Fresh-subagent reviewers as the procedural realization of maker-checker."
+1. **Manually flip Brief 188's Status from `in_progress` to `complete`** in a small follow-up PR (the autopilot's own GC pass cannot self-flip safely on first install). Use the same feature-branch + PR pattern as the smoke-test cleanup. `/dev-documenter` can drive this if invoked.
+2. Update `docs/state.md` with the new capability (autopilot dispatch automation now available; recommend `/drain-queue 1` for the next ready brief; escalate to `all` once trust is established; cross-reference Brief 181 as the network-scale follow-up).
+3. Update `docs/roadmap.md` only if a phase boundary moved — this brief is meta and probably doesn't shift roadmap rows.
+4. Phase retrospective:
+   - What worked: did the bold-line-mutex pattern hold under concurrent racing? Did the GC pass correctly observe merges via `gh pr list`?
+   - What surprised us: any class of brief that broke `/autobuild` (e.g. ones that need DB migrations, or ones with external API spikes per `docs/insights/180-spike-test-every-new-api.md`, or ones whose `**Depends on:**` line confused the `Brief NNN` regex)?
+   - What to change: tune the 3-pass `--fix` cap if it routinely caps out or routinely converges in 1; tune the GC per-iteration cap of 10 if backlog clearing feels slow or fast.
+5. ADR-035 is part of the work products — write it as the doctrine record (not a follow-up).
+6. Capture insights — likely candidates: "Bold-line content mutation as a distributed mutex," "Narrow regex over freeform prose deps as a safe-by-default ignore policy," or "Fresh-subagent reviewers as the procedural realization of maker-checker."
 
 ---
 

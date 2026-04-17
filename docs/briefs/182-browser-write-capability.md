@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-17
 **Status:** ready
+**Approved:** 2026-04-17 by human after two review passes
 **Depends on:** ADR-005 (integration architecture), Brief 134 (Stagehand READ-only `browse_web` self-tool), `credentials` table (ADR-005 §3), `work_items` table (existing iteration primitive)
 **Unlocks:** Sub-brief 183 (protocol + handler skeleton); Sub-brief 184 (session capture + scrub + trace + trust-gate wiring); Sub-brief 185 (structural fingerprinting for bulk auto-promotion); user-level processes that automate authenticated long-tail SaaS (afirmo.co.nz reconciliation, Xero/FreshBooks/MYOB UI paths where no API covers the operation, internal vendor portals, etc.)
 

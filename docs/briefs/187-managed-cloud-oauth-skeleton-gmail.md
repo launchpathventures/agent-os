@@ -106,8 +106,8 @@ Exit criterion: Rob (the persona) clicks "Connect Gmail" in his workspace, compl
 | `src/engine/network/oauth/client-google.ts` | Create — `OAuthClient` implementation for Google. Uses `googleapis` or raw `fetch` against Google's OAuth endpoints. Reads client secret from `GOOGLE_OAUTH_CLIENT_SECRET` env var; never logged. |
 | `src/engine/network/oauth/client-fake.ts` | Create — test double. Returns deterministic grants; advances clock for refresh tests. |
 | `src/engine/network/oauth/refresh-worker.ts` | Create — cron-style job. Every 60s: SELECT grants where `expires_at < now() + 5m` AND `status = 'ACTIVE'`; refresh; update vault; on failure backoff; after 6 failures flip to `REVOKED` + SSE event. |
-| `src/engine/network/brokers/gmail.ts` | Create — `POST /v1/network/gmail/send` handler. Validates workspace API token, resolves user, reads grant, checks trust-gate state in payload, calls Gmail API, redacts body in logs, writes activity row, returns result. |
-| `src/engine/network/brokers/gmail.test.ts` | Create — covers: unauthenticated rejected, trust-gate not-approved rejected, token refresh on 401, revoked grant → `TOKEN_REVOKED` SSE, successful send writes activity row, body never appears in log sink. |
+| `src/engine/network/brokers/gmail.ts` | Create — `POST /v1/network/gmail/send` handler. Validates workspace API token, resolves user, validates `stepRunId` against active `stepRuns` row (Insight-180 guard), reads grant, calls Gmail API, redacts body in logs, writes activity row, returns result. Trust-gate enforcement happens in the workspace pipeline before the HTTP call — broker does not re-check. |
+| `src/engine/network/brokers/gmail.test.ts` | Create — covers: unauthenticated rejected (401), missing `stepRunId` rejected (400), `stepRunId` not resolving to active stepRuns row rejected (400), token refresh on 401 from Google, revoked grant → `TOKEN_REVOKED` SSE, successful send writes activity row, body never appears in log sink (including error paths). |
 | `src/engine/network/oauth/handlers.test.ts` | Create — covers: state validated, PKCE verifier round-trip, callback without matching state rejected, expired state rejected, successful callback persists grant and emits SSE. |
 | `src/engine/network/oauth/refresh-worker.test.ts` | Create — covers: refreshes before expiry, backoff on transient failure, flips to `REVOKED` after 6 consecutive failures, fires SSE event on flip. Uses `client-fake.ts`. |
 | `src/engine/self-tools/connect-service.ts` | Modify — add `oauth_start` action. Given `service`, returns workspace redirect URL (obtained from Network via `/v1/network/oauth/start`). Existing `check | guide | verify` actions unchanged. |
@@ -117,7 +117,7 @@ Exit criterion: Rob (the persona) clicks "Connect Gmail" in his workspace, compl
 | `packages/web/components/integrations/connect-button.tsx` | Create — minimal component. Button → fetch Network OAuth URL → window.open → poll for `oauth.connected` SSE → update UI. |
 | `packages/web/app/(workspace)/integrations/connected.tsx` | Create — success page the Network callback redirects to. Shows "Gmail connected" + returns to conversation. |
 | `.env.example` | Modify — add `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` under a new "Network Service — Managed OAuth" section. Stubs for Slack/Notion (Briefs 189/190) commented out. Redirect URI documented as `https://ditto.partners/v1/network/oauth/callback`. Already staged during the brief-drafting pass (2026-04-17) so this row is effectively a check-in, not net-new. |
-| `src/cli/commands/network-debug.ts` | Create — admin CLI group. First subcommand: `pnpm cli network debug oauth-revoke --service <name> --user <id>` force-flips a vault grant to `REVOKED` and fires SSE. Used by smoke test and for ops-driven revocation testing. Guarded by `DITTO_ADMIN=1` env — refuses to run without it. |
+| `src/cli/commands/network-debug.ts` | Create — admin CLI group. Two subcommands: (1) `pnpm cli network debug oauth-revoke --service <name> --user <id>` force-flips a vault grant to `REVOKED` and fires SSE; used by smoke test and for ops-driven revocation testing. (2) `pnpm cli debug step-run seed --process <slug> --json` creates a minimal active `stepRuns` row and prints its id as JSON; used by smoke test to exercise the gmail/send Insight-180 guard path without running a full process. Both guarded by `DITTO_ADMIN=1` env — refuse to run without it. |
 | `src/engine/network/oauth/module-boundary.test.ts` | Create — asserts no file under `src/` outside `src/engine/network/` imports from `packages/core/src/oauth/internal/*`. Covers the "workspace never holds a token" invariant at the module level. |
 | `src/engine/network/oauth/response-shape.test.ts` | Create — asserts no Network HTTP response or SSE event fixture payload contains `access_token` or `refresh_token` substrings. Runs against representative fixtures for every endpoint the Network exposes. |
 | `docs/state.md` | Modify — record Brief 187 complete, OAuth skeleton + Gmail live. |
@@ -177,7 +177,7 @@ Exit criterion: Rob (the persona) clicks "Connect Gmail" in his workspace, compl
    - **Body redaction:** is the test for "body never appears in log sink" actually capturing all sinks, or just the primary logger? Does it cover error paths (where people often log requests for debugging)?
    - **Refresh worker correctness:** does the backoff-then-revoke path actually fire SSE? Does the 6-failure threshold handle concurrent refresh attempts on the same grant?
    - **PKCE + state:** is the state-store interface abstracted enough to swap in Redis later without changing handlers? Does the 10-min TTL have a test?
-   - **Trust-gate integration:** does the broker correctly refuse when `approved_at` is missing? Is the trust concept extended anywhere, or just applied?
+   - **Invocation guard (Insight-180):** does the broker correctly refuse when `stepRunId` is missing or does not resolve to an active `stepRuns` row? Is trust-gate enforcement correctly left to the workspace pipeline (same as Brief 184), with no re-check in the broker? Are the four entry points (oauth/start, oauth/callback, gmail/send, refresh-worker tick) each using the anchor the brief specifies?
    - **Schema validation:** does the validator genuinely reject malformed OAuth configs, or only warn? Covered by negative tests?
    - **Insight-186 adherence:** on `TOKEN_REVOKED`, does the system fall back rather than block? Is the "offer once per cycle type" flag actually scoped correctly?
 3. Fresh-context reviewer re-reads: does this brief hold to "one integration seam per brief" (Insight-004), or has it quietly grown into a multi-provider brief? Any hidden dependencies on not-yet-built pieces?
@@ -207,11 +207,20 @@ curl -X POST http://localhost:${NETWORK_PORT}/v1/network/oauth/start \
 # Expect: success page, workspace receives SSE oauth.connected event, Self confirms
 
 # Broker send
+# Seed a stepRun for the smoke test (or reuse an active one from a real process run)
+STEP_RUN_ID=$(pnpm cli debug step-run seed --process gmail-smoke --json | jq -r .stepRunId)
+
 curl -X POST http://localhost:${NETWORK_PORT}/v1/network/gmail/send \
   -H "Authorization: Bearer $WORKSPACE_API_TOKEN" \
-  -d '{"to":"test@example.com","subject":"Hi","body":"Test","approved_at":"2026-04-17T00:00:00Z"}'
+  -d "{\"to\":\"test@example.com\",\"subject\":\"Hi\",\"body\":\"Test\",\"stepRunId\":\"$STEP_RUN_ID\"}"
 # Expect: 200 + message_id. Activity row visible via `pnpm cli activities --service gmail`.
 # Expect: grep $WORKSPACE_LOG $GMAIL_BODY_TEXT → no matches.
+
+# Negative: same call without stepRunId
+curl -X POST http://localhost:${NETWORK_PORT}/v1/network/gmail/send \
+  -H "Authorization: Bearer $WORKSPACE_API_TOKEN" \
+  -d '{"to":"test@example.com","subject":"Hi","body":"Test"}'
+# Expect: 400 — missing stepRunId (Insight-180 guard). DITTO_TEST_MODE=1 bypasses.
 
 # Refresh worker
 pnpm vitest run src/engine/network/oauth/refresh-worker.test.ts

@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-17
 **Status:** ready
+**Approved:** 2026-04-17 by human after two review passes
 **Depends on:** Brief 182 (parent), ADR-005 (documents the three existing protocols; this brief supersedes-in-part with ADR-032)
 **Unlocks:** Brief 184 (makes the handler actually execute actions + session capture + scrub + trace + trust-gate E2E)
 
