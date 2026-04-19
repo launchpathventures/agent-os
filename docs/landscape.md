@@ -756,6 +756,76 @@ Added to support Brief 181 Sub-brief 182 (evidence harvest) and ADR-033 §1 cons
 
 ---
 
+## User-Facing Legibility & File-Backed Storage (2026-04-20)
+
+Added to support Insight-201 (user-facing-legibility principle) and Brief 197 phase design. Full survey in `docs/research/user-facing-legibility-patterns.md` — three architecturally-consequential gaps surfaced (write-path trust at file layer, bidirectional file↔DB sync, secret-exclusion as first-class invariant). **No DEPEND or ADOPT candidates surfaced in this survey** — the option space is about stances and invariants, not importable libraries. `isomorphic-git` is the one DEPEND entry below; it is git-infrastructure, not a legibility pattern per se.
+
+**hilash/cabinet** — github.com/hilash/cabinet (1.6k stars, TypeScript 92.3%, MIT, v0.3.4 April 2026)
+- Self-hosted "AI-first knowledge base + startup OS." Next.js 16 app; markdown files on disk; git auto-commit on every save; 20 pre-built agent templates; web terminal.
+- **Classification:** PATTERN — competing product shape at the product-market level; architectural DNA incompatible with Ditto (files-as-DB + provider-adapter + job-scheduler vs. Ditto's DB-backed harness pipeline with trust tiers). The **git-auto-commit-on-every-write** pattern and the **file-system-like inspectability** property are what Ditto studies and re-implements.
+- **Ditto relevance:** MEDIUM — the UX property ("easy and transparent to dive into things") triggered Insight-201. Git auto-commit pattern adopted in Brief 199.
+- **Limitation:** installable app, not a library; cannot be extracted.
+
+**Obsidian** — obsidian.md (closed-source client; proprietary)
+- Mature markdown-PKM; vault is plain directory of `.md` files; plugin ecosystem; file-as-truth; offline-first; no server.
+- **Classification:** PATTERN — study the markdown + YAML frontmatter shape; cannot adopt (closed-source client).
+- **Ditto relevance:** MEDIUM — frontmatter conventions and user-facing vault layout inform Brief 199 folder structure.
+- **Full evaluation:** `docs/research/user-facing-legibility-patterns.md`; spot-check flagged on Logseq-style UUID semantics (evolution).
+
+**Logseq** — github.com/logseq/logseq (34k+ stars, Clojure, AGPL-3.0)
+- Outliner with block-level file storage; file-wins-on-reload; UUIDs in frontmatter.
+- **Classification:** PATTERN — architectural reference for block-level addressing in markdown files.
+- **Ditto relevance:** LOW direct; MEDIUM as contrast for the "per-file granularity" vs "per-scope-grouped" trade.
+- **Full evaluation:** `docs/research/user-facing-legibility-patterns.md`. Research flagged verification-needed on current UUID semantics.
+
+**Foam** — github.com/foambubble/foam (MIT)
+- VSCode-based markdown note system; thinner conventions than Dendron.
+- **Classification:** PATTERN — reference only.
+- **Ditto relevance:** LOW.
+
+**Dendron** — github.com/dendronhq/dendron (MIT)
+- VSCode-based markdown notes with `.schema.yml` structural validation at write time.
+- **Classification:** PATTERN, **with maintenance-risk flag** — project activity slowed per public signals; do NOT depend. The schema-validation pattern is worth studying even if the library isn't consumed.
+- **Ditto relevance:** MEDIUM for the schema-validation-at-write pattern (future consideration for v2 bidirectional sync).
+
+**simonw/Datasette + Dogsheep** — datasette.io (Apache-2.0)
+- SQLite-first web app that publishes databases as browsable + queryable UIs; Dogsheep tooling exports personal data sources into SQLite tables, then Datasette serves them.
+- **Classification:** PATTERN-CONTRAST — included as the **coherent opposite stance** to file-first. Datasette says "SQLite is the canonical store, exports are secondary." Important for grounding the "files vs DB" tradeoff conversation.
+- **Ditto relevance:** LOW direct; HIGH as the philosophical counterpoint that helped resolve the "why not just render from SQLite?" question (user redirect 2026-04-20 → Briefs 197-200 revised to: DB authoritative + file projection, not file-as-primary).
+
+**Quarto + nbdev** — quarto.org (Posit; MIT); fastai/nbdev (Apache-2.0)
+- Source-is-text stance for computational notebook workflows; notebooks authored in markdown + code blocks that compile to executable + publishable.
+- **Classification:** PATTERN-CONTRAST — relevant for agent-adjacent workflows where the source-of-truth is a text file that's also executable.
+- **Ditto relevance:** LOW direct; PATTERN for process-definition-as-text if Ditto ever wants executable process YAML with rich markdown authoring.
+
+**Reflect, Tana, Roam** — proprietary PKM apps
+- **Classification:** PATTERN-CONTRAST only — closed/opaque storage. Named because understanding **why they chose NOT file-backed** (real-time sync, CRDT-based block editing, graph queries over structured blocks) grounds the trade we're making in the opposite direction.
+- **Ditto relevance:** LOW.
+
+**Org-mode + TiddlyWiki** — historical references
+- **Classification:** PATTERN — plain-text + in-file metadata + deep plugin/macro systems. Brief historical reference for the "text-as-app" tradition.
+- **Ditto relevance:** LOW.
+
+**FUSE / filesystem-projection patterns** (generic)
+- GitFUSE, sqlfuse, etc. — technical pattern where a DB is canonical but a filesystem view is mounted.
+- **Classification:** PATTERN-CONTRAST — considered and rejected for Brief 200's v1 (DIY infrastructure cost high; WebDAV or plain files simpler for the single-tenant case). Kept as a reference for future mount-based access modes.
+- **Ditto relevance:** LOW v1; MEDIUM if future user demand surfaces for "mount the workspace as a drive."
+
+### Git Infrastructure (2026-04-20)
+
+Added to support Brief 199 (git auto-commit on memory writes) and Brief 200 (Ditto-as-git-server).
+
+**isomorphic-git** — github.com/isomorphic-git/isomorphic-git (10k+ stars, TypeScript-native, MIT, v1.x)
+- Pure JS git implementation; no native dependencies; works in Node runtimes and browsers. Supports local repo operations (init, commit, log, diff, branch) and remote protocol operations (push, fetch, clone).
+- Companion: **@isomorphic-git/http-node** — HTTP transport helpers for both client-side (clone/push over HTTPS) and server-side (Smart HTTP protocol endpoint helpers).
+- **Classification:** DEPEND — mature, typed, actively maintained, MIT license; no native deps (no build-toolchain requirements on Railway container); same library used for Brief 199's local commits AND Brief 200's git-over-HTTPS serving (shared dep amortises cost).
+- **Ditto usage:** Brief 199 local git-writer (`src/engine/legibility/git-writer.ts` wraps the library for auto-commit on memory writes); Brief 200 Smart HTTP server endpoints (`packages/web/app/ws.git/[[...path]]/route.ts` + adapter in `src/engine/legibility/git-server.ts`).
+- **Spike test gate (Insight-180):** Brief 200 requires a real-client `git clone` roundtrip spike test BEFORE the rest of the brief builds; if `@isomorphic-git/http-node` Smart HTTP helpers are insufficient for the protocol version modern git clients use, pivot to `node-git-server` documented in the brief's retrospective.
+- **Limitation:** `@isomorphic-git/http-node` Smart HTTP server helpers are less battle-tested than gitea-class Go implementations; the spike test is load-bearing.
+- **Alternatives catalogued:** `node-git-server` (smaller surface, MIT), `simple-git` (system-binary wrapper; needs git installed in container — less portable). Evaluated during Brief 200 design; not adopted.
+
+---
+
 ## Pragmatic Path for Dogfood
 
 For the coding agent team (first implementation):
