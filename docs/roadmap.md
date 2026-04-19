@@ -487,6 +487,42 @@ This is the complete capability map for Ditto. Every item traces back to the arc
 
 **Downstream prerequisites:** All 8 sub-briefs are Status: ready. Sequential dependency: 189 (starts) → {190, 191} (both depend 189) → 195 (depends 189+191) → 196 (depends 191+195) → {192, 194} (both depend 190+191+195+196) → 193 (depends 189+190, can run parallel with 191+). Recommended build order: 189 → 190 → 191 → 195 → 196 → {192, 193, 194} parallel.
 
+### User-Facing Legibility (2026-04-20, Phase 9/10 parallel)
+
+**Re-entry condition:** principle captured in Insight-201 (`docs/insights/201-user-facing-legibility.md`); four-category frame (outbound / inbound / generated / internal) defined; cabinet triage (2026-04-20) surfaced the underlying property.
+
+**Key principle:** at user-facing data seams, file-backed projection is the default — DB-opacity must justify itself. Ditto itself is the git remote (Insight-202); no external-service dependency.
+
+**Key design calls (parent Brief 197):**
+- Four categories: outbound (emails/DMs/posts Ditto sent — Rob's *"did you actually send that?"*), inbound (received + processed), generated (quotes/invoices/reports/briefings), internal (memories/improvements/work_items/feedback/process_versions/activities)
+- Categories 1–3 carry an **artefact canonicalisation prerequisite** — content is not currently persisted as discrete retrievable things; they need research + design before projection applies
+- Category 4 is the cheapest pilot — DB already has the data
+- Read-only projection in v1; bidirectional deferred behind named trigger (Insight-200)
+- Secrets and PII MUST NOT project — fail-closed filter at 0.95 classifier confidence
+
+| Capability | Status | Source doc | Build from |
+|-----------|--------|-----------|------------|
+| **Design artefacts (2026-04-20)** | | | |
+| Insight-201 — principle + four-category frame | active | `docs/insights/201-user-facing-legibility.md` | Original (triggered by cabinet triage) |
+| Insight-202 — Ditto-as-X before external-X | active | `docs/insights/202-ditto-as-X-before-external-X.md` | Original |
+| Research — option space (cabinet/Obsidian/Logseq/Foam/Dendron/Datasette) + three gaps | done | `docs/research/user-facing-legibility-patterns.md` | Public PKM architectures + DLP pattern |
+| Designer UX — persona-driven memories inspection | done (Architect-as-Designer; re-review owed) | `docs/research/memories-legibility-ux.md` | Original |
+| Brief 197 — phase design parent | ready | `docs/briefs/197-user-facing-legibility-phase.md` | Original |
+| **Memories pilot (parallel-unlockable, 2026-04-20)** | | | |
+| Brief 198 — memory write chokepoint refactor (prerequisite) | ready | `docs/briefs/198-memory-write-chokepoint-refactor.md` | Original; mechanical refactor across 22 call-sites |
+| Brief 199 — memories projection + 2-stage safety filter (regex→LLM) + 54-entry corpus | ready | `docs/briefs/199-memories-projection-and-safety-filter.md` | gitleaks/truffleHog patterns (pattern) + DLP two-stage classifier (pattern) + cabinet git-auto-commit (pattern); isomorphic-git (depend) |
+| Brief 200 — workspace git-over-HTTPS server + bootstrap + clone credentials UI | ready | `docs/briefs/200-workspace-git-server.md` | isomorphic-git + @isomorphic-git/http-node (depend); gitea/gogs self-hosted pattern |
+| **Future sub-briefs (not pre-numbered per Insight-200 hygiene)** | | | |
+| Category 4 siblings — `improvements`, `work_items`, `process_versions`, `feedback` legibility | future | — | Same pattern as memories; no canonicalisation prerequisite |
+| Category 4 — `activities` legibility | future (separate research pass) | — | High-volume seam needs date-sharding / pruning research first |
+| Category 1 — outbound communications legibility (emails/DMs/posts) | **blocked on canonicalisation research** | — | **Requires research pass on canonical outbound-artefact storage** before Designer + Architect |
+| Category 2 — inbound communications legibility | **blocked on canonicalisation research** | — | Same canonicalisation prerequisite |
+| Category 3 — generated artefacts legibility (quotes/invoices/reports/briefings) | **blocked on canonicalisation research** | — | Same canonicalisation prerequisite |
+
+**Downstream prerequisites:** 198 starts (no deps); 200 can build in parallel (no deps); 199 depends on 198. Pilot demonstrable end-to-end once all three ship. Category 1-3 sub-briefs require a dedicated research pass on artefact canonicalisation before they can be designed.
+
+**Compensating control owed (Brief 199):** fresh-context Designer re-review on `memories-legibility-ux.md` was **waived by user authorization 2026-04-20** on status promotion to `ready`. AC #18 in Brief 199 remains as principle; waiver documented in brief header.
+
 ### Phase 10: Web Dashboard — The Living Workspace
 
 **Re-entry condition:** CLI proves the workspace model works (Phase 5 complete)
