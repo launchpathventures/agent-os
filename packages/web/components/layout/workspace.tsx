@@ -159,9 +159,20 @@ export function Workspace({ userId = "default", userName, orgName }: WorkspacePr
   // Reset the in-hook messages when the active thread flips — but never
   // stomp an in-flight stream: if the user switches threads mid-reply,
   // we wait for the persistence effect to flush before replaying.
+  //
+  // Insight-204: listing `loading` in deps would re-fire this effect on
+  // every status transition, including stream-completion, and re-apply a
+  // stale `initialMessages` snapshot — wiping the messages the user just
+  // watched stream in. The `appliedActiveIdRef` gate makes `loading` a
+  // re-check trigger (so mid-stream thread switches replay once loading
+  // clears) rather than a replay trigger on same-thread completions.
+  const appliedActiveIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (loading) return;
+    const currentId = active?.id ?? null;
+    if (appliedActiveIdRef.current === currentId) return;
     setMessages(initialMessages);
+    appliedActiveIdRef.current = currentId;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, loading]);
 

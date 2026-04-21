@@ -287,6 +287,7 @@ export function Sidebar({
       <div style={{ padding: 12 }}>
         <button
           onClick={onNewChat}
+          data-testid="new-chat-button"
           style={{
             display: "flex",
             alignItems: "center",

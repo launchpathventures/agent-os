@@ -302,6 +302,7 @@ export function ChatPanel({
         >
           <textarea
             ref={inputRef}
+            data-testid="chat-input"
             rows={1}
             placeholder={loading ? "Alex is thinking…" : "Message Alex…"}
             value={input}
@@ -406,6 +407,7 @@ function SendButton({ ready, onClick }: { ready: boolean; onClick: () => void })
   return (
     <button
       onClick={onClick}
+      data-testid="send-button"
       aria-label="Send"
       disabled={!ready}
       style={{
