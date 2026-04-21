@@ -1,7 +1,7 @@
 # Brief 211: Workspace ChatPanel — Streamed Messages Stomped After Stream Completes
 
 **Date:** 2026-04-21
-**Status:** draft
+**Status:** ready
 **Depends on:** none (regression fix; PR #35 introduced)
 **Unlocks:** un-skip 10 e2e specs (`packages/web/e2e/{blocks,pipeline,planning}.spec.ts`); workspace conversation surface becomes usable; `/drain-queue` autopilot regains full e2e coverage
 
@@ -17,6 +17,34 @@ PR #35 (commit `45a383b`, merged 2026-04-21) rewrote the workspace chat surface,
 The new surface has a user-visible regression: **when the user sends a message in the workspace chat, the response renders and then immediately flashes back to a blank state**. Reproduced manually by the user (2026-04-21). The same regression breaks 10 e2e specs (currently `.skip()`-marked in `packages/web/e2e/blocks.spec.ts`, `pipeline.spec.ts`, `planning.spec.ts`) — every test that calls `ConversationPage.waitForResponse()` times out at 10s because `[data-testid="assistant-message"]` never settles in the DOM.
 
 Server-side is healthy — `[/api/chat] Stream finished. Messages: 1` is logged for every send (CI run `24700615560`, log `test_72242842331.log`). The `/chat` page (`packages/web/app/chat/page.tsx`, used by `onboarding.spec.ts`) renders the same mock LLM responses correctly via its own `ChatConversation` component, so the mock LLM, the `/api/chat` route, and the `ai-elements/message.tsx` rendering path all work in isolation. The break is in the new workspace `useChat` + thread-store wiring.
+
+## Architect's Diagnosis (confirmed 2026-04-21)
+
+Leading hypothesis **confirmed** by code trace. The bug is in `packages/web/components/layout/workspace.tsx` lines 145–166. Two wiring mistakes combine:
+
+1. `initialMessages` is `useMemo`-ed on `[active?.id]` only (line 148). So when `active.turns` grows (after `appendTurns` resolves), `initialMessages` does NOT recompute — it stays at the snapshot taken when `active?.id` first populated (empty `[]` for a freshly-created thread).
+
+2. The reset effect (lines 162–166) lists `loading` in its deps:
+   ```ts
+   useEffect(() => {
+     if (loading) return;
+     setMessages(initialMessages);
+   }, [active?.id, loading]);
+   ```
+   The `if (loading) return` guard protects against stomping mid-stream, but `loading` in the deps forces the effect to re-fire when `loading` flips from `true → false` at stream completion. At that moment `initialMessages` is still the stale `[]` snapshot, so `setMessages([])` wipes the freshly-streamed user + assistant messages. Flash, then gone.
+
+**Trace of a "hello" send on a new thread:**
+1. `newChat()` → `active.id = "foo"`, `active.turns = []`
+2. `initialMessages` memo computes to `[]`
+3. Effect fires (active?.id changed from undefined to "foo"), `loading=false` → `setMessages([])`. Noop.
+4. User types "hello", hits send → `sendMessage(...)` → `status = "submitted"` → `loading = true`
+5. Effect re-fires (loading true), returns early — guard works
+6. Stream: `messages` grows to `[user, assistant-streaming]` (visible in DOM)
+7. Stream completes → `status = "ready"` → `loading = false`
+8. **Effect re-fires (loading changed), `setMessages([])` STOMPS the two messages** ← THE BUG
+9. Persistence effect separately fires with messages already `[]` vs its ref of 0 → no-op on persistence (worse: the brief's AC-10 would break here without the fix)
+
+Note: the comment on lines 159–161 already expresses the correct intent ("Replay only on active thread id change"). The code does not match the comment — `loading` in deps is an alignment defect, not a design choice. The fix is to realign code with comment.
 
 ## Objective
 
@@ -36,8 +64,9 @@ What to read before starting:
 
 1. `packages/web/components/layout/workspace.tsx` — primary suspect. Specifically:
    - lines 124–155 (`useChat` setup, transport memoization, `id: active?.id`)
-   - lines 159–166 (the `setMessages(initialMessages)` reset effect with `[active?.id, loading]` deps — **leading hypothesis: this effect re-fires when loading transitions from true to false after stream completes, calling `setMessages([])` because `initialMessages` was memoized when active was empty**)
-   - lines 168–202 (persistence effect — `useEffect` that POSTs new turns back to `/api/chat/threads/[id]/messages`)
+   - lines 145–149 (`initialMessages` memo — deps `[active?.id]` with eslint disabled → snapshot doesn't refresh when `active.turns` grows post-appendTurns)
+   - lines 162–166 (the `setMessages(initialMessages)` reset effect with `[active?.id, loading]` deps — **confirmed: this effect re-fires when loading transitions from true to false after stream completes, calling `setMessages([])` because `initialMessages` was memoized when active was empty**)
+   - lines 173–195 (persistence effect — `useEffect` that POSTs new turns back to `/api/chat/threads/[id]/messages`)
    - lines 413–420 (`sendText` callback)
 2. `packages/web/components/chat/chat-panel.tsx` — consumes `messages` prop from workspace; renders via `ConversationMessage`. Verify it doesn't filter or drop messages on its own.
 3. `packages/web/components/chat/thread-store.ts` — `create()` flow and how `active` populates after `threadStore.create()` resolves.
@@ -60,7 +89,7 @@ What to read before starting:
 
 | File | Action |
 |------|--------|
-| `packages/web/components/layout/workspace.tsx` | Modify: fix the message-reset effect so it does NOT stomp streamed messages when `loading` transitions from true to false. Leading hypothesis (Architect to confirm or refute): the effect at lines 159–166 lists `loading` in its deps — drop `loading` from the deps so the effect only fires on genuine `active?.id` changes (thread switches), not on stream-completion transitions. Alternative: track whether `initialMessages` has been refreshed post-persistence and gate the reset on that. |
+| `packages/web/components/layout/workspace.tsx` | Modify: fix the message-reset effect so it does NOT stomp streamed messages when `loading` transitions from true to false. **Prescribed fix:** add an `appliedActiveIdRef` ref that records which `active?.id` the effect last applied, and change the effect to `(a) return if loading`, `(b) return if appliedActiveIdRef.current === active?.id`, `(c) otherwise setMessages(initialMessages) and THEN record the id`. Keep `[active?.id, loading]` deps so a mid-stream thread switch (active?.id changes while loading=true) correctly replays once loading later flips false. This fixes the common case (stream completes on same thread → no re-apply) AND the edge case (switch threads mid-reply → replay deferred until loading clears). Leave the ESLint exhaustive-deps disable in place. **Invariant:** `appliedActiveIdRef.current` must only be assigned AFTER `setMessages` runs — never inside the `if (loading) return` early-return branch. Assigning the ref in the guard branch breaks mid-stream thread-switch replay (the replay would never fire because the ref already matches the id it was supposed to apply). See Architect's Diagnosis above for the trace. Line refs are against current HEAD — reviewer confirmed persistence effect at 173–195. |
 | `packages/web/e2e/blocks.spec.ts` | Modify: remove the `test.describe.skip` + TODO comment (introduced commit `dd7bfde`) once the regression is fixed and the 4 specs pass locally. |
 | `packages/web/e2e/pipeline.spec.ts` | Modify: same un-skip + TODO removal (3 specs). |
 | `packages/web/e2e/planning.spec.ts` | Modify: same un-skip + TODO removal (3 specs). |
@@ -81,16 +110,18 @@ What to read before starting:
 ## Acceptance Criteria
 
 1. [ ] User sends a message in the workspace chat (via the new-chat → ChatPanel flow). Assistant response renders. **30 seconds after stream completes, the assistant message is still visible in the DOM** (no flash-to-blank).
-2. [ ] `packages/web/e2e/blocks.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 4 tests pass.
-3. [ ] `packages/web/e2e/pipeline.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 3 tests pass.
-4. [ ] `packages/web/e2e/planning.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 3 tests pass.
-5. [ ] `packages/web/e2e/workspace.spec.ts` — all 4 tests still pass (no regression on the testid-visibility surface).
-6. [ ] `packages/web/e2e/onboarding.spec.ts` — all 5 tests still pass (no regression on the `/chat` surface).
-7. [ ] `pnpm run type-check` clean.
-8. [ ] `pnpm test` passes (no Vitest unit-test regression).
-9. [ ] Server logs unchanged: `[/api/chat] Stream finished. Messages: 1` continues to fire per send, no new errors.
-10. [ ] Persistence effect still posts the new turn(s) to `/api/chat/threads/[id]/messages` (verify by sending a message, refreshing the page, confirming the turn is replayed from the server-side thread).
-11. [ ] No `--force`, no test assertion changes — un-skipping reverts the `dd7bfde` skip-blocks verbatim.
+2. [ ] Mid-stream thread switch: while a stream is in flight on thread A, clicking thread B in the sidebar shows thread B's replayed turns **within 2s of A's stream terminating (abort or complete)** — never thread A's abandoned stream. No infinite "stuck on A" state.
+3. [ ] `packages/web/e2e/blocks.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 4 tests pass.
+4. [ ] `packages/web/e2e/pipeline.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 3 tests pass.
+5. [ ] `packages/web/e2e/planning.spec.ts` — `test.describe.skip` reverted to `test.describe`. All 3 tests pass.
+6. [ ] `packages/web/e2e/workspace.spec.ts` — all 4 tests still pass (no regression on the testid-visibility surface).
+7. [ ] `packages/web/e2e/onboarding.spec.ts` — all 5 tests still pass (no regression on the `/chat` surface).
+8. [ ] `pnpm run type-check` clean.
+9. [ ] `pnpm test` passes (no Vitest unit-test regression).
+10. [ ] Server logs unchanged: `[/api/chat] Stream finished. Messages: 1` continues to fire per send, no new errors.
+11. [ ] Persistence effect still posts the new turn(s) to `/api/chat/threads/[id]/messages` (verify by sending a message, refreshing the page, confirming the turn is replayed from the server-side thread).
+12. [ ] **Exactly one POST per send** to `/api/chat/threads/[id]/messages` — not two. Verify by instrumenting the server route (temporary console.log count during manual smoke) or by counting `POST /api/chat/threads/*/messages` lines in the dev-server log after sending exactly two messages. Guards against a future regression where the ref-advance in the persistence effect's `.then` callback races the active-object reference change from the store.
+13. [ ] No `--force`, no test assertion changes — un-skipping reverts the `dd7bfde` skip-blocks verbatim.
 
 ## Review Process
 

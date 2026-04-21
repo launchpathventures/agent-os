@@ -16,10 +16,7 @@ test.beforeAll(async () => {
   await resetDatabase();
 });
 
-// TODO (PR #35 regression): new ChatPanel's /api/chat stream completes
-// but the assistant message never renders in the DOM. See blocks.spec.ts
-// for full notes. Skipping until the workspace chat surface is fixed.
-test.describe.skip("Planning workflow", () => {
+test.describe("Planning workflow", () => {
   test("planning message triggers plan response text", async ({ page }) => {
     const conversation = new ConversationPage(page);
     await conversation.goto();
