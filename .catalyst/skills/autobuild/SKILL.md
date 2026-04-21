@@ -98,13 +98,32 @@ MUST spawn a SECOND new agent via the Agent / Task tool. Pass:
 
 The subagent runs the 5-pass exhaustive audit and returns CRITICAL/HIGH/MEDIUM/LOW findings. The two reviewers (Step 4 architecture + Step 5 exhaustive) catch different classes of issue — both are mandatory.
 
-### 6. Fix P0/P1 findings; document P2/P3 in PR body
+### 6. Fix P0/P1 findings with iterative re-review (max 3 attempts)
 
-P0/P1 (CRITICAL/HIGH from /dev-review; FAIL from /dev-reviewer) MUST be fixed before opening the PR. Do this in the same conversation (the Builder, not a fresh agent — fixes are not architectural decisions). After fixes, **re-run the full `/dev-builder` verify list per `.claude/commands/dev-builder.md` lines 81-86** (type-check + `pnpm test` + `pnpm test:e2e` + `pnpm test:e2e:auto` + smoke test). Do NOT re-run a subset — partial verification after fixes is exactly the contract weakening the §Role-contract preservation constraint forbids.
+Loop until the branch is clean of P0/P1 (CRITICAL/HIGH from /dev-review; FAIL from /dev-reviewer), or escalate after 3 passes. This matches `/drain-queue` Step F's cap and non-convergence guard, applied at the pre-PR gate so architectural noise doesn't spill into open PRs.
 
-P2/P3 (MEDIUM/LOW; FLAG) go into the PR body under a `### Known follow-ups` heading so they're tracked.
+Set `attempt = 1, max_attempts = 3`. Track the P0/P1 finding set across attempts to detect non-convergence.
 
-If a P0/P1 finding cannot be fixed in this pass (architectural, ambiguous): stop, leave brief at `Status: in_progress`, report with the finding and PR-not-yet-open.
+**Loop:**
+
+1. **Fix P0/P1 findings.** In the same conversation (the Builder, not a fresh agent — fixes are not architectural decisions). P2/P3 (MEDIUM/LOW; FLAG) are NOT fixed in this loop — they accumulate for Step 8's PR body under `### Known follow-ups` and get picked up by `/drain-queue`'s Step F post-PR.
+2. **Re-run the full `/dev-builder` verify list** per `.claude/commands/dev-builder.md` lines 81-86 (type-check + `pnpm test` + `pnpm test:e2e` + `pnpm test:e2e:auto` + smoke test). Do NOT re-run a subset — partial verification after fixes is exactly the contract weakening the §Role-contract preservation constraint forbids. If any verify step regresses and cannot be resolved in this pass, stop the loop and treat as failure: brief stays `Status: in_progress`, NO PR opened, report.
+3. **Re-spawn fresh-subagent `/dev-reviewer` AND fresh-subagent `/dev-review`** — new Agent/Task invocations, NOT inline in the Builder's conversation. The maker-checker invariant survives because each pass uses fresh-context subagents; inlining would carry over assumptions from the fix-writing conversation and defeat Brief 188's §Role-contract preservation constraint.
+4. **Check convergence:**
+   - **No P0/P1 findings remain** → exit loop, proceed to Step 7 (push + PR)
+   - **P0/P1 remain AND `attempt < max_attempts`** → increment `attempt`, loop to 1
+   - **P0/P1 remain AND `attempt == max_attempts`** → exit loop, go to **Escalation** below
+5. **Non-convergence guard:** if the exact same P0/P1 finding set appears in two consecutive passes with no reduction, treat as non-convergent — go to **Escalation** immediately even if attempts remain. Stuck-loops are architectural and need a human.
+
+**Escalation** (max attempts reached or non-convergent): stop, leave brief at `Status: in_progress`, PR NOT opened, report to human with:
+- Count of unresolved P0/P1 by severity per reviewer
+- Whether the failure mode was "capped at 3 passes with findings still present" or "didn't converge (same set 2 passes in a row)"
+- Number of passes attempted
+- Feature branch name so the human can pick it up manually
+
+The first-pass-clean case (no P0/P1 from the initial reviewers at Steps 4/5) exits the loop immediately at Step 4 above — no extra reviewer spawns paid.
+
+**Cost note:** in the worst case this triples the pre-PR reviewer cost (3× fresh-subagent `/dev-reviewer` + 3× fresh-subagent `/dev-review` + 3× full verify re-runs). Most briefs exit on pass 1 (no P0/P1 from initial review). Briefs that hit 3 passes are precisely the briefs worth spending on before opening a PR — the alternative is a human fighting the same fight on a dirty PR.
 
 ### 7. Commit and push the feature branch
 
@@ -170,6 +189,7 @@ Output to the user (last message, since intermediate messages collapse):
 | Pre-flight hard-stop (drizzle/migration) | Brief stays `Status: in_progress`; report; exit |
 | `/dev-builder` ambiguity-flagged | Question parked in brief by Builder; brief stays `Status: in_progress`; exit |
 | Tests/build fail (per `/dev-builder`'s contract) | Brief stays `Status: in_progress`; report with failure detail; exit |
-| Reviewer finds unfixable P0/P1 | Brief stays `Status: in_progress`; PR NOT opened; report; exit |
+| Reviewer P0/P1 not converged in 3 passes (or non-convergent set) | Brief stays `Status: in_progress`; PR NOT opened; report with pass count + failure mode + branch name; exit |
+| Verify step regresses inside Step 6 fix loop and can't be resolved in same pass | Brief stays `Status: in_progress`; PR NOT opened; report; exit |
 | `gh pr create` fails | Branch is pushed; report and exit so user can open PR manually |
 | Multiple `Status: in_progress` briefs (no `$ARGUMENTS`) | Ask user to pick one; never guess |
