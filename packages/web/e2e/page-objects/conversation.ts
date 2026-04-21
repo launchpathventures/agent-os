@@ -33,7 +33,9 @@ export class ConversationPage {
       localStorage.setItem("ditto-day-zero-seen", "true");
     });
     await this.page.goto("/");
-    // Wait for chat input instead of networkidle (workspace has persistent polling)
+    // Workspace defaults to Today view; ChatPanel renders only in chat-full
+    // or split mode. Click "new chat" to enter chat-full so the input mounts.
+    await this.page.getByTestId("new-chat-button").click({ timeout: 15_000 });
     await this.messageInput.waitFor({ state: "visible", timeout: 15_000 });
   }
 

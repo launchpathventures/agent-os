@@ -23,6 +23,8 @@ test.describe("Workspace layout", () => {
       localStorage.setItem("ditto-day-zero-seen", "true");
     });
     await page.goto("/");
+    // ChatPanel only mounts in chat-full / split mode; Today is the default view
+    await page.getByTestId("new-chat-button").click({ timeout: 15000 });
 
     // Wait for the chat input directly — don't use networkidle (SSE keeps connections open)
     await expect(page.getByTestId("chat-input")).toBeVisible({ timeout: 15000 });
@@ -41,6 +43,7 @@ test.describe("Workspace layout", () => {
       localStorage.setItem("ditto-day-zero-seen", "true");
     });
     await page.goto("/");
+    await page.getByTestId("new-chat-button").click({ timeout: 15000 });
 
     const input = page.getByTestId("chat-input");
     await expect(input).toBeVisible({ timeout: 15000 });
@@ -57,6 +60,7 @@ test.describe("Workspace layout", () => {
       localStorage.setItem("ditto-day-zero-seen", "true");
     });
     await page.goto("/");
+    await page.getByTestId("new-chat-button").click({ timeout: 15000 });
 
     const input = page.getByTestId("chat-input");
     await expect(input).toBeVisible({ timeout: 15000 });
