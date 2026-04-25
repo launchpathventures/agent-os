@@ -1129,15 +1129,24 @@ const builtInTools: Record<string, BuiltInTool> = {
           ? ("advance" as const)
           : ("pause" as const);
 
-      const outcome = await dispatchBridgeJob({
-        stepRunId: executionStepRunId ?? "",
-        processRunId: processRunId ?? "",
-        trustTier,
-        trustAction,
-        deviceId: input.deviceId as string | undefined,
-        fallbackDeviceIds: input.fallbackDeviceIds as string[] | undefined,
-        payload,
-      });
+      const { sendBridgeFrame, isDeviceConnected } = await import("./bridge-server");
+      const outcome = await dispatchBridgeJob(
+        {
+          stepRunId: executionStepRunId ?? "",
+          processRunId: processRunId ?? "",
+          trustTier,
+          trustAction,
+          deviceId: input.deviceId as string | undefined,
+          fallbackDeviceIds: input.fallbackDeviceIds as string[] | undefined,
+          payload,
+        },
+        {
+          sendOverWire: (jobId, deviceId, p) => sendBridgeFrame(jobId, deviceId, p),
+          // The DB-default online check is fine, but augment it with the
+          // in-memory connection map so we react instantly to disconnects.
+          isDeviceOnline: (deviceId) => isDeviceConnected(deviceId),
+        },
+      );
       return JSON.stringify(outcome, null, 2);
     },
   },
