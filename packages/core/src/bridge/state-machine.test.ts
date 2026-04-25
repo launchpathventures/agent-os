@@ -6,8 +6,8 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  transition,
-  isTerminal,
+  transitionBridgeJob,
+  isTerminalBridgeJobState,
   bridgeJobStateValues,
   bridgeJobEventValues,
   type BridgeJobState,
@@ -18,28 +18,28 @@ const TERMINAL: BridgeJobState[] = ["succeeded", "failed", "orphaned", "cancelle
 
 describe("bridge state machine", () => {
   it("legal transitions from queued", () => {
-    expect(transition("queued", "dispatch")).toEqual({ ok: true, to: "dispatched" });
-    expect(transition("queued", "cancel")).toEqual({ ok: true, to: "cancelled" });
-    expect(transition("queued", "revoke")).toEqual({ ok: true, to: "revoked" });
+    expect(transitionBridgeJob("queued", "dispatch")).toEqual({ ok: true, to: "dispatched" });
+    expect(transitionBridgeJob("queued", "cancel")).toEqual({ ok: true, to: "cancelled" });
+    expect(transitionBridgeJob("queued", "revoke")).toEqual({ ok: true, to: "revoked" });
   });
 
   it("legal transitions from dispatched", () => {
-    expect(transition("dispatched", "first-frame")).toEqual({ ok: true, to: "running" });
-    expect(transition("dispatched", "cancel")).toEqual({ ok: true, to: "cancelled" });
-    expect(transition("dispatched", "revoke")).toEqual({ ok: true, to: "revoked" });
+    expect(transitionBridgeJob("dispatched", "first-frame")).toEqual({ ok: true, to: "running" });
+    expect(transitionBridgeJob("dispatched", "cancel")).toEqual({ ok: true, to: "cancelled" });
+    expect(transitionBridgeJob("dispatched", "revoke")).toEqual({ ok: true, to: "revoked" });
   });
 
   it("legal transitions from running", () => {
-    expect(transition("running", "succeed")).toEqual({ ok: true, to: "succeeded" });
-    expect(transition("running", "fail")).toEqual({ ok: true, to: "failed" });
-    expect(transition("running", "stale")).toEqual({ ok: true, to: "orphaned" });
-    expect(transition("running", "cancel")).toEqual({ ok: true, to: "cancelled" });
-    expect(transition("running", "revoke")).toEqual({ ok: true, to: "revoked" });
+    expect(transitionBridgeJob("running", "succeed")).toEqual({ ok: true, to: "succeeded" });
+    expect(transitionBridgeJob("running", "fail")).toEqual({ ok: true, to: "failed" });
+    expect(transitionBridgeJob("running", "stale")).toEqual({ ok: true, to: "orphaned" });
+    expect(transitionBridgeJob("running", "cancel")).toEqual({ ok: true, to: "cancelled" });
+    expect(transitionBridgeJob("running", "revoke")).toEqual({ ok: true, to: "revoked" });
   });
 
   it("rejects illegal transitions from queued", () => {
     for (const ev of ["first-frame", "succeed", "fail", "stale"] as BridgeJobEvent[]) {
-      const r = transition("queued", ev);
+      const r = transitionBridgeJob("queued", ev);
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe("illegal-transition");
     }
@@ -47,7 +47,7 @@ describe("bridge state machine", () => {
 
   it("rejects illegal transitions from dispatched", () => {
     for (const ev of ["dispatch", "succeed", "fail", "stale"] as BridgeJobEvent[]) {
-      const r = transition("dispatched", ev);
+      const r = transitionBridgeJob("dispatched", ev);
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe("illegal-transition");
     }
@@ -55,14 +55,14 @@ describe("bridge state machine", () => {
 
   it("rejects illegal transitions from running", () => {
     for (const ev of ["dispatch", "first-frame"] as BridgeJobEvent[]) {
-      const r = transition("running", ev);
+      const r = transitionBridgeJob("running", ev);
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe("illegal-transition");
     }
   });
 
   it("revoked → succeeded race is rejected (AC #2 explicit case)", () => {
-    const r = transition("revoked", "succeed");
+    const r = transitionBridgeJob("revoked", "succeed");
     expect(r).toEqual({
       ok: false,
       reason: "terminal-state",
@@ -74,7 +74,7 @@ describe("bridge state machine", () => {
   it("rejects ALL events from every terminal state", () => {
     for (const from of TERMINAL) {
       for (const ev of bridgeJobEventValues) {
-        const r = transition(from, ev);
+        const r = transitionBridgeJob(from, ev);
         expect(r.ok).toBe(false);
         if (!r.ok) {
           expect(r.reason).toBe("terminal-state");
@@ -97,15 +97,15 @@ describe("bridge state machine", () => {
       revoked: true,
     };
     for (const s of bridgeJobStateValues) {
-      expect(isTerminal(s)).toBe(expected[s]);
+      expect(isTerminalBridgeJobState(s)).toBe(expected[s]);
     }
   });
 
   it("every (state, event) pair has a defined outcome (legal or rejected)", () => {
-    // Sanity — no transition() call should ever throw or hang.
+    // Sanity — no transitionBridgeJob() call should ever throw or hang.
     for (const from of bridgeJobStateValues) {
       for (const ev of bridgeJobEventValues) {
-        const r = transition(from, ev);
+        const r = transitionBridgeJob(from, ev);
         expect(typeof r.ok).toBe("boolean");
       }
     }

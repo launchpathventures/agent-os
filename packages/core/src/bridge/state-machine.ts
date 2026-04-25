@@ -51,7 +51,7 @@ const TERMINAL_STATES: ReadonlySet<BridgeJobState> = new Set([
   "revoked",
 ]);
 
-export function isTerminal(state: BridgeJobState): boolean {
+export function isTerminalBridgeJobState(state: BridgeJobState): boolean {
   return TERMINAL_STATES.has(state);
 }
 
@@ -95,29 +95,32 @@ const TRANSITIONS: Readonly<
   revoked: {},
 };
 
-export interface TransitionOk {
+export interface BridgeJobTransitionOk {
   ok: true;
   to: BridgeJobState;
 }
 
-export interface TransitionError {
+export interface BridgeJobTransitionError {
   ok: false;
   reason: "illegal-transition" | "terminal-state";
   from: BridgeJobState;
   event: BridgeJobEvent;
 }
 
-export type TransitionResult = TransitionOk | TransitionError;
+export type BridgeJobTransitionResult = BridgeJobTransitionOk | BridgeJobTransitionError;
 
 /**
  * Pure transition function. Returns the next state if legal, otherwise an
  * error result. Callers persist state only on `ok: true`.
  *
  * Late-frame race example (the AC #2-cited revoked→succeeded case):
- *   transition("revoked", "succeed")
+ *   transitionBridgeJob("revoked", "succeed")
  *   → { ok: false, reason: "terminal-state", from: "revoked", event: "succeed" }
  */
-export function transition(from: BridgeJobState, event: BridgeJobEvent): TransitionResult {
+export function transitionBridgeJob(
+  from: BridgeJobState,
+  event: BridgeJobEvent,
+): BridgeJobTransitionResult {
   if (TERMINAL_STATES.has(from)) {
     return { ok: false, reason: "terminal-state", from, event };
   }
