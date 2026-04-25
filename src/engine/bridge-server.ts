@@ -72,6 +72,42 @@ function getMajorVersion(v: string): number {
 let attached = false;
 
 /**
+ * In-memory map of currently-connected devices. Populated when a daemon
+ * dials in successfully (after JWT validation), removed on socket close
+ * or revocation. The dispatcher consults this for the `online` check
+ * before queueing-vs-sending decisions.
+ */
+const connectedDevices = new Map<string, import("ws").WebSocket>();
+
+/** Returns true if the device's WebSocket is currently connected. */
+export function isDeviceConnected(deviceId: string): boolean {
+  return connectedDevices.has(deviceId);
+}
+
+/**
+ * Close a device's WebSocket immediately (revocation flow). Idempotent —
+ * no-op if the device isn't connected. Closes with code 4001 reason
+ * "device_revoked" so the daemon logs cleanly and exits with a meaningful
+ * status.
+ */
+export function revokeDeviceConnection(deviceId: string, reason: string): void {
+  const ws = connectedDevices.get(deviceId);
+  if (!ws) return;
+  try {
+    ws.close(4001, `device_revoked:${reason}`);
+  } catch {
+    // best-effort
+  }
+  connectedDevices.delete(deviceId);
+}
+
+/** Test/admin helper — current connection map size. */
+export function connectedDeviceCount(): number {
+  return connectedDevices.size;
+}
+
+
+/**
  * Attach the bridge WebSocket server to a running Node HTTP server.
  *
  * Idempotent — a second call is a no-op so module re-evaluation under
@@ -136,6 +172,15 @@ export function attachBridgeWebSocketServer(httpServer: HttpServer): void {
 }
 
 function handleBridgeConnection(ws: WebSocket, payload: JwtPayload): void {
+  connectedDevices.set(payload.deviceId, ws);
+  ws.on("close", () => {
+    // Only delete if still pointing at this socket — a reconnect race could
+    // already have replaced it.
+    if (connectedDevices.get(payload.deviceId) === ws) {
+      connectedDevices.delete(payload.deviceId);
+    }
+  });
+
   ws.on("message", (data) => {
     const text = data.toString("utf8");
     const parsed = jsonrpc.parse(text);
