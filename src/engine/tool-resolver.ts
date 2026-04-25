@@ -13,6 +13,7 @@
 import { randomUUID } from "crypto";
 import type { LlmToolDefinition } from "./llm";
 import type { StagedOutboundAction } from "./harness";
+import type { TrustTier } from "../db/schema";
 import type {
   IntegrationTool,
   CliExecuteConfig,
@@ -38,6 +39,18 @@ export interface ToolExecutionContext {
   sendingIdentity?: string;
   userId?: string;
   stepRunId?: string;
+  /**
+   * Process trust tier captured at resolveTools() time. Plumbed in for
+   * Brief 212 AC #4 — `bridge.dispatch` rejects calls from a critical-tier
+   * step BEFORE any DB write to bridge_jobs / harness_decisions.
+   */
+  trustTier?: TrustTier;
+  /**
+   * processRunId captured at resolveTools() time — used by bridge.dispatch
+   * (Brief 212) to FK the bridge_jobs row. Independent of stepRunId, which
+   * scopes the audit row.
+   */
+  processRunId?: string;
 }
 
 export interface ResolvedTools {
@@ -1014,6 +1027,120 @@ const builtInTools: Record<string, BuiltInTool> = {
       return formatResultsForPrompt(results);
     },
   },
+
+  // ---- Workspace Local Bridge (Brief 212) ----
+  "bridge.dispatch": {
+    definition: {
+      name: "bridge_dispatch",
+      description:
+        "Dispatch a command (exec) or tmux send-keys to a paired user device via the Workspace Local Bridge. Discriminated by `kind`. Honours the upstream trust gate: rejected outright from a critical-tier step. If `deviceId` is omitted, routes to the workspace's only active device; multiple active devices require an explicit deviceId. Optional ordered `fallbackDeviceIds` chain — first online fallback wins when the primary is offline (no auto-failover on subprocess errors).",
+      input_schema: {
+        oneOf: [
+          {
+            type: "object" as const,
+            required: ["kind", "command"],
+            properties: {
+              kind: { const: "exec" },
+              deviceId: { type: "string" },
+              fallbackDeviceIds: { type: "array", items: { type: "string" } },
+              command: { type: "string" },
+              args: { type: "array", items: { type: "string" } },
+              cwd: { type: "string" },
+              env: { type: "object", additionalProperties: { type: "string" } },
+              timeoutMs: { type: "integer", minimum: 1000, maximum: 3600000 },
+            },
+          },
+          {
+            type: "object" as const,
+            required: ["kind", "tmuxSession", "keys"],
+            properties: {
+              kind: { const: "tmux.send" },
+              deviceId: { type: "string" },
+              fallbackDeviceIds: { type: "array", items: { type: "string" } },
+              tmuxSession: { type: "string" },
+              keys: { type: "string" },
+            },
+          },
+        ],
+      } as unknown as LlmToolDefinition["input_schema"],
+    },
+    execute: async (
+      input: Record<string, unknown>,
+      executionStepRunId?: string,
+      execContext?: ToolExecutionContext,
+    ): Promise<string> => {
+      // (1) Critical-tier rejection BEFORE any DB writes (AC #4 + AC #12d).
+      // Verified by DB-spy assertion in bridge-dispatch.test.ts.
+      if (execContext?.trustTier === "critical") {
+        return JSON.stringify({
+          success: false,
+          error: "bridge.dispatch is not callable from a critical-tier step",
+        });
+      }
+
+      // (2) Insight-180 stepRunId guard.
+      if (!executionStepRunId && !process.env.DITTO_TEST_MODE) {
+        return JSON.stringify({
+          success: false,
+          error: "stepRunId required (Insight-180)",
+        });
+      }
+      const processRunId = execContext?.processRunId;
+      if (!processRunId && !process.env.DITTO_TEST_MODE) {
+        return JSON.stringify({
+          success: false,
+          error: "processRunId required for bridge.dispatch (FK on bridge_jobs)",
+        });
+      }
+
+      const { dispatchBridgeJob } = await import("./harness-handlers/bridge-dispatch");
+      const kind = input.kind;
+      if (kind !== "exec" && kind !== "tmux.send") {
+        return JSON.stringify({
+          success: false,
+          error: `Unknown bridge.dispatch kind: ${String(kind)}`,
+        });
+      }
+
+      // (3) Build the discriminated payload.
+      const payload =
+        kind === "exec"
+          ? {
+              kind: "exec" as const,
+              command: input.command as string,
+              args: input.args as string[] | undefined,
+              cwd: input.cwd as string | undefined,
+              env: input.env as Record<string, string> | undefined,
+              timeoutMs: input.timeoutMs as number | undefined,
+            }
+          : {
+              kind: "tmux.send" as const,
+              tmuxSession: input.tmuxSession as string,
+              keys: input.keys as string,
+            };
+
+      // (4) Call the dispatcher. Trust action defaults to `pause` for
+      // supervised, `advance` for autonomous, etc. — but the trust-gate
+      // hasn't fired yet at tool-call time. We map the *tier* to a
+      // conservative default action; the gate may downgrade later.
+      const trustTier = execContext?.trustTier ?? "supervised";
+      const trustAction =
+        trustTier === "autonomous"
+          ? ("advance" as const)
+          : ("pause" as const);
+
+      const outcome = await dispatchBridgeJob({
+        stepRunId: executionStepRunId ?? "",
+        processRunId: processRunId ?? "",
+        trustTier,
+        trustAction,
+        deviceId: input.deviceId as string | undefined,
+        fallbackDeviceIds: input.fallbackDeviceIds as string[] | undefined,
+        payload,
+      });
+      return JSON.stringify(outcome, null, 2);
+    },
+  },
 };
 
 /**
@@ -1237,6 +1364,17 @@ export function resolveTools(
   processId?: string,
   stagedQueue?: StagedOutboundAction[],
   stepRunId?: string,
+  /**
+   * Brief 212 AC #4 — captured here so `bridge.dispatch` can reject calls
+   * from a critical-tier step BEFORE any DB write. Optional for back-compat;
+   * unset means no critical-tier guard at the resolver layer.
+   */
+  trustTier?: TrustTier,
+  /**
+   * Brief 212 — bridge_jobs.processRunId FK. Distinct from `processId`
+   * (the process definition's slug/id) — this is the runtime processRunId.
+   */
+  processRunId?: string,
 ): ResolvedTools {
   const tools: LlmToolDefinition[] = [];
   // Map from qualified name (service.action) to { service, tool, executeConfig }
@@ -1306,8 +1444,16 @@ export function resolveTools(
         });
         return JSON.stringify({ status: "queued", draftId }, null, 2);
       }
-      // Pass stepRunId + context for identity-aware dispatch (Brief 151, 152)
-      return builtIn.execute(input, stepRunId, context);
+      // Pass stepRunId + context for identity-aware dispatch (Brief 151, 152).
+      // Brief 212 AC #4 — merge captured trustTier/processRunId into context
+      // so bridge.dispatch can do its critical-tier rejection BEFORE any DB
+      // write (the caller-supplied context wins on collision).
+      const mergedContext: ToolExecutionContext = {
+        trustTier,
+        processRunId,
+        ...(context ?? {}),
+      };
+      return builtIn.execute(input, stepRunId, mergedContext);
     }
 
     const entry = toolMap.get(name);
