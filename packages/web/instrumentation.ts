@@ -21,6 +21,57 @@ export async function register() {
       // dotenv may not be installed — env vars may be set via platform (Railway, Fly, etc.)
     }
 
+    // Attach the Bridge WebSocket server to Next.js's underlying HTTP server.
+    // Next.js does not expose its server reference. Two-pronged strategy:
+    //   1. Hook http.Server.prototype.listen so future listen() calls attach.
+    //   2. Walk process._getActiveHandles() to find any HTTP server already
+    //      listening (Next dev binds before instrumentation completes in some
+    //      versions). Whichever fires first wins; subsequent attaches are
+    //      no-ops (attachBridgeWebSocketServer is idempotent).
+    // Brief 212 AC #1 spike validates this end-to-end.
+    try {
+      const http = await import("http");
+      const { attachBridgeWebSocketServer } = await import("../../src/engine/bridge-server");
+      console.log("[instrumentation] Installing bridge WebSocket hook...");
+
+      const originalListen = http.Server.prototype.listen;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      http.Server.prototype.listen = function (this: import("http").Server, ...args: any[]) {
+        try {
+          attachBridgeWebSocketServer(this);
+        } catch (err) {
+          console.error("[instrumentation] Bridge WebSocket attach (listen) failed:", err);
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (originalListen as any).apply(this, args);
+      };
+
+      // Fallback: discover an already-listening server via active handles.
+      // We poll a few times because the server may not have bound yet at this
+      // exact moment in dev mode startup.
+      const tryDiscover = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handles = (process as any)._getActiveHandles?.() ?? [];
+        for (const h of handles) {
+          if (h && h.constructor && h.constructor.name === "Server" && typeof h.on === "function") {
+            try {
+              attachBridgeWebSocketServer(h as import("http").Server);
+            } catch (err) {
+              console.error("[instrumentation] Bridge WebSocket attach (discovery) failed:", err);
+            }
+          }
+        }
+      };
+      // Run a few times across early startup.
+      tryDiscover();
+      setTimeout(tryDiscover, 250).unref?.();
+      setTimeout(tryDiscover, 1500).unref?.();
+      setTimeout(tryDiscover, 5000).unref?.();
+    } catch (error) {
+      console.error("[instrumentation] Bridge WebSocket hook setup failed:", error);
+      // Non-fatal — bridge dispatches will fail loudly at use-time
+    }
+
     try {
       // Ensure database schema is up to date
       const { ensureSchema } = await import("../../src/db");
