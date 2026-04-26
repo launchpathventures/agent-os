@@ -1159,6 +1159,27 @@ const builtInTools: Record<string, BuiltInTool> = {
           isDeviceOnline: (deviceId) => isDeviceConnected(deviceId),
         },
       );
+
+      // Human-readable summary so the LLM (and any downstream content
+      // block renderer) can surface the approval URL clearly. The URL is
+      // built from NEXT_PUBLIC_APP_URL when set; otherwise relative.
+      if (outcome.ok) {
+        const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+        const approvalUrl = outcome.reviewToken
+          ? `${baseAppUrl}/review/${outcome.reviewToken}`
+          : null;
+        const summary =
+          outcome.reviewToken !== null
+            ? `Bridge dispatch ${outcome.jobId} queued for human approval. Approve at: ${approvalUrl}`
+            : outcome.wireSent
+              ? `Bridge dispatch ${outcome.jobId} sent to device ${outcome.routedDeviceId} (routed: ${outcome.routedAs}).`
+              : `Bridge dispatch ${outcome.jobId} queued for device ${outcome.routedDeviceId} (offline; will replay on reconnect).`;
+        return JSON.stringify(
+          { ...outcome, approvalUrl, summary },
+          null,
+          2,
+        );
+      }
       return JSON.stringify(outcome, null, 2);
     },
   },
