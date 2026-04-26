@@ -385,6 +385,8 @@ pnpm run type-check && pnpm test
 
 ## After Completion
 
+0. **Brief 215 wiring obligation (added 2026-04-25, RESOLVED 2026-04-26):** Brief 215 originally registered a `local-mac-mini` `RunnerAdapter` shim with `bridge: null` (see `packages/web/instrumentation.ts`). Now that Brief 212 is complete, `src/engine/local-bridge.ts` composes Brief 212's primitives (`dispatchBridgeJob`, `sendBridgeFrame`, `revokeDeviceConnection`, `isDeviceConnected`, `bridgeDevices` query) into a concrete `LocalBridge` instance. Engine boot calls `createLocalBridge()` and passes the result into the adapter — local-mac-mini dispatches now reach the bridge-server. **Known follow-up:** `LocalBridge.cancel()` currently throws "not yet wired" because Brief 212 didn't ship a free function for in-flight job cancellation (the state machine has the transition; only the explicit invocation API is missing). Sub-brief 221 (mobile UX) or a dedicated polish brief should expose it.
+
 1. **Update `docs/state.md`** with: bridge MVP shipped, daemon installable, `runner=local-mac-mini` route enabled. Note any pivots from the spike (esp. WebSocket integration approach).
 2. **Update `docs/roadmap.md`:** mark "Local bridge" capability complete; surface follow-ons (PTY streaming brief, multi-device failover, rotation-without-re-pair, Windows support, OAuth pairing).
 3. **Update `docs/architecture.md`** §L3 Harness with the bridge-as-harness-extension paragraph.

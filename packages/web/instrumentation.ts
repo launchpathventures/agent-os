@@ -143,6 +143,64 @@ export async function register() {
       // Non-fatal — pulse can be started manually
     }
 
+    // Brief 215 — register the local-mac-mini RunnerAdapter into the in-process
+    // registry. Brief 212 shipped — wire its primitives into a `LocalBridge`
+    // instance via `createLocalBridge()` and pass into the adapter. Cloud
+    // adapters (sub-briefs 216-218) register here too when they land.
+    try {
+      const { registerAdapter, hasAdapter } = await import("../../src/engine/runner-registry");
+      const { createLocalMacMiniAdapter } = await import("../../src/adapters/local-mac-mini");
+      const { createLocalBridge } = await import("../../src/engine/local-bridge");
+      if (!hasAdapter("local-mac-mini")) {
+        const bridge = createLocalBridge();
+        registerAdapter(createLocalMacMiniAdapter({ bridge }));
+        console.log(
+          "[instrumentation] Runner registry: local-mac-mini adapter registered (bridge wired to Brief 212 LocalBridge)."
+        );
+      }
+    } catch (error) {
+      console.error("[instrumentation] Runner registry init failed:", error);
+      // Non-fatal — registry is in-process; missing adapter surfaces at dispatch time
+    }
+
+    // Brief 215 AC #19 — idempotent seed of agent-crm + ditto projects.
+    try {
+      const { seedProjectsOnBoot } = await import("../../src/engine/projects/seed-on-boot");
+      const result = await seedProjectsOnBoot();
+      if (result.seeded) {
+        console.log(`[instrumentation] Seeded ${result.inserted} projects on first boot.`);
+      }
+    } catch (error) {
+      console.error("[instrumentation] Project seed failed:", error);
+      // Non-fatal — projects can be created via /projects/new
+    }
+
+    // Brief 215 AC #2 — post-migration audit: if any processes had a non-null
+    // project_id that the FK-tightening migration NULL'd out, surface a warning.
+    // The migration is idempotent (the UPDATE only fires when projects table is
+    // empty during the migration step), so this only meaningfully triggers on
+    // the first run after deploy.
+    try {
+      const { db } = await import("../../src/db");
+      const { processes } = await import("../../src/db/schema");
+      const { isNull, and, sql } = await import("drizzle-orm");
+      // Count processes with FK-tightened-orphan markers — there isn't a perfect
+      // signal post-migration, so we report processes with null project_id +
+      // a non-null updatedAt diff vs createdAt as a heuristic. Cheap, advisory.
+      const rows = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(processes)
+        .where(and(isNull(processes.projectId), sql`${processes.updatedAt} > ${processes.createdAt}`));
+      const cnt = rows[0]?.count ?? 0;
+      if (cnt > 0) {
+        console.warn(
+          `[instrumentation] Brief 215 migration: ${cnt} processes have null project_id (some may have been NULL'd by the FK-tightening migration if their old project_id had no matching project row).`
+        );
+      }
+    } catch {
+      // Non-fatal — advisory check only
+    }
+
     // Validate workspace auth configuration
     // When WORKSPACE_OWNER_EMAIL is set, auth is enforced — companion vars must be present.
     if (process.env.WORKSPACE_OWNER_EMAIL) {

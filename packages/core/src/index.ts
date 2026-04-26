@@ -187,6 +187,8 @@ export {
   type CancelResult,
   type HealthCheckResult,
   type RunnerAdapter,
+  type DispatchExecuteContext,
+  type DispatchTrustContext,
   // resolution
   resolveChain,
   type WorkItemResolutionRef,
@@ -215,6 +217,11 @@ export {
   type InvariantError,
   type InvariantResult,
 } from "./projects/invariants.js";
+
+// ============================================================
+// Work Items — brief-equivalent layer types + validators (Brief 223)
+// ============================================================
+export * from "./work-items/index.js";
 
 // ============================================================
 // Bridge — Workspace Local Bridge wire types + state machine (Brief 212)

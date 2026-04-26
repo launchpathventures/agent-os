@@ -284,6 +284,8 @@ Process: [Name]
 - Industry standard templates provide starting points — users customise from known-good patterns
 - Process definitions can originate from three paths: manual definition (conversation), template selection (industry standards), or data-driven discovery (from connected organizational data). All three produce the same process definition structure and enter the harness with the same trust rules.
 
+**Projects as first-class L1 entities** (Briefs 215 + 223): A `project` is a workspace-scoped row representing a code repo Ditto can dispatch work to. `processes.projectId` is a real foreign key into `projects(id)` — not loose text. Projects carry `harnessType` (`catalyst | native | none`), `defaultRunnerKind`, `runnerChain`, `status` (`analysing | active | paused | archived`), `runnerBearerHash`, etc. Brief-equivalent work items live on the existing `work_items` table extended with `projectId` + brief-equivalent columns (`title`, `body`, `briefState`, `riskScore`, `confidence`, …); the dual state machine (intake-routing `status` vs project-flavored `briefState`) is partitioned by `projectId` via DB-level CHECK constraint. Projects own their runner-bearer auth (bcrypt-hashed); the runner-callback webhook (`POST /api/v1/work-items/:id/status`) is bearer-gated per project.
+
 ### Layer 2: Agent Layer (The Workforce)
 
 **Heartbeat execution model** (borrowed from Paperclip): Agents wake, execute, sleep. Not continuous. Cost-efficient, clean state boundaries.

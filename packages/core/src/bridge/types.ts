@@ -113,8 +113,16 @@ export interface LocalBridge {
     deviceId?: string;
     fallbackDeviceIds?: string[];
     payload: BridgePayload;
+    /** FK to processRuns.id — required for bridge_jobs.processRunId FK. */
     processRunId: string;
     stepRunId: string;
+    /**
+     * Faithful upstream trust decision. The bridge-layer audit row
+     * (`harness_decisions`) records this verbatim — fabricating values
+     * here would lie about how autonomous the dispatch was (Insight-180).
+     */
+    trustTier: "supervised" | "spot_checked" | "autonomous" | "critical";
+    trustAction: "pause" | "advance" | "sample_pause" | "sample_advance";
   }): Promise<{ jobId: string; routedDeviceId: string; routedAs: BridgeJob["routedAs"] }>;
   /** Cancel an in-flight or queued job. */
   cancel(jobId: string): Promise<void>;
