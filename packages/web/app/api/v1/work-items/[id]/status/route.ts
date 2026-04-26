@@ -61,8 +61,11 @@ function briefStateToDispatchEvent(
 function extractBearer(req: Request): string | null {
   const auth = req.headers.get("authorization");
   if (!auth) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(auth);
-  return m ? m[1].trim() : null;
+  // If multiple Authorization headers were sent, fetch.Headers comma-joins
+  // them. Reject ambiguous input rather than silently picking the first.
+  if (auth.includes(",")) return null;
+  const m = /^Bearer\s+(\S+)\s*$/i.exec(auth);
+  return m ? m[1] : null;
 }
 
 export async function POST(
@@ -142,85 +145,93 @@ export async function POST(
     }
   }
 
-  // Apply the work-item update.
+  // Atomically apply: work_items update + (optional) runner_dispatches
+  // transition + activities audit row. If any step fails, the lot rolls back
+  // so we don't end up with a state change without an audit trail.
   const now = new Date();
-  await db
-    .update(workItems)
-    .set({
-      briefState: data.state,
-      stateChangedAt: now,
-      ...(data.linkedProcessRunId
-        ? { linkedProcessRunId: data.linkedProcessRunId }
-        : {}),
-      updatedAt: now,
-    })
-    .where(eq(workItems.id, id));
-
-  // Optional: bridge the runner_dispatches lifecycle.
+  const guardWaived = !data.stepRunId;
   let dispatchTransitioned: { from: string; to: string } | null = null;
-  if (data.runnerKind && data.externalRunId) {
-    const dispatches = await db
-      .select()
-      .from(runnerDispatches)
-      .where(
-        and(
-          eq(runnerDispatches.workItemId, id),
-          eq(runnerDispatches.runnerKind, data.runnerKind),
-          eq(runnerDispatches.externalRunId, data.externalRunId),
-        ),
-      )
-      .limit(1);
-    if (dispatches.length > 0) {
-      const d = dispatches[0];
-      const event = briefStateToDispatchEvent(
-        data.state,
-        d.status as RunnerDispatchStatus,
-      );
-      if (event) {
-        const tr = transitionDispatch(d.status as RunnerDispatchStatus, event);
-        if (tr.ok) {
-          await db
-            .update(runnerDispatches)
-            .set({
-              status: tr.to,
-              ...(event === "succeed" || event === "fail" || event === "cancel"
-                ? { finishedAt: now }
-                : {}),
-              ...(event === "start" && !d.startedAt
-                ? { startedAt: now }
-                : {}),
-              ...(data.error ? { errorReason: data.error } : {}),
-            })
-            .where(eq(runnerDispatches.id, d.id));
-          dispatchTransitioned = { from: d.status, to: tr.to };
+
+  await db.transaction((tx) => {
+    tx.update(workItems)
+      .set({
+        briefState: data.state,
+        stateChangedAt: now,
+        ...(data.linkedProcessRunId
+          ? { linkedProcessRunId: data.linkedProcessRunId }
+          : {}),
+        updatedAt: now,
+      })
+      .where(eq(workItems.id, id))
+      .run();
+
+    // Optional: bridge the runner_dispatches lifecycle.
+    if (data.runnerKind && data.externalRunId) {
+      const dispatches = tx
+        .select()
+        .from(runnerDispatches)
+        .where(
+          and(
+            eq(runnerDispatches.workItemId, id),
+            eq(runnerDispatches.runnerKind, data.runnerKind),
+            eq(runnerDispatches.externalRunId, data.externalRunId),
+          ),
+        )
+        .limit(1)
+        .all();
+      if (dispatches.length > 0) {
+        const d = dispatches[0];
+        const event = briefStateToDispatchEvent(
+          data.state,
+          d.status as RunnerDispatchStatus,
+        );
+        if (event) {
+          const tr = transitionDispatch(d.status as RunnerDispatchStatus, event);
+          if (tr.ok) {
+            tx.update(runnerDispatches)
+              .set({
+                status: tr.to,
+                ...(event === "succeed" || event === "fail" || event === "cancel"
+                  ? { finishedAt: now }
+                  : {}),
+                ...(event === "start" && !d.startedAt
+                  ? { startedAt: now }
+                  : {}),
+                ...(data.error ? { errorReason: data.error } : {}),
+              })
+              .where(eq(runnerDispatches.id, d.id))
+              .run();
+            dispatchTransitioned = { from: d.status, to: tr.to };
+          }
         }
       }
     }
-  }
 
-  // Audit + conversation-post: activities row. Insight-180 bounded waiver
-  // sets metadata.guardWaived when no stepRunId was supplied.
-  const guardWaived = !data.stepRunId;
-  await db.insert(activities).values({
-    action: "work_item_status_update",
-    description: `Work item ${id} → ${data.state}`,
-    actorType: "runner-webhook",
-    actorId: data.runnerKind ?? "unknown",
-    entityType: "work_item",
-    entityId: id,
-    metadata: {
-      webhook: {
-        state: data.state,
-        prUrl: data.prUrl,
-        notes: data.notes,
-        error: data.error,
-        runnerKind: data.runnerKind,
-        externalRunId: data.externalRunId,
-        stepRunId: data.stepRunId ?? null,
-        guardWaived,
-      },
-      ...(dispatchTransitioned ? { dispatchTransitioned } : {}),
-    },
+    // Audit + conversation-post: activities row. Insight-180 bounded waiver
+    // sets metadata.guardWaived when no stepRunId was supplied.
+    tx.insert(activities)
+      .values({
+        action: "work_item_status_update",
+        description: `Work item ${id} → ${data.state}`,
+        actorType: "runner-webhook",
+        actorId: data.runnerKind ?? null,
+        entityType: "work_item",
+        entityId: id,
+        metadata: {
+          webhook: {
+            state: data.state,
+            prUrl: data.prUrl,
+            notes: data.notes,
+            error: data.error,
+            runnerKind: data.runnerKind,
+            externalRunId: data.externalRunId,
+            stepRunId: data.stepRunId ?? null,
+            guardWaived,
+          },
+          ...(dispatchTransitioned ? { dispatchTransitioned } : {}),
+        },
+      })
+      .run();
   });
 
   return NextResponse.json({
